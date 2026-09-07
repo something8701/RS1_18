@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<title>Canopy Sentinel — Operator Console</title>
+<style>
+:root {
+  --bg:#0e1310; --surface:rgba(20,28,22,0.85); --surface2:rgba(26,36,28,0.92);
+  --text:#eaf5ec; --text2:#9fb0a3; --text3:#5f6f63;
+  --accent:#37c871; --accent2:#2f9e5f; --red:#ff5a4e; --orange:#ffa726; --yellow:#ffd54f;
+  --blue:#4fc3f7; --separator:rgba(255,255,255,0.08);
+  --radius:14px; --shadow:0 6px 24px rgba(0,0,0,0.35);
+  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --mono:'SF Mono',Menlo,Consolas,monospace;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html { font: 100%/1.5 var(--font); -webkit-font-smoothing:antialiased; }
+body { background:var(--bg); color:var(--text); display:flex; height:100vh; overflow:hidden; }
+
+/* Sidebar */
+#sidebar { width:340px; min-width:340px; background:var(--surface); border-right:1px solid var(--separator); display:flex; flex-direction:column; }
+.sidebar-header { padding:20px 18px 14px; border-bottom:1px solid var(--separator); }
+.sidebar-header h1 { font-size:20px; font-weight:700; letter-spacing:-0.3px; }
+.sidebar-header .subtitle { font-size:11px; color:var(--text2); margin-top:2px; }
+.sidebar-scroll { flex:1; overflow-y:auto; padding:14px; }
+
+.card { background:var(--surface2); border:1px solid var(--separator); border-radius:var(--radius); padding:14px; margin-bottom:12px; box-shadow:var(--shadow); }
+.card h3 { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:var(--text2); margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; }
+.card h3 .badge { font-size:9px; padding:2px 7px; border-radius:10px; background:rgba(255,255,255,0.07); color:var(--text2); font-weight:600; }
+
+.stat-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.stat { background:rgba(255,255,255,0.04); border-radius:10px; padding:10px; text-align:center; }
+.stat b { display:block; font-size:24px; font-weight:700; letter-spacing:-0.5px; font-variant-numeric:tabular-nums; }
+.stat span { font-size:10px; color:var(--text2); }
+.stat b.g { color:var(--accent); } .stat b.r { color:var(--red); } .stat b.o { color:var(--orange); }
+
+/* Progress bar */
+.prog { height:8px; background:rgba(255,255,255,0.08); border-radius:6px; overflow:hidden; margin-top:10px; }
+.prog > div { height:100%; width:0%; background:linear-gradient(90deg,var(--accent2),var(--accent)); border-radius:6px; transition:width 0.5s ease; }
+.prog-label { display:flex; justify-content:space-between; font-size:10px; color:var(--text2); margin-top:6px; }
+
+.status-line { font-size:12px; color:var(--text2); line-height:1.6; }
+.status-line b { color:var(--text); font-weight:600; }
+.mono { font-family:var(--mono); font-size:11px; color:var(--text2); line-height:1.7; white-space:pre-wrap; word-break:break-word; }
+
+.flag-item { padding:9px 11px; border-radius:10px; margin:5px 0; font-size:12px; border-left:3px solid var(--orange); background:rgba(255,167,38,0.07); }
+.flag-item.inspected { border-left-color:var(--accent); background:rgba(55,200,113,0.07); }
+.flag-item .coords { font-weight:600; font-variant-numeric:tabular-nums; }
+.flag-item .meta { color:var(--text2); font-size:10px; font-family:var(--mono); margin-top:2px; }
+.report-item { padding:9px 11px; border-radius:10px; margin:5px 0; font-size:11px; background:rgba(55,200,113,0.07); border-left:3px solid var(--accent); }
+
+/* Main */
+#main { flex:1; display:flex; flex-direction:column; min-width:0; }
+#toolbar { display:flex; gap:2px; padding:9px 14px; background:var(--surface); border-bottom:1px solid var(--separator); align-items:center; }
+.tab { padding:7px 14px; border-radius:8px; font-size:13px; font-weight:500; border:none; cursor:pointer; background:transparent; color:var(--text2); transition:0.15s; }
+.tab:hover { color:var(--text); }
+.tab.active { background:var(--accent); color:#04210f; font-weight:600; }
+.toolbar-spacer { flex:1; }
+
+#view-container { flex:1; position:relative; overflow:hidden; }
+.view { position:absolute; inset:0; opacity:0; pointer-events:none; transition:opacity 0.18s; }
+.view.active { opacity:1; pointer-events:auto; }
+#map-wrap { width:100%; height:100%; position:relative; }
+#map-canvas { width:100%; height:100%; display:block; }
+#legend { position:absolute; left:12px; bottom:12px; background:rgba(10,14,11,0.85); border:1px solid var(--separator); border-radius:10px; padding:10px 12px; font-size:10px; color:var(--text2); }
+#legend .sw { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
+#legend .row { margin:3px 0; }
+
+#cameras-view { display:flex; gap:8px; padding:8px; }
+#cameras-view .cam { flex:1; display:flex; flex-direction:column; background:#000; border-radius:12px; overflow:hidden; }
+#cameras-view .cam .lbl { padding:7px 12px; font-size:11px; font-weight:600; color:var(--text2); background:rgba(255,255,255,0.04); }
+#cameras-view .cam img { width:100%; flex:1; object-fit:contain; }
+
+#terrain-container { width:100%; height:100%; background:#0b120d; }
+#data-content, #debug-content { width:100%; height:100%; overflow-y:auto; padding:18px; font-family:var(--mono); font-size:11.5px; line-height:1.7; color:var(--text2); white-space:pre-wrap; }
+.kv { color:var(--text); } .k { color:var(--text2); } .ok { color:var(--accent); } .warn { color:var(--orange); } .bad { color:var(--red); }
+
+#tooltip { position:absolute; background:rgba(0,0,0,0.85); color:#fff; padding:6px 10px; border-radius:8px; font-size:11px; pointer-events:none; opacity:0; transition:opacity 0.1s; z-index:20; }
+#tooltip.visible { opacity:1; }
+.pulse { animation:pulse 1.8s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+::-webkit-scrollbar { width:5px; } ::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.14); border-radius:3px; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <div class="sidebar-header">
+    <h1>Canopy Sentinel</h1>
+    <div class="subtitle"><span class="pulse" style="color:var(--accent)">●</span> Live · Operator Console</div>
+  </div>
+  <div class="sidebar-scroll">
+    <div class="card">
+      <h3>Robots</h3>
+      <div class="status-line">🚁 <b>Drone</b> &nbsp;<span id="drone-gps">--</span></div>
+      <div class="status-line">🛻 <b>Husky</b> &nbsp;<span id="husky-gps">--</span></div>
+    </div>
+
+    <div class="card">
+      <h3>Survey</h3>
+      <div class="stat-grid">
+        <div class="stat"><b id="tree-count" class="g">0</b><span>Trees</span></div>
+        <div class="stat"><b id="flag-count" class="o">0</b><span>Flags</span></div>
+        <div class="stat"><b id="done-count" class="g">0</b><span>Inspected</span></div>
+      </div>
+      <div class="prog"><div id="survey-progress"></div></div>
+      <div class="prog-label"><span id="survey-state">STATE --</span><span id="survey-pct">coverage 0%</span></div>
+      <div class="status-line" id="survey-waypoints" style="margin-top:4px"></div>
+    </div>
+
+    <div class="card">
+      <h3>Baselines</h3>
+      <div class="status-line">🚁 <span id="drone-baseline">--</span></div>
+      <div class="status-line">🛻 <span id="husky-baseline">--</span></div>
+    </div>
+
+    <div class="card">
+      <h3>Mission</h3>
+      <div class="mono" id="mission-status">Waiting for coordinator…</div>
+    </div>
+
+    <div class="card">
+      <h3>Evaluation</h3>
+      <div class="stat-grid">
+        <div class="stat"><b id="eval-tp" class="g">–</b><span>True Pos</span></div>
+        <div class="stat"><b id="eval-fp" class="r">–</b><span>False Pos</span></div>
+        <div class="stat"><b id="eval-acc" class="o">–</b><span>Accuracy</span></div>
+      </div>
+      <div class="mono" id="eval-status" style="margin-top:8px">--</div>
+    </div>
+
+    <div class="card">
+      <h3>Suspicious Areas</h3>
+      <div id="flags-list"><div style="color:var(--text3);font-size:12px">Waiting…</div></div>
+    </div>
+    <div class="card">
+      <h3>Inspection Reports</h3>
+      <div id="reports-list"><div style="color:var(--text3);font-size:12px">Awaiting baseline</div></div>
+    </div>
+  </div>
+</div>
+
+<div id="main">
+  <div id="toolbar">
+    <button class="tab active" data-view="map">Map</button>
+    <button class="tab" data-view="cameras">Cameras</button>
+    <button class="tab" data-view="terrain">3D Terrain</button>
+    <button class="tab" data-view="data">Raw Data</button>
+    <button class="tab" data-view="debug">Debug</button>
+    <div class="toolbar-spacer"></div>
+    <button id="toggle-change" class="tab active">Change overlay</button>
+  </div>
+
+  <div id="view-container">
+    <div id="map-view" class="view active">
+      <div id="map-wrap"><canvas id="map-canvas"></canvas>
+        <div id="legend">
+          <div class="row"><span class="sw" style="background:#142018"></span>Unexplored</div>
+          <div class="row"><span class="sw" style="background:#4a3b26"></span>Ground</div>
+          <div class="row"><span class="sw" style="background:linear-gradient(90deg,#2f9e5f,#7ee2a0)"></span>Canopy (0–10 m)</div>
+          <div class="row"><span class="sw" style="background:#ff5a4e"></span>Canopy lost</div>
+          <div class="row"><span class="sw" style="background:#4fc3f7"></span>New canopy</div>
+          <div class="row"><span style="color:var(--orange)">●</span> Drone &nbsp; <span style="color:var(--blue)">●</span> Husky</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="cameras-view" class="view">
+      <div class="cam"><div class="lbl">🚁 Drone — live</div><img id="drone-img" alt="Drone camera"></div>
+      <div class="cam"><div class="lbl">🛻 Husky — live</div><img id="husky-img" alt="Husky camera"></div>
+    </div>
+
+    <div id="terrain-view" class="view"><div id="terrain-container"></div></div>
+    <div id="data-view" class="view"><div id="data-content">Waiting for data…</div></div>
+    <div id="debug-view" class="view"><div id="debug-content">Waiting…</div></div>
+  </div>
+  <div id="tooltip"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/roslib@1/build/roslib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.149/build/three.min.js"></script>
+<script>
+// ── Config ──
+const ROS_URL='ws://'+location.hostname+':9090';
+const REF_LAT=-16.1714, REF_LON=145.4183, MPD=111320;
+function toGPS(wx,wy){const d=wy/MPD;return{lat:REF_LAT+d,lon:REF_LON+wx/(MPD*Math.cos((REF_LAT+d)*Math.PI/180))}}
+function gps(ll){return ll.lat.toFixed(5)+', '+ll.lon.toFixed(5)}
+
+// ── Parsing helpers ──
+function parseKV(s){const o={};(s||'').split(/\s+/).forEach(t=>{const i=t.indexOf('=');if(i>0)o[t.slice(0,i)]=t.slice(i+1)});return o;}
+
+// ── State ──
+const S={flags:[],reports:[],events:[],trees:0,drone:{x:0,y:0},husky:{x:0,y:0},
+         survey:'',mission:'',baseline:'',droneBaseline:'',eval:'',connected:false};
+const lastMsg={};  // topic -> wall-clock ms of last message
+let dc=0, hc=0;
+
+function mark(topic){ lastMsg[topic]=Date.now(); }
+
+// ── ROS connection ──
+let ros;
+try {
+  ros=new ROSLIB.Ros({url:ROS_URL});
+  ros.on('connection',()=>{S.connected=true;drawDebug()});
+  ros.on('close',()=>{S.connected=false;drawDebug()});
+  ros.on('error',()=>{S.connected=false;drawDebug()});
+} catch(e){ ros=null; }
+
+const canvas=document.getElementById('map-canvas'), ctx=canvas.getContext('2d');
+let grid=null, change=null, dx=0, dy=0, hx=0, hy=0, flags=[];
+let changeEnabled=true;
+
+// ── Topics ──
+function sub(name,type,cb){
+  if(!ros) return;
+  try{ new ROSLIB.Topic({ros,name,messageType:type}).subscribe(m=>{mark(name);cb(m)}); }
+  catch(e){ console.warn('sub fail',name,e); }
+}
+
+sub('/forest_canopy_map','nav_msgs/OccupancyGrid',m=>{
+  grid={w:m.info.width,h:m.info.height,data:new Int8Array(m.data),res:m.info.resolution,ox:m.info.origin.position.x,oy:m.info.origin.position.y};
+  if(mapActive())drawMap();
+});
+sub('/canopy_change_map','nav_msgs/OccupancyGrid',m=>{
+  change={w:m.info.width,h:m.info.height,data:new Int8Array(m.data),res:m.info.resolution,ox:m.info.origin.position.x,oy:m.info.origin.position.y};
+  if(mapActive())drawMap();
+});
+sub('/parrot1/odometry','nav_msgs/Odometry',m=>{dx=m.pose.pose.position.x;dy=m.pose.pose.position.y;S.drone={x:dx,y:dy};if(mapActive())drawMap();});
+sub('/husky1/odometry','nav_msgs/Odometry',m=>{hx=m.pose.pose.position.x;hy=m.pose.pose.position.y;S.husky={x:hx,y:hy};if(mapActive())drawMap();});
+sub('/suspicious_areas','deforestation_interfaces/SuspiciousArea',m=>{
+  const p=m.position; flags.push({x:p.x,y:p.y,type:m.type,sev:m.severity,conf:m.confidence,area:m.area_m2});
+  if(flags.length>40)flags.shift();
+  S.flags.push({x:p.x,y:p.y,type:m.type,sev:m.severity,conf:m.confidence,area:m.area_m2,ok:false});
+  if(S.flags.length>200)S.flags=S.flags.slice(-200);
+  drawMap(); updateUI();
+});
+sub('/inspection_reports','std_msgs/String',m=>{S.reports.push({text:m.data});if(S.reports.length>50)S.reports=S.reports.slice(-50);S.flags.forEach(f=>f.ok=true);updateUI();});
+sub('/mission_status','std_msgs/String',m=>{S.mission=m.data;updateUI()});
+sub('/survey_status','std_msgs/String',m=>{S.survey=m.data;updateUI()});
+sub('/baseline_status','std_msgs/String',m=>{S.baseline=m.data;const n=parseInt((m.data.split(':')[1]||'0').trim());if(!isNaN(n))S.trees=n;updateUI()});
+sub('/drone_baseline_status','std_msgs/String',m=>{S.droneBaseline=m.data;updateUI()});
+sub('/evaluation_summary','std_msgs/String',m=>{S.eval=m.data;updateUI()});
+sub('/canopy_change_events','std_msgs/String',m=>{S.events.push({text:m.data});if(S.events.length>50)S.events=S.events.slice(-50);updateUI()});
+sub('/forest_change_events','std_msgs/String',m=>{S.events.push({text:m.data});if(S.events.length>50)S.events=S.events.slice(-50);updateUI()});
+
+// ── UI update ──
+function updateUI(){
+  document.getElementById('tree-count').textContent=S.trees||0;
+  document.getElementById('flag-count').textContent=S.flags.length;
+  document.getElementById('done-count').textContent=S.reports.length;
+  document.getElementById('drone-gps').textContent=gps(toGPS(S.drone.x,S.drone.y));
+  document.getElementById('husky-gps').textContent=gps(toGPS(S.husky.x,S.husky.y));
+  document.getElementById('drone-baseline').textContent=S.droneBaseline||'--';
+  document.getElementById('husky-baseline').textContent=S.baseline||'--';
+  document.getElementById('mission-status').textContent=S.mission||'Waiting for coordinator…';
+
+  // Survey
+  const sv=parseKV(S.survey);
+  const cov=parseInt((sv.coverage||'0').replace('%',''))||0;
+  document.getElementById('survey-progress').style.width=Math.min(100,cov)+'%';
+  document.getElementById('survey-pct').textContent='coverage '+cov+'%';
+  document.getElementById('survey-state').textContent='STATE '+(sv.STATE||'--');
+  document.getElementById('survey-waypoints').textContent=sv.wp?('waypoint '+sv.wp+(sv.diverted?(' · diverted '+sv.diverted):'')):'';
+
+  // Evaluation
+  const ev=parseKV(S.eval.replace(/\|/g,' '));
+  document.getElementById('eval-tp').textContent=ev.TP!=null?ev.TP:'–';
+  document.getElementById('eval-fp').textContent=ev.FP!=null?ev.FP:'–';
+  document.getElementById('eval-acc').textContent=ev.accuracy!=null?ev.accuracy:'–';
+  document.getElementById('eval-status').textContent=S.eval||'--';
+
+  // Flags + reports
+  const fl=document.getElementById('flags-list');
+  fl.innerHTML=S.flags.slice(-6).reverse().map(f=>'<div class="flag-item'+(f.ok?' inspected':'')+'">'+
+    '<div class="coords">('+f.x.toFixed(1)+', '+f.y.toFixed(1)+')</div>'+
+    '<div class="meta">'+(f.type||'FLAG')+' · S='+(f.sev!=null?f.sev.toFixed(0):'?')+' · C='+(f.conf!=null?f.conf.toFixed(0):'?')+'% · '+Math.round(f.area||0)+'m²</div></div>').join('')||'<div style="color:var(--text3);font-size:12px">Waiting…</div>';
+  const rl=document.getElementById('reports-list');
+  rl.innerHTML=S.reports.slice(-4).reverse().map(r=>'<div class="report-item">'+r.text+'</div>').join('')||'<div style="color:var(--text3);font-size:12px">Awaiting baseline</div>';
+
+  // Raw data
+  const lines=[];
+  if(S.survey)lines.push('Survey   '+S.survey);
+  if(S.baseline)lines.push('Baseline(H) '+S.baseline);
+  if(S.droneBaseline)lines.push('Baseline(D) '+S.droneBaseline);
+  if(S.mission)lines.push('Mission  '+S.mission);
+  S.flags.slice(-20).forEach(f=>lines.push('Flag  ('+f.x.toFixed(1)+', '+f.y.toFixed(1)+')  '+(f.type||'')+' S='+(f.sev!=null?f.sev.toFixed(0):'?')+(f.ok?' ✓':' …')));
+  S.reports.slice(-10).forEach(r=>lines.push('Done  '+r.text));
+  S.events.slice(-10).forEach(e=>lines.push('Event '+e.text));
+  if(S.eval)lines.push('Eval   '+S.eval);
+  document.getElementById('data-content').textContent=lines.join('\n')||'No data yet. Survey in progress…';
+}
+
+// ── Map drawing ──
+function mapActive(){return document.getElementById('map-view').classList.contains('active')}
+function lerp(a,b,t){return a+(b-a)*t}
+function canopyRGB(v){
+  if(v<0)return [16,22,18];       // unexplored: very dark
+  if(v<3)return [46,43,33];       // ground: dark olive
+  const t=Math.min(1,v/100);      // canopy 0..10 m
+  let r,g,b;
+  if(t<0.5){ const f=t/0.5; r=lerp(26,42,f); g=lerp(86,150,f); b=lerp(48,76,f); }
+  else { const f=(t-0.5)/0.5; r=lerp(42,158,f); g=lerp(150,224,f); b=lerp(76,116,f); }
+  return [Math.round(r),Math.round(g),Math.round(b)];
+}
+function drawMap(){
+  if(!grid)return;
+  const {w,h,data,res,ox,oy}=grid;
+  const cw=canvas.clientWidth||800, ch=canvas.clientHeight||800;
+  canvas.width=cw; canvas.height=ch;
+  // Uniform scale so the square map keeps square cells (letterbox, no stretch)
+  const scale=Math.min(cw/w, ch/h);
+  const mx=(cw-w*scale)/2, my=(ch-h*scale)/2;
+  // Render 1px-per-cell offscreen, then scale up with bilinear smoothing so
+  // the map is a smooth gradient rather than hard blocky pixels.
+  const off=document.createElement('canvas'); off.width=w; off.height=h;
+  const octx=off.getContext('2d');
+  const img=octx.createImageData(w,h);
+  for(let iy=0;iy<h;iy++)for(let ix=0;ix<w;ix++){
+    const v=data[iy*w+ix]; const o=(iy*w+ix)*4; const c=canopyRGB(v);
+    img.data[o]=c[0]; img.data[o+1]=c[1]; img.data[o+2]=c[2]; img.data[o+3]=255;
+  }
+  octx.putImageData(img,0,0);
+  if(changeEnabled&&change){
+    for(let iy=0;iy<change.h;iy++)for(let ix=0;ix<change.w;ix++){
+      const v=change.data[iy*change.w+ix];
+      if(v<=-50){octx.fillStyle='rgba(255,90,78,0.75)';octx.fillRect(ix,iy,1,1);}
+      else if(v>=50){octx.fillStyle='rgba(79,195,247,0.55)';octx.fillRect(ix,iy,1,1);}
+    }
+  }
+  ctx.fillStyle='#0b100c'; ctx.fillRect(0,0,cw,ch);
+  ctx.imageSmoothingEnabled=false;   // crisp cells, no blur
+  ctx.drawImage(off,0,0,w,h,mx,my,w*scale,h*scale);
+  // subtle GIS-style grid
+  ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=1;
+  for(let gx=0;gx<=w;gx+=20){ctx.beginPath();ctx.moveTo(mx+gx*scale,my);ctx.lineTo(mx+gx*scale,my+h*scale);ctx.stroke();}
+  for(let gy=0;gy<=h;gy+=20){ctx.beginPath();ctx.moveTo(mx,my+gy*scale);ctx.lineTo(mx+w*scale,my+gy*scale);ctx.stroke();}
+  // robots
+  [[hx,hy,'#4fc3f7','H'],[dx,dy,'#ffa726','D']].forEach(([rx,ry,c,lb])=>{
+    const px=mx+(rx-ox)/res*scale, py=my+(ry-oy)/res*scale;
+    ctx.fillStyle=c; ctx.beginPath(); ctx.arc(px,py,5,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.font='bold 12px sans-serif'; ctx.fillStyle=c; ctx.fillText(lb,px+8,py+5);
+  });
+  // flags
+  flags.forEach(f=>{
+    const px=mx+(f.x-ox)/res*scale, py=my+(f.y-oy)/res*scale;
+    const r=Math.max(5,3+(f.sev||40)/18)*(1+0.25*Math.sin(Date.now()/400));
+    ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2);
+    ctx.fillStyle=f.sev>=70?'#ff5a4e':(f.sev>=40?'#ffa726':'#ffd54f'); ctx.fill();
+    ctx.strokeStyle='#fff'; ctx.lineWidth=1.2; ctx.stroke();
+  });
+}
+
+// ── Debug view ──
+function drawDebug(){
+  const age=t=>{if(!lastMsg[t])return '—';const s=(Date.now()-lastMsg[t])/1000;return s<2?'<span class="ok">'+s.toFixed(1)+'s</span>':'<span class="warn">'+s.toFixed(0)+'s</span>'};
+  const topics=['/forest_canopy_map','/canopy_change_map','/parrot1/odometry','/husky1/odometry','/suspicious_areas','/inspection_reports','/mission_status','/survey_status','/baseline_status','/drone_baseline_status','/evaluation_summary'];
+  let h='';
+  h+='<div class="kv">ROS connection: '+(S.connected?'<span class="ok">connected</span>':'<span class="bad">disconnected</span>')+'  <span class="k">'+ROS_URL+'</span></div>\n';
+  h+='<div class="kv">Camera frames received: drone <b>'+dc+'</b> · husky <b>'+hc+'</b></div>\n';
+  h+='\n';
+  h+='<div class="kv k">TOPIC                     LAST MSG</div>\n';
+  topics.forEach(t=>{h+='<div class="kv"><span class="k">'+t+'</span>  '+age(t)+'</div>\n'});
+  h+='\n';
+  h+='<div class="kv k">RAW STATE</div>\n';
+  if(S.survey)h+='Survey  '+S.survey+'\n';
+  if(S.baseline)h+='Baseline(H) '+S.baseline+'\n';
+  if(S.droneBaseline)h+='Baseline(D) '+S.droneBaseline+'\n';
+  if(S.mission)h+='Mission '+S.mission+'\n';
+  if(S.eval)h+='Eval '+S.eval+'\n';
+  document.getElementById('debug-content').innerHTML=h;
+}
+
+// ── Tabs ──
+document.querySelectorAll('.tab[data-view]').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab[data-view]').forEach(x=>x.classList.remove('active')); t.classList.add('active');
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  document.getElementById(t.dataset.view+'-view').classList.add('active');
+  if(t.dataset.view==='terrain')resizeTerrain();
+  if(t.dataset.view==='map')drawMap();
+  if(t.dataset.view==='debug')drawDebug();
+}));
+document.getElementById('toggle-change').addEventListener('click',()=>{
+  changeEnabled=!changeEnabled;
+  document.getElementById('toggle-change').classList.toggle('active',changeEnabled);
+  if(mapActive())drawMap();
+});
+
+// ── Cameras: refresh every 1s ──
+setInterval(()=>{
+  fetch('/api/camera/drone').then(r=>r.ok&&r.status===200?r.blob():null).then(b=>{
+    if(!b||b.size<200)return; const u=URL.createObjectURL(b); const el=document.getElementById('drone-img');
+    if(el._u)URL.revokeObjectURL(el._u); el._u=u; el.src=u; dc++; drawDebug();
+  }).catch(()=>{});
+  fetch('/api/camera/husky').then(r=>r.ok&&r.status===200?r.blob():null).then(b=>{
+    if(!b||b.size<200)return; const u=URL.createObjectURL(b); const el=document.getElementById('husky-img');
+    if(el._u)URL.revokeObjectURL(el._u); el._u=u; el.src=u; hc++; drawDebug();
+  }).catch(()=>{});
+},1000);
+
+// ── 3D terrain (Three.js, with fallback) ──
+let scene=null,cam=null,rend=null,cloud=null,allPts=[],drag=false,lx=0,ly=0,vx=0,vy=0;
+function initTerrain(){
+  const el=document.getElementById('terrain-container'); if(!el||el.clientWidth<10)return;
+  if(typeof THREE==='undefined'){ el.innerHTML='<div style="padding:24px;color:#9fb0a3;font-family:monospace">3D terrain unavailable (Three.js failed to load).</div>'; return; }
+  el.innerHTML='';
+  scene=new THREE.Scene(); scene.background=new THREE.Color(0x0b120d);
+  scene.add(new THREE.GridHelper(80,40,0x2a3a2f,0x1c2820));
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(80,80),new THREE.MeshBasicMaterial({color:0x142018,side:THREE.DoubleSide}));
+  ground.rotateX(-Math.PI/2); scene.add(ground);
+  cam=new THREE.PerspectiveCamera(55,el.clientWidth/Math.max(el.clientHeight,1),0.5,200);
+  cam.position.set(40,55,50); cam.lookAt(0,0,5);
+  rend=new THREE.WebGLRenderer({antialias:true});
+  rend.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  rend.setSize(el.clientWidth,el.clientHeight); el.appendChild(rend.domElement);
+  el.addEventListener('pointerdown',e=>{drag=true;lx=e.clientX;ly=e.clientY;el.setPointerCapture(e.pointerId);vx=vy=0});
+  el.addEventListener('pointerup',()=>drag=false);
+  el.addEventListener('pointermove',e=>{
+    if(!drag)return; vx=(e.clientX-lx)*0.3; vy=(e.clientY-ly)*0.3;
+    cam.position.x-=vx; cam.position.z-=vy; cam.lookAt(0,0,5); lx=e.clientX; ly=e.clientY;
+  });
+  el.addEventListener('wheel',e=>{e.preventDefault(); cam.position.y+=e.deltaY*0.08; cam.position.y=Math.max(5,Math.min(130,cam.position.y)); cam.lookAt(0,0,5);},{passive:false});
+  (function anim(){ requestAnimationFrame(anim);
+    if(!drag&&(Math.abs(vx)>0.01||Math.abs(vy)>0.01)){cam.position.x-=vx;cam.position.z-=vy;cam.lookAt(0,0,5);vx*=0.94;vy*=0.94;}
+    if(rend)rend.render(scene,cam);
+  })();
+}
+function updateTerrain(pts){
+  if(!scene)return;
+  allPts=allPts.concat(pts); if(allPts.length>50000)allPts=allPts.slice(-30000);
+  if(cloud)scene.remove(cloud);
+  const g=new THREE.BufferGeometry(), p=new Float32Array(allPts.length*3), c=new Float32Array(allPts.length*3);
+  for(let i=0;i<allPts.length;i++){
+    p[i*3]=allPts[i].x; p[i*3+1]=allPts[i].y; p[i*3+2]=allPts[i].z||0.2;
+    const h=Math.min((allPts[i].z||0.2)/10,1);
+    c[i*3]=0.25*(1-h); c[i*3+1]=0.35+0.55*h; c[i*3+2]=0.12;
+  }
+  g.setAttribute('position',new THREE.BufferAttribute(p,3));
+  g.setAttribute('color',new THREE.BufferAttribute(c,3));
+  cloud=new THREE.Points(g,new THREE.PointsMaterial({size:0.5,vertexColors:true}));
+  scene.add(cloud);
+}
+function resizeTerrain(){const el=document.getElementById('terrain-container'); if(rend&&el&&cam){rend.setSize(el.clientWidth,el.clientHeight);cam.aspect=el.clientWidth/Math.max(el.clientHeight,1);cam.updateProjectionMatrix();}}
+
+sub('/drone_terrain','sensor_msgs/PointCloud2',msg=>{
+  if(!scene)return;
+  const pts=[],dv=new DataView(new Uint8Array(msg.data).buffer);
+  for(let i=0;i<msg.width;i++){const o=i*msg.point_step;if(o+12>msg.data.length)break;pts.push({x:dv.getFloat32(o,true),y:dv.getFloat32(o+4,true),z:dv.getFloat32(o+8,true)})}
+  if(pts.length)updateTerrain(pts);
+});
+
+// ── Map tooltip ──
+const tip=document.getElementById('tooltip');
+canvas.addEventListener('pointermove',e=>{
+  if(!grid)return; const {w,h,data,res,ox,oy}=grid;
+  const cw=canvas.clientWidth, ch=canvas.clientHeight;
+  const scale=Math.min(cw/w, ch/h);
+  const mx=(cw-w*scale)/2, my=(ch-h*scale)/2;
+  const ix=Math.floor((e.offsetX-mx)/scale), iy=Math.floor((e.offsetY-my)/scale);
+  if(ix>=0&&ix<w&&iy>=0&&iy<h){const v=data[iy*w+ix];tip.classList.add('visible');tip.style.left=(e.offsetX+14)+'px';tip.style.top=(e.offsetY-28)+'px';tip.textContent=gps(toGPS(ox+ix*res,oy+iy*res))+' · '+(v<0?'unexplored':(v/10).toFixed(1)+' m canopy');}
+  else tip.classList.remove('visible');
+});
+canvas.addEventListener('pointerleave',()=>tip.classList.remove('visible'));
+
+// ── Instant refresh: hydrate from /api/data so the page is populated
+// immediately on load/reload instead of waiting for ROS subscriptions. ──
+async function loadSnapshot(){
+  try{
+    const r=await fetch('/api/data'); if(!r.ok)return;
+    const d=await r.json();
+    S.trees=d.tree_count||0;
+    if(d.drone_pos)S.drone={x:d.drone_pos.x,y:d.drone_pos.y};
+    if(d.husky_pos)S.husky={x:d.husky_pos.x,y:d.husky_pos.y};
+    S.survey=d.survey_status||''; S.mission=d.mission_status||'';
+    S.baseline=d.baseline_status||''; S.droneBaseline=d.drone_baseline_status||'';
+    S.eval=d.evaluation||'';
+    S.flags=(d.flags||[]).map(f=>({x:f.x,y:f.y,type:f.type,sev:f.severity,conf:f.confidence,area:f.area_m2,ok:!!f.inspected}));
+    S.reports=(d.reports||[]).map(r=>({text:r.text}));
+    S.events=(d.change_events||[]).map(e=>({text:e.text}));
+    // Populate the map + change grids from the HTTP snapshot (the data_server
+    // subscribes over rosbridge, so this path already works even if the
+    // browser's direct ROSLIB subscription has a QoS mismatch).
+    if(d.canopy_map){
+      grid={w:d.canopy_map.width,h:d.canopy_map.height,data:new Int8Array(d.canopy_map.data),
+            res:d.canopy_map.resolution,ox:d.canopy_map.ox,oy:d.canopy_map.oy};
+    }
+    if(d.canopy_change_map){
+      change={w:d.canopy_change_map.width,h:d.canopy_change_map.height,data:new Int8Array(d.canopy_change_map.data),
+              res:d.canopy_change_map.resolution,ox:d.canopy_change_map.ox,oy:d.canopy_change_map.oy};
+    }
+    if(mapActive())drawMap();
+    updateUI();
+  }catch(e){}
+}
+
+// ── Init ──
+setTimeout(()=>{ initTerrain(); },400);
+setInterval(()=>{ updateUI(); },1000);
+setInterval(()=>{ if(mapActive())drawMap(); },1000);
+setInterval(drawDebug,1000);
+loadSnapshot();
+setInterval(loadSnapshot,3000);
+window.addEventListener('resize',()=>{ if(mapActive())drawMap(); resizeTerrain(); });
+updateUI(); drawDebug();
+</script>
+</body>
+</html>

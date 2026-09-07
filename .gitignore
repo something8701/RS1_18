@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+build/
+install/
+log/
+.venv/
+venv/
+*.zip
+*.pdf
+.DS_Store

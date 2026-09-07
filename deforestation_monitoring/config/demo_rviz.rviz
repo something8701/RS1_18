@@ -1,0 +1,72 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    # --- Canopy Heatmap ---
+    - Class: rviz_default_plugins/Map
+      Name: Canopy Heatmap
+      Topic: /forest_canopy_map
+      Color Scheme: map
+      Alpha: 0.7
+      Enabled: true
+    # --- Suspicious Area Markers ---
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Suspicious Areas
+      Topic: /suspicious_markers
+      Enabled: true
+    # --- Husky Robot Model ---
+    - Class: rviz_default_plugins/RobotModel
+      Name: Husky
+      Description Topic: /husky1/robot_description
+      Enabled: true
+    # --- Husky Nav2 Goals ---
+    - Class: rviz_default_plugins/Marker
+      Name: Husky Goal
+      Topic: /husky1/navigate_to_pose/_action_goal
+      Enabled: true
+    # --- Parrot Robot Model ---
+    - Class: rviz_default_plugins/RobotModel
+      Name: Parrot
+      Description Topic: /parrot1/robot_description
+      Enabled: true
+    # --- TF Frames ---
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: true
+    # --- Husky Map ---
+    - Class: rviz_default_plugins/Map
+      Name: Husky SLAM Map
+      Topic: /husky1/map
+      Color Scheme: map
+      Alpha: 0.5
+      Enabled: true
+    # --- Husky Laser Scan ---
+    - Class: rviz_default_plugins/LaserScan
+      Name: Husky Scan
+      Topic: /husky1/scan
+      Enabled: true
+    # --- Forest Voxel Points ---
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Forest Voxels
+      Topic: /forest_voxel_centroids
+      Style: Flat Squares
+      Size (m): 0.4
+      Color Transformer: AxisColor
+      Enabled: true
+  Global Options:
+    Background Color: 30; 30; 30
+    Fixed Frame: parrot1_map
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Current View
+      Target Frame: parrot1_map
+      Distance: 80
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 5
