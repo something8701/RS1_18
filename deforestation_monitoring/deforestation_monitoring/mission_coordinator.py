@@ -29,11 +29,13 @@ import cv2
 import heapq
 import math
 import os
+import csv
 import time
 from collections import deque
 from dataclasses import dataclass, field
 
 import rclpy
+from rclpy.qos import qos_profile_sensor_data
 from rclpy.node import Node
 from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.action import ActionClient
@@ -43,6 +45,7 @@ from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import PoseStamped, Point, Pose, Quaternion
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Image
+from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Header, String
 from deforestation_interfaces.msg import SuspiciousArea
 from cv_bridge import CvBridge, CvBridgeError
@@ -76,6 +79,14 @@ class MissionCoordinator(Node):
     def __init__(self):
         super().__init__('mission_coordinator')
 
+        self.latest_scan = None
+        self._lidar_subscription = self.create_subscription(
+            LaserScan,
+            '/husky1/scan',
+            self._lidar_callback,
+            qos_profile_sensor_data
+        )
+
         self.declare_parameter('priority_mode', 'composite',
             descriptor=ParameterDescriptor(
                 description='Priority mode: closest, confidence, area, severity, composite'))
@@ -103,6 +114,10 @@ class MissionCoordinator(Node):
             descriptor=ParameterDescriptor(
                 description='Priority penalty added to a mission on each retry'))
 
+        self.declare_parameter('inspection_standoff', 1.0,
+            descriptor=ParameterDescriptor(
+                description='Distance in metres Husky stops from a suspicious area'))
+
         self.priority_mode = self.get_parameter('priority_mode').value
         self.capture_enabled = self.get_parameter('capture_images').value
         self.image_dir = self.get_parameter('image_dir').value
@@ -111,6 +126,7 @@ class MissionCoordinator(Node):
         self.dedup_window = self.get_parameter('dedup_window').value
         self.max_retries = self.get_parameter('max_retries').value
         self.requeue_penalty = self.get_parameter('requeue_penalty').value
+        self.inspection_standoff = self.get_parameter('inspection_standoff').value
 
         # TF for transforming flag coordinates into the Nav2 map frame
         self.tf_buffer = Buffer()
@@ -384,6 +400,48 @@ class MissionCoordinator(Node):
                     f'(using raw flag coordinates)',
                     throttle_duration_sec=10.0)
 
+        # Safe inspection pose: stop 1 m before the suspicious area
+        inspection_standoff = self.inspection_standoff
+
+        try:
+            robot_tf = self.tf_buffer.lookup_transform(
+                self.map_frame,
+                'husky1_base_link',
+                rclpy.time.Time(),
+                timeout=rclpy.duration.Duration(seconds=0.2)
+            )
+            rx = robot_tf.transform.translation.x
+            ry = robot_tf.transform.translation.y
+        except TransformException:
+            if self.robot_x is not None and self.robot_y is not None:
+                rx = self.robot_x
+                ry = self.robot_y
+            else:
+                rx = 0.0
+                ry = 0.0
+
+        dx = gx - rx
+        dy = gy - ry
+        distance = math.hypot(dx, dy)
+
+        if distance > inspection_standoff:
+            goal_x = gx - (dx / distance) * inspection_standoff
+            goal_y = gy - (dy / distance) * inspection_standoff
+        else:
+            goal_x = rx
+            goal_y = ry
+
+        inspection_yaw = math.atan2(gy - goal_y, gx - goal_x)
+        goal_orientation = Quaternion(
+            z=math.sin(inspection_yaw / 2.0),
+            w=math.cos(inspection_yaw / 2.0),
+        )
+
+        self.get_logger().info(
+            f'Inspection pose: ({goal_x:.2f},{goal_y:.2f}) '
+            f'for alert ({gx:.2f},{gy:.2f})'
+        )
+
         goal = NavigateToPose.Goal()
         goal.pose = PoseStamped(
             header=Header(
@@ -391,8 +449,8 @@ class MissionCoordinator(Node):
                 frame_id=gframe,
             ),
             pose=Pose(
-                position=Point(x=gx, y=gy, z=0.0),
-                orientation=Quaternion(w=1.0),
+                position=Point(x=goal_x, y=goal_y, z=0.0),
+                orientation=goal_orientation,
             ),
         )
 
@@ -435,7 +493,8 @@ class MissionCoordinator(Node):
             self.report_seq += 1
             evidence_path = self._capture_evidence()
             evidence_str = f' [image: {evidence_path}]' if evidence_path else ' [no image]'
-            classification, reason = self._classify_disturbance(m)
+            lidar_path = self._save_lidar_evidence(evidence_path)
+            classification, reason = self._classify_disturbance(m, evidence_path)
 
             msg = (
                 f'SITE INSPECTED #{self.report_seq}: {m.label} '
@@ -505,24 +564,147 @@ class MissionCoordinator(Node):
         self.get_logger().info(f'Evidence saved: {filepath}')
         return filepath
 
-    def _classify_disturbance(self, mission):
-        """Stub decision tree: classify a disturbance as NATURAL/CUT/UNCERTAIN.
+    def _lidar_callback(self, msg):
+        """Keep the most recent Husky laser scan for inspection evidence."""
+        self.latest_scan = msg
 
-        MVP heuristic based on the alert type. Phase 2 should analyse the
-        captured evidence image (stump, cut log, disturbed soil) plus the
-        tree_mapper trunk-loss signal:
-          - straight clearing edges / cut trunks -> CUT
-          - scattered fallen trees / broken canopy -> NATURAL
-          - otherwise -> UNCERTAIN
-        """
-        t = (mission.type or '').upper()
-        if t == 'LINE':
-            return 'CUT', 'straight-edge clearing pattern suggests deliberate removal'
-        if t == 'GAP':
-            return 'UNCERTAIN', 'gap may be natural fall or cutting - ground evidence required'
-        if t == 'ANOMALY':
-            return 'UNCERTAIN', 'height anomaly needs ground confirmation'
-        return 'UNCERTAIN', 'classification stub - image/lidar evidence not yet analysed'
+    def _save_lidar_evidence(self, image_path=''):
+        """Save the latest Husky LiDAR scan beside the camera evidence."""
+        scan = self.latest_scan
+
+        if scan is None:
+            self.get_logger().warning(
+                'No LiDAR scan available for this inspection.'
+            )
+            return ''
+
+        if image_path:
+            lidar_path = os.path.splitext(image_path)[0] + '_lidar.csv'
+        else:
+            evidence_dir = '/tmp/deforestation_inspections'
+            os.makedirs(evidence_dir, exist_ok=True)
+
+            stamp = int(self.get_clock().now().nanoseconds / 1e9)
+            lidar_path = os.path.join(
+                evidence_dir,
+                f'inspection_{stamp}_lidar.csv'
+            )
+
+        valid_points = 0
+        angle = scan.angle_min
+
+        with open(lidar_path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                'angle_rad',
+                'range_m',
+                'x_m',
+                'y_m'
+            ])
+
+            for distance in scan.ranges:
+                if (
+                    math.isfinite(distance)
+                    and scan.range_min <= distance <= scan.range_max
+                ):
+                    x = distance * math.cos(angle)
+                    y = distance * math.sin(angle)
+
+                    writer.writerow([
+                        angle,
+                        distance,
+                        x,
+                        y
+                    ])
+
+                    valid_points += 1
+
+                angle += scan.angle_increment
+
+        self.get_logger().info(
+            f'LiDAR evidence saved: {lidar_path} '
+            f'({valid_points} valid points)'
+        )
+
+        return lidar_path
+
+    def _classify_disturbance(self, mission, evidence_path=''):
+        """Use Husky camera evidence to support the ground inspection decision."""
+
+        if not evidence_path or not os.path.exists(evidence_path):
+            return 'UNCERTAIN', 'no usable camera evidence available'
+
+        frame = cv2.imread(evidence_path)
+        if frame is None:
+            return 'UNCERTAIN', 'camera evidence could not be loaded'
+
+        # Detect strong straight edges in the ground-level camera image.
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray = cv2.GaussianBlur(gray, (5, 5), 0)
+        edges = cv2.Canny(gray, 50, 150)
+
+        h, w = gray.shape[:2]
+        min_line_length = max(30, int(0.15 * min(h, w)))
+
+        lines = cv2.HoughLinesP(
+            edges,
+            1,
+            math.pi / 180.0,
+            threshold=50,
+            minLineLength=min_line_length,
+            maxLineGap=20
+        )
+
+        line_count = 0 if lines is None else len(lines)
+        edge_ratio = cv2.countNonZero(edges) / float(edges.size)
+
+        self.get_logger().info(
+            f'Camera evidence metrics: '
+            f'long_lines={line_count}, edge_ratio={edge_ratio:.3f}'
+        )
+
+        alert_type = (mission.type or '').upper()
+
+        # A LINE alert should have supporting straight-edge evidence
+        # before being classified as deliberate cutting.
+        if alert_type == 'LINE':
+            if line_count >= 3:
+                return (
+                    'CUT',
+                    f'camera evidence detected {line_count} strong straight edges '
+                    f'(edge ratio {edge_ratio:.3f})'
+                )
+
+            return (
+                'UNCERTAIN',
+                f'LINE alert received but camera found only {line_count} '
+                f'strong straight edges'
+            )
+
+        if alert_type == 'GAP':
+            # A gap with very little straight-edge evidence is treated
+            # as more consistent with an irregular/natural disturbance.
+            if line_count <= 5:
+                return (
+                    'NATURAL',
+                    f'camera found only {line_count} strong straight edges; '
+                    f'evidence is more consistent with an irregular natural fall'
+                )
+
+            return (
+                'UNCERTAIN',
+                f'gap detected but camera found {line_count} strong straight edges; '
+                f'cause cannot be confirmed'
+            )
+
+        if alert_type == 'ANOMALY':
+            return (
+                'UNCERTAIN',
+                f'height anomaly requires ground confirmation; camera detected '
+                f'{line_count} strong straight edges'
+            )
+
+        return 'UNCERTAIN', 'camera evidence available but disturbance type is unknown'
 
     # ── Mission status (feeds the dashboard) ──────────────────────────
 
@@ -562,8 +744,11 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        node.destroy_node()
-        rclpy.shutdown()
+        # Ctrl+C may already shut down the ROS context.
+        # Only clean up if ROS is still active.
+        if rclpy.ok():
+            node.destroy_node()
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':
