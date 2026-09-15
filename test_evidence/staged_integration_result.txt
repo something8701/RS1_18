@@ -1,0 +1,22 @@
+Staged perception-to-Husky integration test
+
+Perception output:
+Type: CLEARING
+Position: (5.0, 0.0)
+Confidence: 95%
+Area: 16 m^2
+Severity: 40
+
+Mission coordinator:
+- Received the real /suspicious_areas alert
+- Calculated inspection pose (4.0, 0.0)
+- Used 1.0 m inspection standoff
+- Nav2 goal accepted
+- Husky began autonomous movement
+
+Full completion was limited by Gazebo simulation stalls on the Azure VM.
+ROS /clock testing showed pauses up to approximately 47 seconds.
+
+Separate Husky tests previously demonstrated successful goal completion,
+camera evidence capture, LiDAR evidence capture, priority handling,
+failure handling and inspection classification.

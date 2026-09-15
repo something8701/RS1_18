@@ -1,0 +1,8 @@
+Test,Expected Result,Observed Result,Result,Evidence
+Safe inspection standoff,Husky navigates to approximately 1 m from alert,"Alert at (5,0); inspection pose calculated at (4,0); navigation completed",PASS,safe_inspection_success.jpg
+Priority handling,Higher-priority alert is inspected before lower-priority alert,"High-priority LINE alert selected before low-priority GAP alert",PASS,high_priority_LINE_CUT.jpg
+Queue continuation,System continues to next alert after completing previous mission,"Lower-priority GAP mission was subsequently processed",PASS,low_priority_GAP.jpg
+Camera classification,Ground camera evidence contributes to disturbance classification,"LINE inspection produced camera evidence and CUT classification",PASS,camera_classification_CUT.jpg
+Camera and LiDAR evidence,System saves both camera and LiDAR evidence during inspection,"Image and LiDAR CSV were both successfully saved",PASS,"camera_lidar_CUT.jpg; camera_lidar_CUT_lidar.csv"
+Perception detection,Pattern scanner publishes a suspicious-area alert from canopy loss,"16 m2 CLEARING detected at (5,0), confidence 95%, severity 40",PASS,perception_generated_alert.txt
+Perception-to-Husky handoff,Mission coordinator consumes /suspicious_areas and dispatches Husky,"Real scanner alert received; 1 m inspection pose calculated; Nav2 goal accepted; Husky began moving",PASS (handoff),staged_integration_result.txt
