@@ -116,7 +116,7 @@
       <pose relative_to='${prefix}base_scan'>0 0 0 0 1.5708 0</pose>
       <visualize>$(arg laser_visual)</visualize>
       <topic>model/${gz_model_name}/scan</topic>
-      <update_rate>2</update_rate>
+      <update_rate>10</update_rate>
       <gz_frame_id>${prefix}base_scan</gz_frame_id>
       <ray>
         <scan>

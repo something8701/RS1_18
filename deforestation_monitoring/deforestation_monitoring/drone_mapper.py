@@ -1,154 +1,248 @@
 #!/usr/bin/env python3
 """
-Drone Survey Mapper: Publishes the drone's camera ground footprint as a
-3D point cloud. As the drone patrols, the terrain fills in with surveyed
-points — green where canopy detected, brown for bare ground.
+Drone terrain mapper.
 
-Uses the drone's RGB camera + odometry + heading to map pixel locations
-to world coordinates.
+Collects the Parrot's depth point cloud (/parrot1/camera/depth/points),
+transforms it from the camera frame into parrot1_odom, downsamples it and
+republishes it as `/drone_terrain` for the dashboard's 3D terrain view.
+This is the only node that turns the raw depth cloud into a world-frame
+terrain cloud.
 """
 
 import rclpy
+from rclpy.duration import Duration
 from rclpy.node import Node
-from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
-import numpy as np
-from sensor_msgs.msg import Image, PointCloud2, PointField
-from nav_msgs.msg import Odometry
+from rclpy.time import Time
+from rcl_interfaces.msg import ParameterDescriptor
+from sensor_msgs.msg import PointCloud2, PointField
 from std_msgs.msg import Header
-from cv_bridge import CvBridge, CvBridgeError
-import cv2
+from tf2_ros import Buffer, TransformListener
+from tf2_ros import ConnectivityException, ExtrapolationException, LookupException
 import math
+import numpy as np
 
 
 class DroneMapper(Node):
-    """Maps terrain by projecting the drone's downward camera into world coords."""
+    """Transforms the Parrot depth cloud into parrot1_odom and collects it."""
 
     def __init__(self):
         super().__init__('drone_mapper')
 
+        self.declare_parameter('depth_topic', '/parrot1/camera/depth/points',
+            descriptor=ParameterDescriptor(description='Parrot depth PointCloud2 topic'))
+        self.declare_parameter('target_frame', 'parrot1_odom',
+            descriptor=ParameterDescriptor(description='Frame to transform terrain into'))
+        self.declare_parameter('altitude', 10.0,
+            descriptor=ParameterDescriptor(description='Drone survey altitude above ground (m)'))
         self.declare_parameter('publish_rate', 2.0,
             descriptor=ParameterDescriptor(description='Terrain point cloud publish rate (Hz)'))
-        self.declare_parameter('altitude', 10.0,
-            descriptor=ParameterDescriptor(description='Drone flight altitude (m)'))
-        self.declare_parameter('fov_width', 15.0,
-            descriptor=ParameterDescriptor(description='Ground footprint width at altitude (m)'))
-        self.declare_parameter('sample_grid_x', 8,
-            descriptor=ParameterDescriptor(description='Camera sample grid columns'))
-        self.declare_parameter('sample_grid_y', 6,
-            descriptor=ParameterDescriptor(description='Camera sample grid rows'))
-        self.declare_parameter('max_points', 30000,
-            descriptor=ParameterDescriptor(description='Maximum terrain points to retain'))
+        self.declare_parameter('terrain_resolution', 0.25,
+            descriptor=ParameterDescriptor(description='Terrain accumulation cell size (m)'))
+        self.declare_parameter('max_publish_points', 50000,
+            descriptor=ParameterDescriptor(description='Maximum points published per cloud'))
+        self.declare_parameter('downsample_step', 12,
+            descriptor=ParameterDescriptor(description='Keep every Nth valid depth point'))
+        self.declare_parameter('process_every_n_frames', 1,
+            descriptor=ParameterDescriptor(description='Process every Nth incoming cloud'))
 
-        self.alt = self.get_parameter('altitude').value
-        self.fov_w = self.get_parameter('fov_width').value
-        self.sample_x = self.get_parameter('sample_grid_x').value
-        self.sample_y = self.get_parameter('sample_grid_y').value
-        self.max_pts = self.get_parameter('max_points').value
+        self.depth_topic = self.get_parameter('depth_topic').value
+        self.target_frame = self.get_parameter('target_frame').value
+        self.alt = float(self.get_parameter('altitude').value)
+        self.res = max(0.05, float(self.get_parameter('terrain_resolution').value))
+        self.max_publish_points = int(self.get_parameter('max_publish_points').value)
+        self.step = max(1, int(self.get_parameter('downsample_step').value))
+        self.process_every = max(1, int(self.get_parameter('process_every_n_frames').value))
 
-        # Accumulated terrain points: (x, y, z, is_tree)
-        self.terrain_pts = []
-
-        self.bridge = CvBridge()
-        self.drone_x = 2.0
-        self.drone_y = 0.0
-        self.drone_z = self.alt
-        self.drone_yaw = 0.0  # heading in radians — now tracked from odometry
+        # cell key -> [count, sum_x, sum_y, sum_z]
+        self.terrain_cells = {}
         self.frames = 0
 
-        # -- QoS profiles --
+        # The Gazebo bridge sensor topics are best effort in this project.
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.VOLATILE,
             history=HistoryPolicy.KEEP_LAST,
             depth=5,
         )
-        default_qos = QoSProfile(
+        terrain_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.VOLATILE,
             history=HistoryPolicy.KEEP_LAST,
-            depth=10,
+            depth=5,
         )
 
-        # Subscribers
-        self.create_subscription(Image, '/parrot1/camera/image', self.image_cb, sensor_qos)
-        self.create_subscription(Odometry, '/parrot1/odometry', self.odom_cb, sensor_qos)
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
 
-        # Publisher
-        self.terrain_pub = self.create_publisher(PointCloud2, '/drone_terrain', default_qos)
+        self.cloud_sub = self.create_subscription(
+            PointCloud2, self.depth_topic, self.cloud_cb, sensor_qos
+        )
+        self.terrain_pub = self.create_publisher(
+            PointCloud2, '/drone_terrain', terrain_qos
+        )
+        # Smaller copy for the dashboard: at most 8000 points at 1 Hz, so the
+        # 3D view does not overload the rosbridge websocket.
+        self.viz_pub = self.create_publisher(
+            PointCloud2, '/drone_terrain_viz', terrain_qos
+        )
+        self._viz_tick = 0
 
-        # Timer
-        rate = max(self.get_parameter('publish_rate').value, 0.5)
+        rate = max(0.5, float(self.get_parameter('publish_rate').value))
         self.create_timer(1.0 / rate, self.publish_terrain)
 
         self.get_logger().info(
-            f'Drone Mapper ready. Grid: {self.sample_x}x{self.sample_y}, '
-            f'fov={self.fov_w}m, altitude={self.alt}m'
+            f'Drone Mapper ready. depth={self.depth_topic}, '
+            f'target={self.target_frame}, altitude={self.alt}m, step={self.step}, '
+            f'cell={self.res}m, max_publish={self.max_publish_points}'
         )
 
-    def odom_cb(self, msg: Odometry):
-        """Track drone position and heading from odometry."""
-        self.drone_x = msg.pose.pose.position.x
-        self.drone_y = msg.pose.pose.position.y
-        # Extract yaw from quaternion
-        q = msg.pose.pose.orientation
-        siny = 2.0 * (q.w * q.z + q.x * q.y)
-        cosy = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
-        self.drone_yaw = math.atan2(siny, cosy)
-
-    def image_cb(self, msg: Image):
-        """Process camera frame: detect green (canopy) vs bare ground."""
-        self.frames += 1
-        if self.frames % 5 != 0:  # process every 5th frame
-            return
-
+    def _lookup_transform(self, cloud: PointCloud2):
+        """Return the camera-to-target transform for this cloud, or None."""
         try:
-            cv_image = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
-        except CvBridgeError:
-            self.get_logger().warn('cv_bridge conversion failed', throttle_duration_sec=5.0)
+            return self.tf_buffer.lookup_transform(
+                self.target_frame,
+                cloud.header.frame_id,
+                Time(),
+                Duration(seconds=0.5),
+            )
+        except (LookupException, ConnectivityException, ExtrapolationException) as exc:
+            self.get_logger().warn(
+                f'TF lookup failed for {cloud.header.frame_id} -> '
+                f'{self.target_frame}: {exc}',
+                throttle_duration_sec=5.0,
+            )
+            return None
+
+    def _extract_points(self, cloud: PointCloud2, transform):
+        """Read x/y/z points and transform them into the target frame."""
+        offsets = {}
+        for field in cloud.fields:
+            if field.name in ('x', 'y', 'z'):
+                offsets[field.name] = field.offset
+        if len(offsets) != 3:
+            self.get_logger().warn(
+                'Depth cloud does not contain x/y/z fields',
+                throttle_duration_sec=5.0,
+            )
+            return []
+
+        point_step = cloud.point_step
+        if point_step <= 0 or not cloud.data:
+            return []
+
+        raw = np.frombuffer(bytes(cloud.data), dtype=np.uint8)
+        usable = raw.size - (raw.size % point_step)
+        if usable <= 0:
+            return []
+
+        arr = raw[:usable].reshape(-1, point_step)
+        float_dtype = '>f4' if cloud.is_bigendian else '<f4'
+
+        def col(name):
+            off = offsets[name]
+            return arr[:, off:off + 4].copy().view(float_dtype).ravel()
+
+        x = col('x')
+        y = col('y')
+        z = col('z')
+
+        valid = np.isfinite(x) & np.isfinite(y) & np.isfinite(z)
+        x = x[valid]
+        y = y[valid]
+        z = z[valid]
+
+        x, y, z = self._rotate_and_translate(x, y, z, transform)
+        z = z + self.alt
+        valid = (np.abs(x) < 50.0) & (np.abs(y) < 50.0) & (z > -0.5) & (z < 40.0)
+        x = x[valid]
+        y = y[valid]
+        z = z[valid]
+        x = x[::self.step]
+        y = y[::self.step]
+        z = z[::self.step]
+
+        return [
+            (float(px), float(py), float(pz))
+            for px, py, pz in zip(x, y, z)
+        ]
+
+    def _rotate_and_translate(self, x, y, z, transform):
+        """Apply a TransformStamped to numpy point arrays."""
+        tx = transform.transform.translation.x
+        ty = transform.transform.translation.y
+        tz = transform.transform.translation.z
+        qx = transform.transform.rotation.x
+        qy = transform.transform.rotation.y
+        qz = transform.transform.rotation.z
+        qw = transform.transform.rotation.w
+
+        # v' = v + qw*t + q_vec x t, where t = 2*(q_vec x v)
+        tw = 2.0 * (qy * z - qz * y)
+        tyv = 2.0 * (qz * x - qx * z)
+        tzv = 2.0 * (qx * y - qy * x)
+
+        xr = x + qw * tw + (qy * tzv - qz * tyv)
+        yr = y + qw * tyv + (qz * tw - qx * tzv)
+        zr = z + qw * tzv + (qx * tyv - qy * tw)
+
+        return xr + tx, yr + ty, zr + tz
+
+    def cloud_cb(self, cloud: PointCloud2):
+        """Transform and add the latest depth cloud."""
+        self.frames += 1
+        if self.frames % self.process_every != 0:
             return
 
-        h, w = cv_image.shape[:2]
-        hsv = cv2.cvtColor(cv_image, cv2.COLOR_BGR2HSV)
-        green_mask = cv2.inRange(hsv, (25, 25, 20), (95, 255, 220))
+        transform = self._lookup_transform(cloud)
+        if transform is None:
+            return
 
-        # Pre-compute rotation for this frame
-        cos_h = math.cos(self.drone_yaw)
-        sin_h = math.sin(self.drone_yaw)
+        points = self._extract_points(cloud, transform)
+        if not points:
+            return
 
-        # Sample grid across the image footprint
-        for sy in range(self.sample_y):
-            for sx in range(self.sample_x):
-                ix = int(w * (sx + 0.5) / self.sample_x)
-                iy = int(h * (sy + 0.5) / self.sample_y)
-                is_tree = bool(green_mask[iy, ix] > 0)
-
-                # Map pixel to world offset in drone body frame
-                px = (float(sx) / self.sample_x - 0.5) * self.fov_w
-                py = (0.5 - float(sy) / self.sample_y) * self.fov_w * 0.7
-
-                # Rotate by drone heading to get world-frame coordinates
-                wx = self.drone_x + px * cos_h - py * sin_h
-                wy = self.drone_y + px * sin_h + py * cos_h
-                # Height: canopy (~4m) vs ground (~0.1m)
-                wz = 4.0 if is_tree else 0.1
-
-                self.terrain_pts.append((wx, wy, wz, is_tree))
-
-        # Trim if too many points
-        if len(self.terrain_pts) > self.max_pts:
-            self.terrain_pts = self.terrain_pts[-self.max_pts:]
+        for px, py, pz in points:
+            key = (
+                int(math.floor(px / self.res)),
+                int(math.floor(py / self.res)),
+            )
+            cell = self.terrain_cells.get(key)
+            if cell is None:
+                self.terrain_cells[key] = [1, px, py, pz]
+            else:
+                cell[0] += 1
+                cell[1] += px
+                cell[2] += py
+                cell[3] += pz
 
     def publish_terrain(self):
-        """Publish accumulated terrain points as PointCloud2."""
-        if not self.terrain_pts:
+        """Publish the collected world-frame terrain as a PointCloud2."""
+        if not self.terrain_cells:
             return
 
-        pts = np.array(self.terrain_pts, dtype=np.float32)
+        keys = sorted(self.terrain_cells.keys())
+        if len(keys) > self.max_publish_points:
+            indices = np.unique(
+                np.linspace(0, len(keys) - 1, self.max_publish_points, dtype=np.int64)
+            )
+            keys = [keys[i] for i in indices]
+
+        pts = np.array(
+            [
+                [
+                    self.terrain_cells[key][1] / self.terrain_cells[key][0],
+                    self.terrain_cells[key][2] / self.terrain_cells[key][0],
+                    self.terrain_cells[key][3] / self.terrain_cells[key][0],
+                ]
+                for key in keys
+            ],
+            dtype=np.float32,
+        )
         cloud = PointCloud2()
         cloud.header = Header(
             stamp=self.get_clock().now().to_msg(),
-            frame_id='parrot1_odom',
+            frame_id=self.target_frame,
         )
         cloud.height = 1
         cloud.width = len(pts)
@@ -161,19 +255,36 @@ class DroneMapper(Node):
         cloud.point_step = 12
         cloud.row_step = cloud.point_step * cloud.width
         cloud.is_dense = True
-        cloud.data = pts[:, :3].tobytes()
+        cloud.data = pts.tobytes()
         self.terrain_pub.publish(cloud)
 
-        canopy_count = sum(1 for p in self.terrain_pts if p[3])
-        pct = canopy_count / max(len(self.terrain_pts), 1) * 100
+        # Dashboard terrain view (throttled and downsampled here).
+        self._viz_tick += 1
+        if self._viz_tick % 2 == 0:
+            max_viz = 8000
+            step = max(1, len(pts) // max_viz)
+            viz_pts = pts[::step][:max_viz]
+            viz = PointCloud2()
+            viz.header = cloud.header
+            viz.height = 1
+            viz.width = len(viz_pts)
+            viz.fields = cloud.fields
+            viz.is_bigendian = False
+            viz.point_step = 12
+            viz.row_step = viz.point_step * viz.width
+            viz.is_dense = True
+            viz.data = viz_pts.tobytes()
+            self.viz_pub.publish(viz)
+
         self.get_logger().info(
-            f'Terrain: {len(self.terrain_pts)} pts, {pct:.0f}% canopy, '
-            f'drone at ({self.drone_x:.1f}, {self.drone_y:.1f}), '
-            f'heading={math.degrees(self.drone_yaw):.0f}°'
+            f'Terrain: {len(self.terrain_cells)} cells, publishing {len(pts)} pts '
+            f'from {self.depth_topic} in {self.target_frame}'
         )
 
     def destroy_node(self):
-        self.get_logger().info(f'Drone Mapper shutting down. {len(self.terrain_pts)} points collected.')
+        self.get_logger().info(
+            f'Drone Mapper shutting down. {len(self.terrain_cells)} cells collected.'
+        )
         super().destroy_node()
 
 

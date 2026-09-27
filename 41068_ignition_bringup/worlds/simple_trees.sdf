@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <sdf version="1.8">
   <world name="simple_trees">
-    <light name="sun" type="directional"><cast_shadows>1</cast_shadows><pose>0 0 10 0 0 0</pose><diffuse>0.8 0.8 0.8 1</diffuse><specular>0.2 0.2 0.2 1</specular><attenuation><range>1000</range><constant>0.9</constant><linear>0.01</linear><quadratic>0.001</quadratic></attenuation><direction>-0.5 0.1 -0.9</direction></light>
+    <light name="sun" type="directional"><cast_shadows>1</cast_shadows><pose>0 0 100 0 0 0</pose><diffuse>0.8 0.8 0.8 1</diffuse><specular>0.2 0.2 0.2 1</specular><attenuation><range>1000</range><constant>0.9</constant><linear>0.01</linear><quadratic>0.001</quadratic></attenuation><direction>-0.5 0.1 -0.9</direction></light>
     <gravity>0 0 -9.81</gravity>
 <atmosphere type="adiabatic"/>
     <physics name="default_physics" type="ignored"><max_step_size>0.01</max_step_size><real_time_factor>1</real_time_factor><real_time_update_rate>100</real_time_update_rate></physics>

@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 """
-Tree Trunk Mapper: Uses the Husky's 2D lidar to detect and map tree trunks.
+Tree trunk mapper: finds and maps tree trunks with the Husky's 2D lidar.
 
-Principle: Tree trunks appear as tight circular clusters of lidar returns
-at ground level. As the Husky patrols, these clusters persist at fixed
-world locations. We cluster lidar points, track persistent clusters, and
-build a tree map.
+Trunks show up as tight clusters of lidar returns near the ground that stay
+in the same place while the Husky drives around. Points are clustered, the
+clusters are counted per grid cell, and cells hit often enough are trees.
 
-Once a baseline is established, every subsequent publish compares the
-current tree map against the baseline and publishes:
-  - /forest_change_map  — OccupancyGrid: -100=lost, 0=unchanged, +100=new
-  - /forest_change_events — String alerts for significant cluster losses
+After the baseline is taken, each publish compares the current tree map with
+it and publishes:
+  - /forest_change_map: OccupancyGrid, -100 = lost, 0 = unchanged, +100 = new
+  - /forest_change_events: String alerts for lost trunks
 """
 
 import rclpy
@@ -28,15 +27,16 @@ from tf2_ros import Buffer, TransformException
 from tf2_ros.transform_listener import TransformListener
 from sklearn.cluster import DBSCAN
 from scipy import ndimage
+from deforestation_interfaces.msg import TreeChangeEvent, TreeStatus
 
 
 class TreeMapper(Node):
-    """Maps tree trunk locations from Husky 2D lidar, detects changes from baseline."""
+    """Maps tree trunks from the Husky lidar and detects changes."""
 
     def __init__(self):
         super().__init__('tree_mapper')
 
-        # -- Parameters --
+        # Parameters
         self.declare_parameter('resolution', 0.5,
             descriptor=ParameterDescriptor(description='Grid cell size in metres'))
         self.declare_parameter('map_size_x', 80.0,
@@ -56,14 +56,11 @@ class TreeMapper(Node):
         self.declare_parameter('tree_confidence_threshold', 2,
             descriptor=ParameterDescriptor(
                 description='Minimum lidar hits for a cell to count as a confirmed tree'))
-        self.declare_parameter('change_min_cluster_cells', 3,
-            descriptor=ParameterDescriptor(
-                description='Minimum connected cells to trigger a change alert'))
         self.declare_parameter('hit_decay', 0.9,
             descriptor=ParameterDescriptor(
-                description='Per-scan decay factor for the recent-tree hit count. '
-                            'A value < 1 lets removed trunks fall below the '
-                            'confidence threshold so they can be reported as lost.'))
+                description='Per-scan decay of the recent hit count. Below 1, a '
+                            'removed trunk drops under the threshold and is '
+                            'reported as lost.'))
 
         self.res = self.get_parameter('resolution').value
         self.map_x = self.get_parameter('map_size_x').value
@@ -72,7 +69,6 @@ class TreeMapper(Node):
         self.min_cluster = self.get_parameter('min_cluster_size').value
         self.baseline_threshold = self.get_parameter('baseline_threshold').value
         self.tree_confidence = self.get_parameter('tree_confidence_threshold').value
-        self.change_min_cells = self.get_parameter('change_min_cluster_cells').value
         self.hit_decay = self.get_parameter('hit_decay').value
 
         self.dim_x = int(self.map_x / self.res)
@@ -80,29 +76,32 @@ class TreeMapper(Node):
         self.origin_x = -self.map_x / 2.0
         self.origin_y = -self.map_y / 2.0
 
-        # --- Grids ---
-        # Cumulative hit count per cell (all-time — used for the trunk map and
-        # the baseline snapshot, which must include every tree ever seen).
+        # Grids, indexed [ix, iy].
+        # All-time hit count per cell, used for the trunk map and the baseline
+        # (the baseline must include every tree ever seen).
         self.tree_hits = np.zeros((self.dim_x, self.dim_y), dtype=np.float32)
-        # Decaying recent hit count (current state — decays each processed scan
-        # so a removed trunk eventually falls below the confidence threshold).
+        # Recent hit count. It decays every scan, so a removed trunk drops
+        # below the threshold.
         self.recent_hits = np.zeros((self.dim_x, self.dim_y), dtype=np.float32)
-        # Cells covered by the lidar since the last baseline. Only re-observed
-        # cells are eligible for "lost" detection, so areas never revisited
-        # after the baseline are not falsely reported as cleared.
+        # Cells the lidar has covered since the baseline. Only these can be
+        # reported lost, so areas not visited again are not reported cleared.
         self.swept = np.zeros((self.dim_x, self.dim_y), dtype=np.float32)
-        # Baseline snapshot: frozen copy taken when baseline is established
+        # Baseline snapshot
         self.baseline_hits = None
-        # Whether the baseline snapshot has been taken
         self.baseline_established = False
+        # Tree IDs, assigned at baseline and when new trees appear.
+        self.tree_id_grid = np.zeros((self.dim_x, self.dim_y), dtype=np.int32)
+        self.baseline_tree_ids = None
+        self.next_tree_id = 1
+        self.baseline_tree_count = 0
         self.scan_count = 0
 
         # Change tracking stats
         self.total_trees_lost = 0
         self.total_trees_gained = 0
         self.last_change_alert = ''
-        self._alerted_cells = set()  # (ix, iy) of already-alerted loss cells
-        self._alerted_gained_cells = set()  # same, for gained clusters
+        self._alerted_tree_ids = set()
+        self._alerted_gained_tree_ids = set()
 
         # DBSCAN clusterer
         self.clusterer = DBSCAN(eps=self.cluster_eps, min_samples=self.min_cluster)
@@ -111,7 +110,7 @@ class TreeMapper(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
-        # -- QoS profiles --
+        # QoS profiles
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.VOLATILE,
@@ -137,8 +136,8 @@ class TreeMapper(Node):
         )
 
         # Publishers
-        # Trunk map (Husky lidar). /forest_canopy_map is owned by the drone's
-        # scan_mapper — two grids on one topic would corrupt pattern_scanner.
+        # The trunk map uses its own topic: /forest_canopy_map belongs to the
+        # drone scan_mapper, and pattern_scanner reads it.
         self.trunk_pub = self.create_publisher(
             OccupancyGrid, '/forest_trunk_map', map_qos
         )
@@ -163,6 +162,12 @@ class TreeMapper(Node):
         self.baseline_pub = self.create_publisher(
             String, '/baseline_status', default_qos
         )
+        self.tree_event_pub = self.create_publisher(
+            TreeChangeEvent, '/tree_change_events', default_qos
+        )
+        self.tree_status_pub = self.create_publisher(
+            TreeStatus, '/tree_status', default_qos
+        )
 
         # Reset baseline service
         self.reset_srv = self.create_service(
@@ -175,13 +180,13 @@ class TreeMapper(Node):
         self.get_logger().info(
             f'Tree Mapper ready. Grid: {self.dim_x}x{self.dim_y} '
             f'at {self.res}m. Tree confidence: >= {self.tree_confidence} hits. '
-            f'Change alert min cluster: {self.change_min_cells} cells.'
+            f'Hit decay: {self.hit_decay}.'
         )
 
-    # ── Lidar processing ──────────────────────────────────────────────
+    # Lidar processing
 
     def _scan_to_xy(self, scan: LaserScan):
-        """Convert LaserScan ranges to (x,y) points in base_link frame."""
+        """Convert LaserScan ranges to (x, y) points in base_link."""
         angles = scan.angle_min + np.arange(len(scan.ranges)) * scan.angle_increment
         ranges = np.array(scan.ranges)
         valid = np.isfinite(ranges) & (ranges > scan.range_min) & (ranges < scan.range_max)
@@ -194,7 +199,7 @@ class TreeMapper(Node):
         return np.column_stack([x, y])
 
     def _to_world(self, pts_local):
-        """Transform points from base_link to husky1_map frame."""
+        """Transform points from base_link to the husky1_map frame."""
         try:
             tf = self.tf_buffer.lookup_transform(
                 'husky1_map', 'husky1_base_link', rclpy.time.Time(),
@@ -228,16 +233,14 @@ class TreeMapper(Node):
         if pts_world is None or len(pts_world) < self.min_cluster:
             return
 
-        # Decay the recent hit count every processed scan, then re-add detections
-        # below. This is what makes change detection able to report "lost": a
-        # cumulative count can only grow, so a removed tree would stay "present".
+        # Decay the recent hit count every scan, then add the new detections
+        # below. An all-time count only grows, so it could never show a loss.
         self.recent_hits *= self.hit_decay
 
-        # Decay the recent sweep mask in lockstep with recent_hits, then mark
-        # every lidar return's cell as swept. A removed trunk only counts as
-        # lost while its location is being actively re-covered; once the robot
-        # drives away both recent_hits AND swept decay together, so a still-
-        # present tree that is simply out of view is never reported lost.
+        # Decay the swept mask together with recent_hits, then mark every
+        # cell with a lidar return as swept. A trunk only counts as lost while
+        # its location is being scanned again; when the robot drives away both
+        # decay, so a tree that is just out of view is not reported lost.
         self.swept *= self.hit_decay
         six = ((pts_world[:, 0] - self.origin_x) / self.res).astype(np.int32)
         siy = ((pts_world[:, 1] - self.origin_y) / self.res).astype(np.int32)
@@ -286,7 +289,7 @@ class TreeMapper(Node):
 
         self.scan_count += 1
 
-        # Baseline: snapshot the current hit map
+        # Take the baseline from the current hit map
         if not self.baseline_established and self.scan_count >= self.baseline_threshold:
             self._snapshot_baseline()
 
@@ -299,56 +302,98 @@ class TreeMapper(Node):
                 f'{total_trees} confirmed tree cells{loss_str}'
             )
 
-    # ── Baseline management ───────────────────────────────────────────
+    # Baseline management
+
+    def _assign_ids_for_mask(self, mask):
+        """Give new IDs to the connected regions of a boolean mask.
+
+        Updates `self.tree_id_grid` inside `mask`, advances
+        `self.next_tree_id`, and returns the new ID grid.
+        """
+        if not np.any(mask):
+            return None
+        # Join nearby cells that belong to one trunk. Cluster centres can land
+        # in neighbouring cells, which would otherwise split a tree into
+        # several IDs.
+        closed_mask = ndimage.binary_closing(
+            mask, structure=np.ones((3, 3), dtype=bool), iterations=1
+        )
+        labels, num_features = ndimage.label(closed_mask)
+        if num_features == 0:
+            return None
+        new_ids = np.zeros_like(labels)
+        new_ids[labels > 0] = labels[labels > 0] + (self.next_tree_id - 1)
+        new_ids[~mask] = 0
+        self.tree_id_grid[mask] = new_ids[mask]
+        self.next_tree_id += num_features
+        return new_ids
+
+    def _tree_metrics(self, mask, id_grid, tree_id):
+        """Return the world centroid and area of one tree ID in a mask."""
+        cells = mask & (id_grid == tree_id)
+        coords = np.argwhere(cells)
+        if len(coords) == 0:
+            return 0.0, 0.0, 0.0
+        wx = float(np.mean(self.origin_x + (coords[:, 0] + 0.5) * self.res))
+        wy = float(np.mean(self.origin_y + (coords[:, 1] + 0.5) * self.res))
+        area_m2 = float(len(coords) * self.res * self.res)
+        return wx, wy, area_m2
 
     def _snapshot_baseline(self):
-        """Freeze the current tree_hits as the baseline for change detection."""
+        """Save the current tree_hits as the baseline."""
         self.baseline_hits = self.tree_hits.copy()
         self.baseline_established = True
-        # Only lidar coverage AFTER this baseline counts as re-observation.
+        self.tree_id_grid = np.zeros((self.dim_x, self.dim_y), dtype=np.int32)
+        self.next_tree_id = 1
+        self._alerted_tree_ids.clear()
+        self._alerted_gained_tree_ids.clear()
+        baseline_mask = self.baseline_hits >= self.tree_confidence
+        self._assign_ids_for_mask(baseline_mask)
+        self.baseline_tree_ids = self.tree_id_grid.copy()
+        self.baseline_tree_count = int(len(np.unique(self.baseline_tree_ids)) - 1)
+        # Only coverage after this baseline counts as seeing a cell again.
         self.swept[:] = 0.0
-        self._alerted_cells.clear()
-        self._alerted_gained_cells.clear()
-        total = np.count_nonzero(self.baseline_hits >= self.tree_confidence)
+        total = self.baseline_tree_count
         self.get_logger().info(
-            f'BASELINE SNAPSHOT: {total} confirmed tree cells frozen. '
+            f'BASELINE SNAPSHOT: {total} trees frozen. '
             f'Change detection active. Call /tree_mapper/reset_baseline to re-baseline.'
         )
         self.baseline_pub.publish(String(data=f'baseline_established:{total}'))
 
     def reset_baseline_callback(self, request, response):
-        """Service callback: manually reset the baseline to current state."""
+        """Service: reset the baseline to the current map."""
         self._snapshot_baseline()
         self.total_trees_lost = 0
         self.total_trees_gained = 0
         self.last_change_alert = ''
         response.success = True
         response.message = (
-            f'Baseline reset. {np.count_nonzero(self.baseline_hits >= self.tree_confidence)} '
+            f'Baseline reset. {self.baseline_tree_count} '
             f'trees in new baseline.'
         )
         return response
 
-    # ── Change detection ──────────────────────────────────────────────
+    # Change detection
 
     def _compute_change(self):
-        """Compare current tree_hits against baseline.
+        """Compare the current tree_hits with the baseline.
 
         Returns:
-            change_grid: np.int8 array (-100 = lost, 0 = unchanged, +100 = new)
-            lost_mask: boolean array of cells where trees were lost
-            gained_mask: boolean array of cells where trees appeared
+            change_grid: int8 grid (-100 = lost, 0 = unchanged, +100 = new)
+            lost_mask: cells where trees were lost
+            gained_mask: cells where trees appeared
+            current_trees: cells that are trees now
         """
         if self.baseline_hits is None:
-            return None, None, None
+            return None, None, None, None
 
-        # Binarize: a cell is currently a tree if its RECENT hit count is high
-        # enough. The baseline uses the cumulative count (every tree seen).
+        # A cell is a tree now if its recent hit count is high enough. The
+        # baseline uses the all-time count (every tree seen).
         current_trees = self.recent_hits >= self.tree_confidence
         baseline_trees = self.baseline_hits >= self.tree_confidence
 
-        # A tree is lost only if it was in the baseline, its location has been
-        # re-observed since baseline, and it is no longer detected now.
+        # A tree is lost if it was in the baseline, its cell has been seen
+        # again since, and it is not detected now.
         lost_mask = baseline_trees & (self.swept >= 0.5) & ~current_trees
         gained_mask = current_trees & ~baseline_trees
 
@@ -356,43 +401,36 @@ class TreeMapper(Node):
         change_grid[lost_mask] = -100
         change_grid[gained_mask] = 100
 
-        return change_grid, lost_mask, gained_mask
+        return change_grid, lost_mask, gained_mask, current_trees
 
-    def _detect_change_clusters(self, binary_mask, min_cells=None):
-        """Run connected-component labelling on a binary change mask.
+    def _tree_change_marker(self, now, marker_id, namespace, wx, wy, area_m2,
+                            red, green, blue):
+        """Build a cylinder marker for a lost or gained tree."""
+        marker = Marker()
+        marker.header = Header(stamp=now, frame_id='husky1_map')
+        marker.id = marker_id
+        marker.ns = namespace
+        marker.type = Marker.CYLINDER
+        marker.action = Marker.ADD
+        marker.pose = Pose(
+            position=Point(x=wx, y=wy, z=2.5),
+            orientation=Quaternion(w=1.0),
+        )
+        marker.scale.x = max(area_m2 ** 0.5, 1.5)
+        marker.scale.y = marker.scale.x
+        marker.scale.z = 5.0
+        marker.color.r = red
+        marker.color.g = green
+        marker.color.b = blue
+        marker.color.a = 0.9
+        return marker
 
-        Returns list of dicts: {cx, cy, area_cells, area_m2, world_x, world_y}
-        """
-        if min_cells is None:
-            min_cells = self.change_min_cells
-        if not np.any(binary_mask):
-            return []
-        labels, num_features = ndimage.label(binary_mask)
-        clusters = []
-        for label_id in range(1, num_features + 1):
-            region = labels == label_id
-            area = np.sum(region)
-            if area < min_cells:
-                continue
-            # center_of_mass returns (axis-0, axis-1) = (ix, iy) centres
-            ix_c, iy_c = ndimage.center_of_mass(region)
-            wx = self.origin_x + ix_c * self.res
-            wy = self.origin_y + iy_c * self.res
-            clusters.append({
-                'cx': int(ix_c), 'cy': int(iy_c),
-                'area_cells': int(area),
-                'area_m2': float(area * self.res**2),
-                'world_x': float(wx),
-                'world_y': float(wy),
-            })
-        return clusters
-
-    # ── Publishing ────────────────────────────────────────────────────
+    # Publishing
 
     def publish_maps(self):
         now = self.get_clock().now().to_msg()
 
-        # --- 1. Tree trunk map (current state) ---
+        # 1. Tree trunk map
         if np.max(self.tree_hits) > 0:
             max_hit = max(1.0, np.max(self.tree_hits))
             data = np.clip((self.tree_hits / max_hit) * 100, 0, 100).astype(np.int8)
@@ -408,12 +446,12 @@ class TreeMapper(Node):
             position=Point(x=self.origin_x, y=self.origin_y, z=0.0),
             orientation=Quaternion(w=1.0)
         )
-        # Grids are indexed [ix, iy]; OccupancyGrid data is row-major [iy, ix].
+        # Grids are [ix, iy] but OccupancyGrid data is row-major [iy, ix].
         grid.data = data.T.flatten().tolist()
         self.trunk_pub.publish(grid)
 
-        # --- 2. Change map (diff vs baseline) ---
-        change_grid, lost_mask, gained_mask = self._compute_change()
+        # 2. Change map (compared with the baseline)
+        change_grid, lost_mask, gained_mask, current_trees = self._compute_change()
 
         if change_grid is not None:
             change_msg = OccupancyGrid()
@@ -422,87 +460,112 @@ class TreeMapper(Node):
             change_msg.data = change_grid.T.flatten().tolist()
             self.change_pub.publish(change_msg)
 
-            # --- 3. Change events (alerts for significant clusters) ---
-            lost_clusters = self._detect_change_clusters(lost_mask)
-            gained_clusters = self._detect_change_clusters(gained_mask)
-
+            # 3. Change events with tree IDs and area
             new_alerts = []
-            for cl in lost_clusters:
-                # Dedup: skip if we already alerted near this cell
-                bucket = (cl['cx'] // 10, cl['cy'] // 10)
-                if bucket in self._alerted_cells:
-                    continue
-                self._alerted_cells.add(bucket)
-                self.total_trees_lost += cl['area_cells']
-                alert = (
-                    f"TREES LOST: ~{cl['area_cells']} trees ({cl['area_m2']:.0f}m²) "
-                    f"near ({cl['world_x']:.1f}, {cl['world_y']:.1f})"
-                )
-                new_alerts.append(alert)
-                self.get_logger().warn(alert)
+            change_markers = MarkerArray()
+            marker_id = 0
 
-            for cl in gained_clusters:
-                # Dedup: skip if we already alerted near this cell
-                bucket = (cl['cx'] // 10, cl['cy'] // 10)
-                if bucket in self._alerted_gained_cells:
-                    continue
-                self._alerted_gained_cells.add(bucket)
-                self.total_trees_gained += cl['area_cells']
-                alert = (
-                    f"NEW GROWTH: ~{cl['area_cells']} trees ({cl['area_m2']:.0f}m²) "
-                    f"near ({cl['world_x']:.1f}, {cl['world_y']:.1f})"
-                )
-                new_alerts.append(alert)
-                self.get_logger().info(alert)
+            if self.baseline_tree_ids is not None and np.any(lost_mask):
+                lost_ids = np.unique(self.baseline_tree_ids[lost_mask])
+                for tid in lost_ids:
+                    if tid == 0 or tid in self._alerted_tree_ids:
+                        continue
+                    wx, wy, area_m2 = self._tree_metrics(
+                        lost_mask, self.baseline_tree_ids, tid
+                    )
+                    if area_m2 <= 0.0:
+                        continue
+                    self._alerted_tree_ids.add(tid)
+                    self.total_trees_lost += 1
 
-            # Publish all new alerts as a single semicolon-delimited message
+                    event = TreeChangeEvent()
+                    event.header = Header(stamp=now, frame_id='husky1_map')
+                    event.event_type = 'LOST'
+                    event.tree_id = int(tid)
+                    event.x = wx
+                    event.y = wy
+                    event.area_m2 = area_m2
+                    self.tree_event_pub.publish(event)
+
+                    alert = (
+                        f"TREE #{tid} LOST: ({wx:.1f}, {wy:.1f}), "
+                        f"{area_m2:.0f}m²"
+                    )
+                    new_alerts.append(alert)
+                    self.get_logger().warn(alert)
+
+                    marker = self._tree_change_marker(
+                        now, marker_id, 'tree_lost', wx, wy, area_m2,
+                        1.0, 0.0, 0.0
+                    )
+                    marker_id += 1
+                    change_markers.markers.append(marker)
+
+            if np.any(gained_mask):
+                gained_ids = self._assign_ids_for_mask(gained_mask)
+                if gained_ids is not None:
+                    for tid in np.unique(gained_ids[gained_mask]):
+                        if tid == 0 or tid in self._alerted_gained_tree_ids:
+                            continue
+                        wx, wy, area_m2 = self._tree_metrics(
+                            gained_mask, gained_ids, tid
+                        )
+                        if area_m2 <= 0.0:
+                            continue
+                        self._alerted_gained_tree_ids.add(tid)
+                        self.total_trees_gained += 1
+
+                        event = TreeChangeEvent()
+                        event.header = Header(stamp=now, frame_id='husky1_map')
+                        event.event_type = 'GAINED'
+                        event.tree_id = int(tid)
+                        event.x = wx
+                        event.y = wy
+                        event.area_m2 = area_m2
+                        self.tree_event_pub.publish(event)
+
+                        alert = (
+                            f"NEW TREE #{tid}: ({wx:.1f}, {wy:.1f}), "
+                            f"{area_m2:.0f}m²"
+                        )
+                        new_alerts.append(alert)
+                        self.get_logger().info(alert)
+
+                        marker = self._tree_change_marker(
+                            now, marker_id, 'tree_gained', wx, wy, area_m2,
+                            0.0, 0.5, 1.0
+                        )
+                        marker_id += 1
+                        change_markers.markers.append(marker)
+
+            # Remove IDs from cells that are no longer trees, then give IDs
+            # to current tree cells that have none.
+            self.tree_id_grid[~current_trees] = 0
+            remaining_without_id = current_trees & (self.tree_id_grid == 0)
+            if np.any(remaining_without_id):
+                self._assign_ids_for_mask(remaining_without_id)
+
             if new_alerts:
                 self.last_change_alert = '; '.join(new_alerts)
                 self.change_events_pub.publish(String(data=self.last_change_alert))
 
-            # --- 4. Change markers (red = lost, blue = gained) ---
-            change_markers = MarkerArray()
-            marker_id = 0
-            for cl in lost_clusters[:50]:
-                m = Marker()
-                m.header = Header(stamp=now, frame_id='husky1_map')
-                m.id = marker_id; marker_id += 1
-                m.ns = 'tree_lost'
-                m.type = Marker.CYLINDER
-                m.action = Marker.ADD
-                m.pose = Pose(
-                    position=Point(x=cl['world_x'], y=cl['world_y'], z=2.5),
-                    orientation=Quaternion(w=1.0),
-                )
-                m.scale.x = max(cl['area_m2'] ** 0.5, 1.5)
-                m.scale.y = m.scale.x
-                m.scale.z = 5.0
-                m.color.r = 1.0; m.color.g = 0.0; m.color.b = 0.0; m.color.a = 0.9
-                change_markers.markers.append(m)
-
-            for cl in gained_clusters[:50]:
-                m = Marker()
-                m.header = Header(stamp=now, frame_id='husky1_map')
-                m.id = marker_id; marker_id += 1
-                m.ns = 'tree_gained'
-                m.type = Marker.CYLINDER
-                m.action = Marker.ADD
-                m.pose = Pose(
-                    position=Point(x=cl['world_x'], y=cl['world_y'], z=2.5),
-                    orientation=Quaternion(w=1.0),
-                )
-                m.scale.x = max(cl['area_m2'] ** 0.5, 1.5)
-                m.scale.y = m.scale.x
-                m.scale.z = 5.0
-                m.color.r = 0.0; m.color.g = 0.5; m.color.b = 1.0; m.color.a = 0.9
-                change_markers.markers.append(m)
-
             if change_markers.markers:
                 self.change_marker_pub.publish(change_markers)
 
-        # --- 5. Tree markers (current) ---
+            current_count = int(len(np.unique(self.tree_id_grid[self.tree_id_grid > 0])))
+            status_msg = TreeStatus()
+            status_msg.header = Header(stamp=now, frame_id='husky1_map')
+            status_msg.baseline_count = self.baseline_tree_count
+            status_msg.current_count = current_count
+            status_msg.lost_count = self.total_trees_lost
+            status_msg.gained_count = self.total_trees_gained
+            self.tree_status_pub.publish(status_msg)
+
+        # 4. Change markers are published above
+
+        # 5. Current tree markers
         markers = MarkerArray()
-        tree_cells = np.argwhere(self.tree_hits >= self.tree_confidence)
+        tree_cells = np.argwhere(self.tree_id_grid > 0)
         for i, (ix, iy) in enumerate(tree_cells[:200]):
             wx = self.origin_x + (ix + 0.5) * self.res
             wy = self.origin_y + (iy + 0.5) * self.res
@@ -523,7 +586,7 @@ class TreeMapper(Node):
             markers.markers.append(m)
         self.marker_pub.publish(markers)
 
-        # --- 6. All tree positions as PointCloud2 ---
+        # 6. All tree positions as a PointCloud2
         if len(tree_cells) > 0:
             pts_all = np.column_stack([
                 self.origin_x + (tree_cells[:, 0] + 0.5) * self.res,

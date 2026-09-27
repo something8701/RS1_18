@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Watch the simulation /clock and warn when it stalls.
+"""Watch the simulation /clock and warn when it stops.
 
-Gazebo Fortress sometimes stops publishing /clock (the whole simulation hangs).
-This node publishes a WARN and a /sim_stalled String event when no clock
-message arrives for `stall_timeout` wall-clock seconds, so the stall is
-detected with a timestamp instead of "sometime in the last hour".
+Gazebo Fortress sometimes stops publishing /clock (the whole simulation
+hangs). If no clock message arrives for `stall_timeout` wall-clock seconds,
+this node logs a warning and publishes a /sim_stalled String, so the time
+of the stall is recorded.
 """
 
 import time

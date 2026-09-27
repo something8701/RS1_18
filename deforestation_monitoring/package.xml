@@ -24,8 +24,8 @@
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-scipy</exec_depend>
   <exec_depend>python3-websocket</exec_depend>
-  <exec_depend>tf2-ros</exec_depend>
-  <exec_depend>cv-bridge</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>cv_bridge</exec_depend>
   <exec_depend>python3-opencv</exec_depend>
   <exec_depend>python3-sklearn</exec_depend>
 

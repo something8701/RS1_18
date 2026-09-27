@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Very small map/image/Nav2 autonomy example.
 
-This node is intended as starter code for students. It deliberately keeps the
-"autonomy" simple so the ROS structure is easy to follow:
+This node is starter code for students. The "autonomy" is kept simple so
+the ROS structure is easy to follow:
 
   1. Read the current SLAM/Nav2 map (nav_msgs/OccupancyGrid).
   2. Read the latest camera image and compute one cheap brightness score.
@@ -12,13 +12,12 @@ This node is intended as starter code for students. It deliberately keeps the
   6. Wait for the result, then choose another waypoint.
 
 The same script works for /husky1 and /parrot1 when launched in the matching
-namespace. Topic and action names are intentionally relative. For example, the
+namespace, because topic and action names are relative. For example, the
 relative topic ``map`` becomes ``/husky1/map`` when the node is launched in the
 ``husky1`` namespace, and ``/parrot1/map`` when launched in ``parrot1``.
 
-This is not meant to be a good exploration algorithm. It is meant to be a small,
-readable template showing how perception, mapping, TF, and Nav2 can be connected
-inside one ROS node.
+It is not a good exploration algorithm. It is a small, readable template
+that shows how perception, mapping, TF and Nav2 fit together in one node.
 """
 
 import math
@@ -58,8 +57,8 @@ class BasicAutonomyDemo(Node):
         self.declare_parameter('navigate_action', 'navigate_to_pose')
 
         # Bright images make the demo choose goals farther away; darker images
-        # make it choose closer goals. This is intentionally simple, and is just
-        # a placeholder for a more meaningful perception signal.
+        # make it choose closer goals. This is only a placeholder for a more
+        # meaningful perception signal.
         self.declare_parameter('close_goal_min_distance', 4.0)
         self.declare_parameter('close_goal_max_distance', 7.0)
         self.declare_parameter('far_goal_min_distance', 7.0)
@@ -175,10 +174,9 @@ class BasicAutonomyDemo(Node):
     def _estimate_image_brightness(self, msg: Image) -> Optional[float]:
         """Return a fast approximate image brightness between 0.0 and 1.0.
 
-        This deliberately avoids cv_bridge/OpenCV to keep dependencies minimal.
-        It samples only a subset of pixels, so the computation stays fast even if
-        the camera image is large. Students can replace this function with more
-        meaningful perception later.
+        It avoids cv_bridge/OpenCV to keep dependencies minimal, and samples
+        only some of the pixels so it stays fast on large images. Students
+        can replace this function with more meaningful perception later.
         """
         encoding = msg.encoding.lower()
         channels = None
@@ -287,9 +285,9 @@ class BasicAutonomyDemo(Node):
     def _choose_goal(self, robot_pose: Tuple[float, float, float]) -> Optional[Tuple[float, float, float]]:
         """Choose the next random goal from known free space.
 
-        The only role of the image in this demo is to bias goal distance:
-        brighter images choose farther goals, darker images choose closer goals.
-        This is intentionally artificial but easy to replace.
+        The image only biases the goal distance: brighter images choose
+        farther goals, darker images choose closer goals. This is artificial
+        but easy to replace.
         """
         assert self.map_msg is not None
         assert self.map_array is not None
@@ -371,7 +369,7 @@ class BasicAutonomyDemo(Node):
         window = self.map_array[iy - margin:iy + margin + 1, ix - margin:ix + margin + 1]
 
         # OccupancyGrid: -1 = unknown, 0 = free, 100 = occupied.
-        # This skeleton deliberately only chooses known free space.
+        # Only known free space is chosen.
         if np.any(window < 0):
             return False
         if np.any(window > free_threshold):

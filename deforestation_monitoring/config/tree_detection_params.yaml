@@ -1,0 +1,46 @@
+# Tree detector parameters, tuned on recorded live canopy maps with
+# tune_on_recording. Results with these values:
+#   sparse_trees: all 5 trees, no false trees, on every map (1.0 m)
+#   showcase_forest: F1 0.901 (1.0 m)
+#   dense_forest: F1 0.543 (1.5 m)
+# chm_resolution matches the scan_mapper grid (0.25 m), so no resampling.
+# narrow_*: a second, lightly smoothed pass adds narrow pine tops that heavy
+# smoothing flattens, unless they are within narrow_exclusion_radius of an
+# oak-height (>= narrow_tall_height) treetop.
+/**:
+  ros__parameters:
+    chm_resolution: 0.25
+    smooth_sigma: 0.9
+    min_height: 1.5
+    use_auto_threshold: true
+    ground_floor: 0.1
+    ground_percentile: 0.2
+    ground_margin: 0.5
+    auto_threshold_cap: 1.5
+    window_scale: 0.35
+    window_offset: 0.2
+    min_window: 0.5
+    max_window: 1.5
+    min_sep: 2.5
+    saddle_ratio: 0.75
+    valley_ratio: 0.1
+    valley_offset: 0.2
+    crown_scale: 1.5
+    crown_offset: 2.0
+    min_tree_height: 1.5
+    min_crown_cells: 5
+    mask_close_iterations: 2
+    mask_open_iterations: 1
+    pit_fill_size: 3
+    centroid_band: 0.5
+    position_mode: "auto"
+    merge_max_radius: 8.0
+    merge_small_area: 0.0
+    merge_radius: 5.0
+    overlap_threshold: 3.0
+    narrow_sigma: 0.25
+    narrow_window: 1.0
+    narrow_prominence: 0.0
+    narrow_saddle_range: 8.0
+    narrow_exclusion_radius: 6.0
+    narrow_tall_height: 5.2

@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-Tree Removal Simulator: deletes a known cluster of trees in Gazebo so the
-perception pipeline can detect a real canopy/tree loss.
+Tree removal simulator: deletes known trees in Gazebo so the perception
+pipeline has a real canopy loss to detect.
 
-It waits for the mapping baselines, then deletes each target tree through the
-Gazebo entity-remove service. The `ign service` CLI is used because it talks to
-the Ignition transport directly and needs no ROS service bridge. The removed
-trees' centroid is published on /ground_truth_events so evaluate_mission can
-score the detection pipeline against a known clearing.
+It waits for the mapping baselines, then deletes each target tree with the
+Gazebo entity remove service. It calls the `ign service` CLI, which talks to
+Ignition transport directly, so no ROS service bridge is needed. The centre
+of the removed trees is published on /ground_truth_events so evaluate_mission
+can score the detections against a known clearing.
 
-The 13 trees of simple_trees.sdf are hardcoded with their ground-truth
-positions so a centre/radius query can select a cluster. For dense_forest,
-pass explicit tree names (e.g. 'oak_1','pine_3','oak_4') and, if available, a
-name->position map via a small edit to TREE_POSITIONS.
+Tree positions come from the installed world SDF (any world); the hardcoded
+simple_trees and dense_forest tables are a fallback. Removal waits for the
+parrot_tree_tracker "frozen: N trees" message, not just any
+/drone_baseline_status message.
 """
 
 import os
@@ -29,8 +29,10 @@ from geometry_msgs.msg import Point
 from std_srvs.srv import Trigger
 from deforestation_interfaces.msg import SuspiciousArea
 
+from .tree_detection import parse_tree_truth
 
-# Ground-truth (x, y) positions of the 13 trees in simple_trees.sdf.
+
+# (x, y) of the 13 trees in simple_trees.sdf.
 SIMPLE_TREES: Dict[str, Tuple[float, float]] = {
     'oak_1': (-23.9, -28.8),
     'oak_2': (-27.9, -15.2),
@@ -47,7 +49,7 @@ SIMPLE_TREES: Dict[str, Tuple[float, float]] = {
     'pine_13': (12.2, -10.9),
 }
 
-# Ground-truth (x, y) positions of the 214 trees in dense_forest.sdf.
+# (x, y) of the 214 trees in dense_forest.sdf.
 DENSE_FOREST_TREES: Dict[str, Tuple[float, float]] = {
     'oak_1': (-36.9, -35.9), 'oak_2': (-33.4, -31.7), 'pine_3': (-36.1, -24.6),
     'oak_4': (-34.6, -18.8), 'pine_5': (-35.6, -16.4), 'pine_6': (-35.5, -10.6),
@@ -125,10 +127,45 @@ DENSE_FOREST_TREES: Dict[str, Tuple[float, float]] = {
 
 
 def positions_for_world(world: str) -> Dict[str, Tuple[float, float]]:
-    """Return the name->(x, y) map for the given Gazebo world."""
+    """Return name -> (x, y) for the given Gazebo world.
+
+    Read from the installed world SDF, so every world gets its real tree
+    positions. The hardcoded tables are only used if the SDF is not found.
+    """
+    try:
+        from ament_index_python.packages import get_package_share_directory
+        path = os.path.join(
+            get_package_share_directory('41068_ignition_bringup'),
+            'worlds', f'{world}.sdf')
+        if os.path.isfile(path):
+            truth = parse_tree_truth(path)
+            if truth:
+                return {name: (x, y) for name, x, y in truth}
+    except Exception:  # noqa: BLE001 - any failure uses the fallback
+        pass
     if world == 'dense_forest':
         return DENSE_FOREST_TREES
     return SIMPLE_TREES
+
+
+def remove_model(world: str, name: str) -> Tuple[bool, str]:
+    """Delete a model from the running Ignition world. Returns (ok, output)."""
+    req = f'name: "{name}" type: MODEL'
+    cmd = [
+        'ign', 'service', '-s', f'/world/{world}/remove',
+        '--timeout', '2000',
+        '--reqtype', 'ignition.msgs.Entity',
+        '--reptype', 'ignition.msgs.Boolean',
+        '--req', req,
+    ]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=15.0)
+    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        return False, str(exc)
+    out = (r.stdout + r.stderr).strip()
+    ok = r.returncode == 0 and 'error' not in out.lower() \
+        and 'data: false' not in out.lower()
+    return ok, out
 
 
 class TreeRemoval(Node):
@@ -164,10 +201,9 @@ class TreeRemoval(Node):
                 description='Seconds after baselines before auto-triggering'))
         self.declare_parameter('disturbance_type', 'cut',
             descriptor=ParameterDescriptor(
-                description="Disturbance evidence to leave behind: 'cut' spawns a "
-                            "short stump cylinder, 'windthrow' spawns a fallen trunk. "
-                            'Gives the classifier real evidence to distinguish CUT from '
-                            'NATURAL instead of deleting the whole model.'))
+                description="What to leave behind: 'cut' spawns a short stump, "
+                            "'windthrow' spawns a fallen trunk. This gives the "
+                            'classifier real evidence to tell CUT from NATURAL.'))
 
         self.world = self.get_parameter('world').value
         self.tree_names = self.get_parameter('tree_names').value
@@ -180,6 +216,12 @@ class TreeRemoval(Node):
         self.disturbance_type = self.get_parameter('disturbance_type').value
 
         self.target_trees: List[str] = self._select_trees()
+        known = positions_for_world(self.world)
+        missing = [n for n in self.target_trees if n not in known]
+        if missing:
+            self.get_logger().warn(
+                f'Target trees not in world {self.world}: {missing}. '
+                f'They cannot be removed or scored.')
         self.tree_baseline_ready = False
         self.drone_baseline_ready = False
         self._triggered = False
@@ -206,7 +248,7 @@ class TreeRemoval(Node):
             f'Tree Removal ready. World={self.world}, targets={self.target_trees}. '
             f'Waiting for baselines (both={self.require_both}).')
 
-    # ── Tree selection ───────────────────────────────────────────────
+    # Tree selection
 
     def _select_trees(self) -> List[str]:
         if not self.use_center:
@@ -223,24 +265,29 @@ class TreeRemoval(Node):
             return list(self.tree_names)
         return chosen
 
-    # ── Baseline handling ────────────────────────────────────────────
+    # Baseline handling
 
     def _tree_baseline_cb(self, _msg):
         if not self.tree_baseline_ready:
             self.tree_baseline_ready = True
             self.get_logger().info('tree_mapper baseline received')
 
-    def _drone_baseline_cb(self, _msg):
-        if not self.drone_baseline_ready:
-            self.drone_baseline_ready = True
-            self.get_logger().info('scan_mapper baseline received')
+    def _drone_baseline_cb(self, msg):
+        # /drone_baseline_status is shared: parrot_tree_tracker publishes
+        # "waiting: coverage ..." every tick until its baseline exists. Only
+        # "frozen: N trees" means the trees are in the baseline; removing them
+        # earlier means they are never in the baseline and cannot be lost.
+        if self.drone_baseline_ready or not msg.data.startswith('frozen'):
+            return
+        self.drone_baseline_ready = True
+        self.get_logger().info(f'parrot tree baseline received: {msg.data}')
 
     def _ready(self) -> bool:
         if self.require_both:
             return self.tree_baseline_ready and self.drone_baseline_ready
         return self.tree_baseline_ready or self.drone_baseline_ready
 
-    # ── Triggering ───────────────────────────────────────────────────
+    # Triggering
 
     def _manual_trigger(self, _request, response):
         removed = self._remove_targets()
@@ -268,37 +315,20 @@ class TreeRemoval(Node):
         if removed:
             self._publish_ground_truth(removed)
 
-    # ── Gazebo deletion ──────────────────────────────────────────────
+    # Gazebo deletion
 
     def _remove_tree(self, name: str) -> bool:
-        req = f'name: "{name}" type: MODEL'
-        cmd = [
-            'ign', 'service', '-s', f'/world/{self.world}/remove',
-            '--timeout', '2000',
-            '--reqtype', 'ignition.msgs.Entity',
-            '--reptype', 'ignition.msgs.Boolean',
-            '--req', req,
-        ]
-        try:
-            r = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=15.0)
-        except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
-            self.get_logger().error(f'remove {name} failed: {exc}')
-            return False
-        ok = r.returncode == 0 and 'error' not in (r.stdout + r.stderr).lower()
+        ok, out = remove_model(self.world, name)
         if not ok:
-            self.get_logger().error(
-                f'remove {name} returned {r.returncode}: '
-                f'{(r.stdout + r.stderr).strip()}')
+            self.get_logger().error(f'remove {name} failed: {out}')
         return ok
 
     def _spawn_replacement(self, name: str, x: float, y: float) -> bool:
-        """Spawn disturbance evidence where the tree used to be.
+        """Spawn evidence where the tree was.
 
-        'cut' -> short vertical stump cylinder (deliberate removal).
-        'windthrow' -> fallen horizontal trunk (natural fall).
-        Gives the ground inspection real geometry to classify instead of an
-        empty hole.
+        'cut' spawns a short upright stump (deliberate removal), 'windthrow'
+        a fallen trunk (natural fall), so the ground inspection has real
+        geometry to classify instead of an empty space.
         """
         if self.disturbance_type == 'windthrow':
             geom = '<cylinder><radius>0.12</radius><length>3.0</length></cylinder>'
@@ -358,7 +388,7 @@ class TreeRemoval(Node):
                 self._spawn_replacement(name, pos[0], pos[1])
         return removed
 
-    # ── Ground truth ─────────────────────────────────────────────────
+    # Ground truth
 
     def _publish_ground_truth(self, removed: List[str]):
         tree_map = positions_for_world(self.world)
@@ -368,7 +398,7 @@ class TreeRemoval(Node):
             return
         cx = sum(p[0] for p in positions) / len(positions)
         cy = sum(p[1] for p in positions) / len(positions)
-        area = float(len(removed) * 12.0)  # rough per-tree footprint estimate
+        area = float(len(removed) * 12.0)  # rough footprint per tree (m2)
 
         flag = SuspiciousArea()
         flag.header = Header(
