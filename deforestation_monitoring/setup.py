@@ -28,6 +28,7 @@ setup(
         'console_scripts': [
             'tree_mapper = deforestation_monitoring.tree_mapper:main',
             'scan_mapper = deforestation_monitoring.scan_mapper:main',
+            'change_detector = deforestation_monitoring.change_detector:main',
             'pattern_scanner = deforestation_monitoring.pattern_scanner:main',
             'mission_coordinator = deforestation_monitoring.mission_coordinator:main',
             'demo_patrol = deforestation_monitoring.demo_patrol:main',

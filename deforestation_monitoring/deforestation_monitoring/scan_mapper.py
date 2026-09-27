@@ -100,6 +100,12 @@ class ScanMapper(Node):
             descriptor=ParameterDescriptor(
                 description='Consecutive scans a cell must read as not-canopy before it '
                             'counts as lost. A single grazing beam cannot flip a cell.'))
+        self.declare_parameter('enable_change_detection', True,
+            descriptor=ParameterDescriptor(
+                description='Run the built-in baseline/change detection. Set false when '
+                            'the standalone change_detector node owns /canopy_change_map, '
+                            '/canopy_change_events, /canopy_change_markers and '
+                            '/drone_baseline_status.'))
         self.declare_parameter('publish_rate', 1.0,
             descriptor=ParameterDescriptor(description='Map publish rate in Hz'))
         self.declare_parameter('max_cloud_points', 200000,
@@ -125,6 +131,7 @@ class ScanMapper(Node):
         self.height_drop = self.get_parameter('height_drop_threshold').value
         self.low_streak_threshold = self.get_parameter('low_streak_threshold').value
         self.max_cloud_pts = self.get_parameter('max_cloud_points').value
+        self.change_enabled = self.get_parameter('enable_change_detection').value
 
         self.dim_x = int(self.map_x / self.res)
         self.dim_y = int(self.map_y / self.res)
@@ -200,26 +207,27 @@ class ScanMapper(Node):
         self.canopy_pub = self.create_publisher(
             OccupancyGrid, '/forest_canopy_map', map_qos
         )
-        self.change_pub = self.create_publisher(
-            OccupancyGrid, '/canopy_change_map', map_qos
-        )
-        self.change_events_pub = self.create_publisher(
-            String, '/canopy_change_events', default_qos
-        )
-        self.change_marker_pub = self.create_publisher(
-            MarkerArray, '/canopy_change_markers', default_qos
-        )
+        if self.change_enabled:
+            self.change_pub = self.create_publisher(
+                OccupancyGrid, '/canopy_change_map', map_qos
+            )
+            self.change_events_pub = self.create_publisher(
+                String, '/canopy_change_events', default_qos
+            )
+            self.change_marker_pub = self.create_publisher(
+                MarkerArray, '/canopy_change_markers', default_qos
+            )
         self.swath_pub = self.create_publisher(
             PointCloud2, '/drone_lidar_points', sensor_qos
         )
-        self.baseline_pub = self.create_publisher(
-            String, '/drone_baseline_status', default_qos
-        )
-
-        # Reset baseline service
-        self.reset_srv = self.create_service(
-            Trigger, '~/reset_baseline', self.reset_baseline_callback
-        )
+        if self.change_enabled:
+            self.baseline_pub = self.create_publisher(
+                String, '/drone_baseline_status', default_qos
+            )
+            # Reset baseline service
+            self.reset_srv = self.create_service(
+                Trigger, '~/reset_baseline', self.reset_baseline_callback
+            )
 
         pub_period = 1.0 / max(self.get_parameter('publish_rate').value, 0.1)
         self.timer = self.create_timer(pub_period, self.publish_maps)
@@ -360,7 +368,8 @@ class ScanMapper(Node):
         covered = np.count_nonzero(self.hits_grid > 0)
         self._pos_history.append(
             (self.scan_count, float(self._odom_pos[0]), float(self._odom_pos[1])))
-        if not self.baseline_established and self.scan_count >= self.baseline_threshold:
+        if (self.change_enabled and not self.baseline_established
+                and self.scan_count >= self.baseline_threshold):
             for sc, ax, ay in self._pos_history:
                 if self.scan_count - sc < self.loop_scans:
                     break  # history is chronological — rest is too recent
@@ -500,7 +509,7 @@ class ScanMapper(Node):
         # --- 2. Change map (diff vs baseline) ---
         change_grid, lost_mask, gained_mask = self._compute_change()
 
-        if change_grid is not None:
+        if change_grid is not None and self.change_enabled:
             change_msg = OccupancyGrid()
             change_msg.header = Header(stamp=now, frame_id=self.map_frame)
             change_msg.info = grid.info

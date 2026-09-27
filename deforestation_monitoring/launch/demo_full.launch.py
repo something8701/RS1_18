@@ -12,6 +12,10 @@ truth — monitoring_only.launch.py includes the same set).
 Usage:
     ros2 launch deforestation_monitoring demo_full.launch.py
 
+Spawn poses link the drone frame into the Husky's Nav2 frame. The defaults
+(Husky 0,0; Parrot 2,0) match 41068_ignition.launch.py; override only if
+those spawn poses change, e.g.  parrot_x:=2.0 parrot_y:=0.0 parrot_yaw:=0.0
+
 Or for a lighter demo (Husky only, no drone):
     ros2 launch deforestation_monitoring demo_full.launch.py drone:=false
 """
@@ -83,6 +87,7 @@ def generate_launch_description():
             'drone': drone_enabled,
             'husky': husky_enabled,
             'use_sim_time': use_sim_time,
+            'world': world_name,
         }.items(),
     )
 
@@ -113,7 +118,9 @@ def generate_launch_description():
         LogInfo(msg='Change detection:'),
         LogInfo(msg='  ros2 topic echo /canopy_change_events  (drone canopy)'),
         LogInfo(msg='  ros2 topic echo /forest_change_events  (Husky trunks)'),
-        LogInfo(msg='  ros2 service call /scan_mapper/reset_baseline std_srvs/srv/Trigger'),
+        LogInfo(msg='  ros2 topic echo /change_detector/status'),
+        LogInfo(msg='  ros2 service call /change_detector/snapshot_baseline std_srvs/srv/Trigger'),
+        LogInfo(msg='  ros2 service call /change_detector/reset_baseline std_srvs/srv/Trigger'),
         LogInfo(msg='  ros2 service call /tree_mapper/reset_baseline std_srvs/srv/Trigger'),
         LogInfo(msg=''),
         LogInfo(msg='Priority modes (change via param):'),
