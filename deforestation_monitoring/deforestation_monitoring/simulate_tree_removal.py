@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-Tree removal simulator: deletes known trees in Gazebo so the perception
-pipeline has a real canopy loss to detect.
+Tree Removal Simulator: deletes a known cluster of trees in Gazebo so the
+perception pipeline can detect a real canopy/tree loss.
 
-It waits for the mapping baselines, then deletes each target tree with the
-Gazebo entity remove service. It calls the `ign service` CLI, which talks to
-Ignition transport directly, so no ROS service bridge is needed. The centre
-of the removed trees is published on /ground_truth_events so evaluate_mission
-can score the detections against a known clearing.
+It waits for the mapping baselines, then deletes each target tree through the
+Gazebo entity-remove service. The `ign service` CLI is used because it talks to
+the Ignition transport directly and needs no ROS service bridge. The removed
+trees' centroid is published on /ground_truth_events so evaluate_mission can
+score the detection pipeline against a known clearing.
 
-Tree positions come from the installed world SDF (any world); the hardcoded
-simple_trees and dense_forest tables are a fallback. Removal waits for the
-parrot_tree_tracker "frozen: N trees" message, not just any
+Tree positions are read from the installed world SDF (any world), with
+hardcoded simple_trees / dense_forest tables as a fallback. Removal waits
+for the parrot_tree_tracker "frozen: N trees" baseline, not just any
 /drone_baseline_status message.
 """
 
@@ -32,7 +32,7 @@ from deforestation_interfaces.msg import SuspiciousArea
 from .tree_detection import parse_tree_truth
 
 
-# (x, y) of the 13 trees in simple_trees.sdf.
+# Ground-truth (x, y) positions of the 13 trees in simple_trees.sdf.
 SIMPLE_TREES: Dict[str, Tuple[float, float]] = {
     'oak_1': (-23.9, -28.8),
     'oak_2': (-27.9, -15.2),
@@ -49,7 +49,7 @@ SIMPLE_TREES: Dict[str, Tuple[float, float]] = {
     'pine_13': (12.2, -10.9),
 }
 
-# (x, y) of the 214 trees in dense_forest.sdf.
+# Ground-truth (x, y) positions of the 214 trees in dense_forest.sdf.
 DENSE_FOREST_TREES: Dict[str, Tuple[float, float]] = {
     'oak_1': (-36.9, -35.9), 'oak_2': (-33.4, -31.7), 'pine_3': (-36.1, -24.6),
     'oak_4': (-34.6, -18.8), 'pine_5': (-35.6, -16.4), 'pine_6': (-35.5, -10.6),
@@ -127,10 +127,11 @@ DENSE_FOREST_TREES: Dict[str, Tuple[float, float]] = {
 
 
 def positions_for_world(world: str) -> Dict[str, Tuple[float, float]]:
-    """Return name -> (x, y) for the given Gazebo world.
+    """Return the name->(x, y) map for the given Gazebo world.
 
-    Read from the installed world SDF, so every world gets its real tree
-    positions. The hardcoded tables are only used if the SDF is not found.
+    Read from the installed world SDF, so every world (sparse_trees,
+    cluster_test, ...) gets its real tree positions. The hardcoded tables
+    are only a fallback when the SDF cannot be found.
     """
     try:
         from ament_index_python.packages import get_package_share_directory
@@ -141,7 +142,7 @@ def positions_for_world(world: str) -> Dict[str, Tuple[float, float]]:
             truth = parse_tree_truth(path)
             if truth:
                 return {name: (x, y) for name, x, y in truth}
-    except Exception:  # noqa: BLE001 - any failure uses the fallback
+    except Exception:  # noqa: BLE001 - any lookup failure -> fallback
         pass
     if world == 'dense_forest':
         return DENSE_FOREST_TREES
@@ -201,9 +202,10 @@ class TreeRemoval(Node):
                 description='Seconds after baselines before auto-triggering'))
         self.declare_parameter('disturbance_type', 'cut',
             descriptor=ParameterDescriptor(
-                description="What to leave behind: 'cut' spawns a short stump, "
-                            "'windthrow' spawns a fallen trunk. This gives the "
-                            'classifier real evidence to tell CUT from NATURAL.'))
+                description="Disturbance evidence to leave behind: 'cut' spawns a "
+                            "short stump cylinder, 'windthrow' spawns a fallen trunk. "
+                            'Gives the classifier real evidence to distinguish CUT from '
+                            'NATURAL instead of deleting the whole model.'))
 
         self.world = self.get_parameter('world').value
         self.tree_names = self.get_parameter('tree_names').value
@@ -248,7 +250,7 @@ class TreeRemoval(Node):
             f'Tree Removal ready. World={self.world}, targets={self.target_trees}. '
             f'Waiting for baselines (both={self.require_both}).')
 
-    # Tree selection
+    # ── Tree selection ───────────────────────────────────────────────
 
     def _select_trees(self) -> List[str]:
         if not self.use_center:
@@ -265,7 +267,7 @@ class TreeRemoval(Node):
             return list(self.tree_names)
         return chosen
 
-    # Baseline handling
+    # ── Baseline handling ────────────────────────────────────────────
 
     def _tree_baseline_cb(self, _msg):
         if not self.tree_baseline_ready:
@@ -274,9 +276,9 @@ class TreeRemoval(Node):
 
     def _drone_baseline_cb(self, msg):
         # /drone_baseline_status is shared: parrot_tree_tracker publishes
-        # "waiting: coverage ..." every tick until its baseline exists. Only
-        # "frozen: N trees" means the trees are in the baseline; removing them
-        # earlier means they are never in the baseline and cannot be lost.
+        # "waiting: coverage ..." until its baseline exists. Only "frozen: N
+        # trees" means the trees are baselined; cutting earlier would make the
+        # loss invisible.
         if self.drone_baseline_ready or not msg.data.startswith('frozen'):
             return
         self.drone_baseline_ready = True
@@ -287,7 +289,7 @@ class TreeRemoval(Node):
             return self.tree_baseline_ready and self.drone_baseline_ready
         return self.tree_baseline_ready or self.drone_baseline_ready
 
-    # Triggering
+    # ── Triggering ───────────────────────────────────────────────────
 
     def _manual_trigger(self, _request, response):
         removed = self._remove_targets()
@@ -315,7 +317,7 @@ class TreeRemoval(Node):
         if removed:
             self._publish_ground_truth(removed)
 
-    # Gazebo deletion
+    # ── Gazebo deletion ──────────────────────────────────────────────
 
     def _remove_tree(self, name: str) -> bool:
         ok, out = remove_model(self.world, name)
@@ -324,11 +326,12 @@ class TreeRemoval(Node):
         return ok
 
     def _spawn_replacement(self, name: str, x: float, y: float) -> bool:
-        """Spawn evidence where the tree was.
+        """Spawn disturbance evidence where the tree used to be.
 
-        'cut' spawns a short upright stump (deliberate removal), 'windthrow'
-        a fallen trunk (natural fall), so the ground inspection has real
-        geometry to classify instead of an empty space.
+        'cut' -> short vertical stump cylinder (deliberate removal).
+        'windthrow' -> fallen horizontal trunk (natural fall).
+        Gives the ground inspection real geometry to classify instead of an
+        empty hole.
         """
         if self.disturbance_type == 'windthrow':
             geom = '<cylinder><radius>0.12</radius><length>3.0</length></cylinder>'
@@ -388,7 +391,7 @@ class TreeRemoval(Node):
                 self._spawn_replacement(name, pos[0], pos[1])
         return removed
 
-    # Ground truth
+    # ── Ground truth ─────────────────────────────────────────────────
 
     def _publish_ground_truth(self, removed: List[str]):
         tree_map = positions_for_world(self.world)
@@ -398,7 +401,7 @@ class TreeRemoval(Node):
             return
         cx = sum(p[0] for p in positions) / len(positions)
         cy = sum(p[1] for p in positions) / len(positions)
-        area = float(len(removed) * 12.0)  # rough footprint per tree (m2)
+        area = float(len(removed) * 12.0)  # rough per-tree footprint estimate
 
         flag = SuspiciousArea()
         flag.header = Header(

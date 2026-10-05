@@ -1,28 +1,25 @@
 #!/usr/bin/env python3
 """
-Mission coordinator: takes SuspiciousArea flags and sends the Husky to
-inspect each site with Nav2 NavigateToPose.
+Mission Coordinator: Receives SuspiciousArea flags and dispatches the
+Husky ground rover to inspect each site via Nav2 NavigateToPose.
 
-Priority modes:
-  - closest:    nearest to the robot first (from /husky1/odometry)
+Supports multiple priority strategies:
+  - closest:   nearest to the robot first (from /husky1/odometry)
   - confidence: highest confidence first
-  - area:       largest area first
-  - severity:   highest severity first
-  - composite:  (severity * confidence) / distance, so big, certain and
-                nearby sites go first
+  - area:      largest affected area first
+  - severity:  highest composite severity first
+  - composite: (severity * confidence) / distance: big, certain, nearby first
 
-Other behaviour:
-  - closest and composite are re-ranked on every queue tick as the robot
-    moves.
-  - Missions with equal priority run in arrival order.
-  - A site is skipped if it is near a queued or inspected site and inside
-    dedup_window.
-  - Rejected or aborted goals are queued again with a priority penalty, up
-    to max_retries.
-  - The latest camera image is kept from a normal subscription and saved as
-    evidence on arrival.
+Behaviour:
+  - Distance-based modes (closest / composite) are re-ranked on every queue
+    tick as the robot moves.
+  - Equal priorities dispatch in arrival order.
+  - Dedup uses distance and a time window (dedup_window).
+  - Rejected or aborted goals are requeued with a priority penalty, up to
+    max_retries.
+  - Evidence is the latest frame of a persistent camera subscription.
   - Nav2 readiness is checked without blocking the queue timer.
-  - /mission_status is published for the dashboard.
+  - /mission_status shows the decision state on the dashboard.
   - Active Nav2 goals are cancelled on shutdown.
 """
 
@@ -55,11 +52,11 @@ from tf2_ros import Buffer, TransformException, TransformListener
 
 @dataclass(order=True)
 class Mission:
-    """An inspection task. A lower priority value is more urgent.
+    """Prioritised inspection task. Lower priority value = higher urgency.
 
-    Tasks compare by (priority, seq), so equal priorities run in arrival
-    order. Fields with defaults are last so positional construction still
-    works.
+    Comparison uses (priority, seq): equal priorities are broken FIFO by
+    seq (lower seq = queued earlier). Defaulted fields stay at the end so
+    the dataclass constructor stays positional-compatible.
     """
     priority: float
     x: float = field(compare=False)
@@ -75,7 +72,7 @@ class Mission:
 
 
 class MissionCoordinator(Node):
-    """Takes SuspiciousArea flags and sends the Husky with Nav2."""
+    """Receives SuspiciousArea flags, dispatches Husky via Nav2."""
 
     def __init__(self):
         super().__init__('mission_coordinator')
@@ -99,15 +96,15 @@ class MissionCoordinator(Node):
                 description='Directory to save inspection images'))
         self.declare_parameter('map_frame', 'husky1_map',
             descriptor=ParameterDescriptor(
-                description='Nav2 global frame; flags are transformed into it'))
+                description='Nav2 global frame — flags are transformed into it before dispatch'))
         self.declare_parameter('dedup_radius', 10.0,
             descriptor=ParameterDescriptor(
                 description='Skip flags within this radius (m) of a queued or '
-                            'inspected site, so repeated detections do not flood the queue'))
+                            'inspected site — stops repeated detections flooding the queue'))
         self.declare_parameter('dedup_window', 300.0,
             descriptor=ParameterDescriptor(
-                description='Time window (s, sim clock) for skipping a site. '
-                            'After it, the site can be queued again'))
+                description='Time window (s, sim clock) for site dedup — a site '
+                            'is only re-queued after this window elapses'))
         self.declare_parameter('max_retries', 3,
             descriptor=ParameterDescriptor(
                 description='Max Nav2 goal retries for rejected/aborted missions'))
@@ -117,7 +114,7 @@ class MissionCoordinator(Node):
 
         self.declare_parameter('inspection_standoff', 1.0,
             descriptor=ParameterDescriptor(
-                description='Distance (m) the Husky stops short of a suspicious area'))
+                description='Distance in metres Husky stops from a suspicious area'))
 
         self.priority_mode = self.get_parameter('priority_mode').value
         self.capture_enabled = self.get_parameter('capture_images').value
@@ -129,7 +126,7 @@ class MissionCoordinator(Node):
         self.requeue_penalty = self.get_parameter('requeue_penalty').value
         self.inspection_standoff = self.get_parameter('inspection_standoff').value
 
-        # TF, to transform flag positions into the Nav2 map frame
+        # TF for transforming flag coordinates into the Nav2 map frame
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
@@ -150,14 +147,14 @@ class MissionCoordinator(Node):
         self.robot_x = None
         self.robot_y = None
 
-        # Recently queued or inspected sites: (x, y, sim-clock ns)
+        # Recently queued/inspected sites for dedup: (x, y, sim-clock ns)
         self._recent_sites = deque(maxlen=50)
 
-        # Latest camera image, from a normal subscription
+        # Latest camera frame, kept for evidence capture
         self.bridge = CvBridge()
         self._latest_image = None
 
-        # QoS profiles
+        # -- QoS profiles --
         alert_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.VOLATILE,
@@ -200,18 +197,21 @@ class MissionCoordinator(Node):
             f'Camera capture: {self.capture_enabled}.'
         )
 
-    # Priority scoring
+    # ── Priority scoring ─────────────────────────────────────────────
 
     def _compute_priority_value(self, mode: str, severity: float,
                                 confidence: float, area_m2: float,
                                 dist: float) -> float:
-        """Return the priority value of a flag. Smaller is more urgent."""
+        """Compute a mission priority value. LOWER value = HIGHER urgency.
+
+        All modes return values where smaller = more urgent.
+        """
         if mode == 'closest':
             # Closest first
             return dist
 
         elif mode == 'confidence':
-            # Highest confidence first (negated, since smaller is more urgent)
+            # Highest confidence first. Negate so higher confidence = lower priority value.
             return -confidence
 
         elif mode == 'area':
@@ -223,9 +223,9 @@ class MissionCoordinator(Node):
             return -severity
 
         elif mode == 'composite':
-            # (severity * confidence) / (distance + 1), negated, so close,
-            # certain and large threats come first. The +1 avoids dividing
-            # by zero.
+            # Composite: (severity * confidence) / (distance + 1).
+            # Closer, higher-confidence, bigger threats = lower priority value.
+            # The +1 prevents division by zero. Negate the score.
             score = (severity * confidence) / (dist + 1.0)
             return -score
 
@@ -236,9 +236,9 @@ class MissionCoordinator(Node):
             return dist
 
     def _distance_to(self, gx: float, gy: float) -> float:
-        """Distance from the Husky to a flag.
+        """Distance from the HUSKY (not the map origin) to a flag.
 
-        Uses the map origin until the first Husky odometry arrives.
+        Falls back to map origin until Husky odometry arrives.
         """
         if self.robot_x is not None:
             return math.hypot(gx - self.robot_x, gy - self.robot_y)
@@ -247,10 +247,10 @@ class MissionCoordinator(Node):
             throttle_duration_sec=10.0)
         return math.hypot(gx, gy)
 
-    # Flag handling
+    # ── Flag handling ─────────────────────────────────────────────────
 
     def odom_callback(self, msg: Odometry):
-        """Store the Husky pose for distance-based priorities."""
+        """Track the Husky pose for robot-relative priority scoring."""
         self.robot_x = msg.pose.pose.position.x
         self.robot_y = msg.pose.pose.position.y
 
@@ -259,14 +259,13 @@ class MissionCoordinator(Node):
         self._latest_image = msg
 
     def flag_callback(self, msg: SuspiciousArea):
-        """Queue a new suspicious area for inspection."""
+        """New suspicious area detected. Queue for inspection."""
         gx = msg.position.x
         gy = msg.position.y
         now_ns = self.get_clock().now().nanoseconds
 
-        # Skip a site that is within dedup_radius of a recent one and inside
-        # dedup_window. Older inspections expire, so a site can be inspected
-        # again later.
+        # Dedup: skip a flag within dedup_radius of a site inspected within
+        # dedup_window; older inspections expire, so a site can be revisited.
         for sx, sy, st in self._recent_sites:
             if (now_ns - st) < self.dedup_window * 1e9 and \
                     math.hypot(gx - sx, gy - sy) < self.dedup_radius:
@@ -281,7 +280,7 @@ class MissionCoordinator(Node):
         self.total += 1
         self._recent_sites.append((gx, gy, now_ns))
 
-        # Priority of this flag with the selected mode
+        # Compute priority for this flag using the selected strategy
         priority = self._compute_priority_value(
             self.priority_mode, msg.severity, msg.confidence,
             msg.area_m2, dist)
@@ -312,19 +311,20 @@ class MissionCoordinator(Node):
         self._publish_status()
 
     def process_queue(self):
-        """Start the next mission in the queue if the robot is idle."""
+        """Process next mission in the queue if idle."""
         if self.active or not self.mission_queue:
             return
 
-        # Check that Nav2 is ready without blocking. The action server is a
-        # lifecycle node and may still be starting.
+        # Non-blocking Nav2 readiness check (the action server may still be
+        # starting up at launch).
         if not self.nav_client.server_is_ready():
             self.get_logger().warn(
                 'Nav2 server not ready — waiting.', throttle_duration_sec=5.0)
             return
 
-        # Distance-based modes: re-rank the queue from the current Husky
-        # pose, not the pose when each flag was queued.
+        # Distance-based modes: re-rank the whole queue as the robot moves,
+        # so proximity reflects the current Husky pose, not the pose at the
+        # time each flag was queued.
         if self.robot_x is not None and \
                 self.priority_mode in ('closest', 'composite'):
             re_scored = []
@@ -344,10 +344,10 @@ class MissionCoordinator(Node):
         self._publish_status()
         self._send_goal(mission)
 
-    # Navigation
+    # ── Navigation ────────────────────────────────────────────────────
 
     def _requeue(self, mission: Mission, penalty: float):
-        """Queue a mission again with a priority penalty and a retry count."""
+        """Re-queue a mission with a priority penalty and a retry counter."""
         mission.priority += penalty
         mission.attempts += 1
         heapq.heappush(self.mission_queue, mission)
@@ -359,10 +359,11 @@ class MissionCoordinator(Node):
     def _send_goal(self, mission: Mission):
         """Send a NavigateToPose goal to Nav2.
 
-        Flags may be in another frame (for example parrot1_odom from the
-        drone scan mapper). The position is transformed into the Nav2 map
-        frame with TF when possible. If TF has no path, the frames are taken
-        to be the same (both start at the sim world origin).
+        Flags may arrive in a non-Nav2 frame (e.g. parrot1_odom from the
+        drone's canopy scan mapper). We transform the flag position into
+        the Nav2 map frame via TF when possible; if the TF tree does not
+        cover the flag frame, we assume the frames coincide (both are
+        anchored at the sim world origin) and use the raw coordinates.
         """
         if not self.nav_client.server_is_ready():
             self.get_logger().warn('Nav2 server went away — requeuing mission.')
@@ -380,7 +381,7 @@ class MissionCoordinator(Node):
                 )
                 t = tf.transform.translation
                 q = tf.transform.rotation
-                # Rotate the flag offset about z only (ground plane)
+                # Ground-plane (yaw-only) rotation of the flag offset
                 siny = 2.0 * (q.w * q.z + q.x * q.y)
                 cosy = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
                 yaw = math.atan2(siny, cosy)
@@ -395,7 +396,7 @@ class MissionCoordinator(Node):
                     f'(using raw flag coordinates)',
                     throttle_duration_sec=10.0)
 
-        # Stop inspection_standoff metres short of the suspicious area
+        # Safe inspection pose: stop 1 m before the suspicious area
         inspection_standoff = self.inspection_standoff
 
         try:
@@ -477,7 +478,7 @@ class MissionCoordinator(Node):
         handle.get_result_async().add_done_callback(self._result)
 
     def _result(self, future):
-        """Handle the Nav2 result and save evidence on success."""
+        """Handle Nav2 goal completion; capture evidence on success."""
         self._goal_handle = None
         result = future.result()
         status = result.status
@@ -488,7 +489,7 @@ class MissionCoordinator(Node):
             self.report_seq += 1
             evidence_path = self._capture_evidence()
             evidence_str = f' [image: {evidence_path}]' if evidence_path else ' [no image]'
-            self._save_lidar_evidence(evidence_path)
+            lidar_path = self._save_lidar_evidence(evidence_path)
             classification, reason = self._classify_disturbance(m, evidence_path)
 
             msg = (
@@ -505,8 +506,8 @@ class MissionCoordinator(Node):
 
         elif status == GoalStatus.STATUS_ABORTED:
             if m.attempts < self.max_retries:
-                # Temporary failure (stuck path, old costmap): queue again
-                # with a priority penalty instead of dropping the site.
+                # Transient failure (stuck path, stale costmap): retry with a
+                # priority penalty instead of dropping the site.
                 self.get_logger().warn(
                     f'SITE RETRY: {m.label} aborted — requeuing.')
                 self._requeue(m, self.requeue_penalty)
@@ -528,14 +529,15 @@ class MissionCoordinator(Node):
         self.active = False
         self._publish_status()
 
-    # Evidence capture
+    # ── Evidence capture ──────────────────────────────────────────────
 
     def _capture_evidence(self) -> str:
-        """Save the latest Husky camera image as inspection evidence.
+        """Save the latest Husky camera frame as inspection evidence.
 
-        Uses the stored latest image from the camera subscription.
+        Uses the persistent latest-image subscription, so nothing spins
+        inside a callback.
 
-        Returns the saved file path, or an empty string on failure.
+        Returns the file path of the saved image, or empty string on failure.
         """
         if not self.capture_enabled:
             return ''
@@ -558,7 +560,7 @@ class MissionCoordinator(Node):
         return filepath
 
     def _lidar_callback(self, msg):
-        """Store the latest Husky laser scan for inspection evidence."""
+        """Keep the most recent Husky laser scan for inspection evidence."""
         self.latest_scan = msg
 
     def _save_lidar_evidence(self, image_path=''):
@@ -622,7 +624,7 @@ class MissionCoordinator(Node):
         return lidar_path
 
     def _classify_disturbance(self, mission, evidence_path=''):
-        """Use the Husky camera image to support the inspection result."""
+        """Use Husky camera evidence to support the ground inspection decision."""
 
         if not evidence_path or not os.path.exists(evidence_path):
             return 'UNCERTAIN', 'no usable camera evidence available'
@@ -631,7 +633,7 @@ class MissionCoordinator(Node):
         if frame is None:
             return 'UNCERTAIN', 'camera evidence could not be loaded'
 
-        # Find strong straight edges in the camera image.
+        # Detect strong straight edges in the ground-level camera image.
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         gray = cv2.GaussianBlur(gray, (5, 5), 0)
         edges = cv2.Canny(gray, 50, 150)
@@ -658,8 +660,8 @@ class MissionCoordinator(Node):
 
         alert_type = (mission.type or '').upper()
 
-        # A LINE alert needs straight-edge evidence before it is classified
-        # as deliberate cutting.
+        # A LINE alert should have supporting straight-edge evidence
+        # before being classified as deliberate cutting.
         if alert_type == 'LINE':
             if line_count >= 3:
                 return (
@@ -675,8 +677,8 @@ class MissionCoordinator(Node):
             )
 
         if alert_type == 'GAP':
-            # A gap with few straight edges looks more like a natural
-            # disturbance.
+            # A gap with very little straight-edge evidence is treated
+            # as more consistent with an irregular/natural disturbance.
             if line_count <= 5:
                 return (
                     'NATURAL',
@@ -699,7 +701,7 @@ class MissionCoordinator(Node):
 
         return 'UNCERTAIN', 'camera evidence available but disturbance type is unknown'
 
-    # Mission status (feeds the dashboard)
+    # ── Mission status (feeds the dashboard) ──────────────────────────
 
     def _publish_status(self):
         if self.active and self.current_mission is not None:
@@ -737,8 +739,8 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        # Ctrl+C may have shut down ROS already, so only clean up if it is
-        # still running.
+        # Ctrl+C may already shut down the ROS context.
+        # Only clean up if ROS is still active.
         if rclpy.ok():
             node.destroy_node()
             rclpy.shutdown()

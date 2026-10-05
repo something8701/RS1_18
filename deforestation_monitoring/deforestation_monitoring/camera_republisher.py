@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Camera republisher: turns raw sensor_msgs/Image into a JPEG CompressedImage
-feed for the dashboard.
+Camera republisher: raw sensor_msgs/Image -> JPEG CompressedImage feed for
+the dashboard.
 
-image_transport's `republish` ignores the `out` remap in ROS 2 Humble (it
-always publishes /out/compressed), so this small node sets its topic names
-itself. Run one per robot; the in/out topics are parameters.
+Why this node exists: image_transport's `republish` tool ignores the `out`
+remap in ROS 2 Humble (the published topic stays /out/compressed), so the
+dashboard camera feed needs a small node that owns its topic names
+explicitly. One instance per robot; in/out topics are parameters.
 """
 
 import time
@@ -20,7 +21,7 @@ import cv2
 
 
 class CameraRepublisher(Node):
-    """Republishes images as JPEG, rate-limited."""
+    """Throttled JPEG republisher: Image -> CompressedImage."""
 
     def __init__(self):
         super().__init__('camera_republisher')
@@ -44,14 +45,14 @@ class CameraRepublisher(Node):
         self.quality = int(self.get_parameter('jpeg_quality').value)
         self.min_interval = 1.0 / max(0.1, float(self.get_parameter('max_rate').value))
 
-        # The Gazebo camera bridge publishes best effort.
+        # Gazebo camera bridge publishes sensor data best-effort.
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.VOLATILE,
             history=HistoryPolicy.KEEP_LAST,
             depth=5,
         )
-        # The dashboard subscribes through rosbridge with reliable QoS.
+        # Dashboard subscribes through rosbridge with default (reliable) QoS.
         pub_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.VOLATILE,
@@ -71,7 +72,7 @@ class CameraRepublisher(Node):
         )
 
     def _on_image(self, msg: Image):
-        """Encode the latest frame as JPEG and publish it, rate-limited."""
+        """Encode the latest raw frame to JPEG and publish, rate-limited."""
         now = time.time()
         if now - self._last_pub < self.min_interval:
             return

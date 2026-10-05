@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
-"""Offline replay evaluation: rebuild the CHM from the raw /parrot1/scan.
+"""Offline replay evaluation: rebuild the CHM from raw /parrot1/scan.
 
-Reads a rosbag with ``/parrot1/scan`` and ``/parrot1/odometry`` and rebuilds
-the canopy height model with the same projection as the live scan_mapper.
-It does not use the recorded canopy map or terrain cloud, so the detector
-can be tuned on the drone's real sensor geometry.
+Reads a rosbag of ``/parrot1/scan`` + ``/parrot1/odometry`` and rebuilds the
+canopy height model with the same push-broom projection the live scan_mapper
+uses. It does NOT read the recorded canopy map or terrain cloud, so the
+detector can be retuned on exactly the sensor geometry the drone produces.
 
-Metrics against the world SDF: precision, recall, F1, treetop movement
-between the two halves of the bag, and false change events between the two
-halves. For a run with no changes the last one must be 0.
+Metrics vs the world SDF ground truth: precision, recall, F1, within-pass
+treetop flicker (two halves of the bag), and false change events between the
+two halves (the pass/fail gate: must be 0 for a no-change run).
 """
 
 from __future__ import annotations
 
 import argparse
 import math
+from collections import deque
 
 import numpy as np
 import yaml
@@ -31,7 +32,7 @@ from .tree_detection import (
 
 
 def scan_to_world(scan: LaserScan, odom: Odometry, altitude: float):
-    """The projection from scan_mapper (imported, not copied)."""
+    """Shared projection from scan_mapper (never reimplemented here)."""
     ranges = np.array(scan.ranges, dtype=np.float64)
     angles = scan.angle_min + np.arange(len(ranges)) * scan.angle_increment
     valid = (np.isfinite(ranges) & (ranges >= 0.5) & (ranges <= scan.range_max))
@@ -49,7 +50,7 @@ def scan_to_world(scan: LaserScan, odom: Odometry, altitude: float):
 
 
 def scan_times(reader):
-    """Bag receive times (ns) of all /parrot1/scan messages."""
+    """Bag receive times (ns) of every /parrot1/scan message."""
     times = []
     while reader.has_next():
         topic, _, t = reader.read_next()
@@ -61,12 +62,12 @@ def scan_times(reader):
 def accumulate(reader, altitude, res=0.25, origin=-40.0, dim=320,
                split_ns=None):
     """Rebuild the CHM. Scans before ``split_ns`` go to half 0 (pass A),
-    the rest to half 1 (pass B). With ``split_ns=None`` scans alternate,
-    which is not a pass A / pass B comparison."""
+    the rest to half 1 (pass B). ``split_ns=None`` falls back to
+    alternating scans, which is NOT a pass-A/pass-B comparison."""
     height = np.zeros((dim, dim), dtype=np.float32)
-    # Latest reading per cell, like scan_mapper.height_recent (the live
-    # /forest_canopy_map): each scan overwrites the cells it hits with that
-    # scan's max. The CHM itself uses the all-time max.
+    # Latest reading per cell, exactly like scan_mapper.height_recent (the
+    # live /forest_canopy_map): each scan overwrites the cells it touched
+    # with that scan's max. The all-time max above is what the CHM uses.
     recent = np.zeros((dim, dim), dtype=np.float32)
     hits = np.zeros((dim, dim), dtype=np.int32)
     last_odom = None
@@ -107,7 +108,7 @@ def accumulate(reader, altitude, res=0.25, origin=-40.0, dim=320,
 
 
 def match_passes(a, b, fallback_radius=0.6):
-    """Match pass A treetops to pass B treetops one-to-one.
+    """One-to-one match of pass-A to pass-B treetops.
 
     Returns ``(unmatched_a, unmatched_b, matched_distances)``.
     """
@@ -176,11 +177,11 @@ def main(argv=None) -> int:
         open_reader(), args.altitude, res=0.25, split_ns=split_ns)
     print(f'scanned cells: {np.count_nonzero(hits)}')
 
-    # Compare the rebuilt CHM with the live recorded canopy map on cells
-    # both have observed. They should be almost the same, since both use
-    # the same projection code.
+    # Parity check: our rebuilt CHM vs the live-recorded canopy map on the
+    # cells both observed. They should be near-identical because both use the
+    # same imported projection code.
     if last_map is not None:
-        # OccupancyGrid data is row-major [iy, ix]; these grids are [ix, iy].
+        # OccupancyGrid data is row-major [iy, ix]; our grids are [ix, iy].
         live = np.array(last_map.data, dtype=np.float32).reshape(
             last_map.info.height, last_map.info.width).T
         common = (hits > 0) & (live >= 0)
@@ -200,9 +201,10 @@ def main(argv=None) -> int:
     m = score_detections(dets, truth, args.match_radius)
     print('FULL BAG:', {k: round(v, 3) for k, v in m.items()})
 
-    # Position error of the top-band centroid vs the single highest cell,
-    # measured on true positives in tight groups only.
+    # Position error comparison: height-weighted top-band centroid vs the
+    # single highest cell, measured only on true positives in tight groups.
     from .tree_detection import match_detections
+    truth_pos = [(x, y) for _, x, y in truth]
     for band in (0.5, 0.0):
         p = DetectionParams.from_dict(params.to_dict())
         p.centroid_band = band
@@ -222,7 +224,7 @@ def main(argv=None) -> int:
         hm = score_detections(d, truth, args.match_radius)
         print(f'HALF {half}:', {k: round(v, 3) for k, v in hm.items()})
 
-    # The pass A vs pass B change check only uses cells seen in both passes.
+    # The A-vs-B change gate only considers cells observed in BOTH passes.
     common = (half_hits[0] > 0) & (half_hits[1] > 0)
 
     def observed(dets):
@@ -234,9 +236,9 @@ def main(argv=None) -> int:
                 out.append((d.x, d.y))
         return out
 
-    # Same matching as the live tracker: one-to-one, radius
-    # min(0.4 * nearest neighbour distance, 1.5 m), so a few cm of treetop
-    # jitter is not counted as one LOST plus one GAINED.
+    # Same association rule as the live tracker: one-to-one, radius
+    # min(0.4 * nearest-neighbour distance, 1.5 m), so centroid jitter is
+    # not a LOST plus a GAINED.
     only_a, only_b, shifts = match_passes(
         observed(half_dets[0]), observed(half_dets[1]))
     flicker = only_a + only_b

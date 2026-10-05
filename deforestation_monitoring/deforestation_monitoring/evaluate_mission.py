@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-Mission evaluation: scores the detection pipeline against ground truth.
+Mission Evaluation Node: scores the detection pipeline against ground truth
+(detection accuracy, false positives, decision outcomes, end-to-end mission
+time). It:
 
-It measures detection accuracy, false positives, decision outcomes and the
-end-to-end mission time:
+  - matches /suspicious_areas detections against /ground_truth_events
+    (published by simulate_deforestation) within match_radius metres
+    (true positives, false positives, missed events)
+  - listens to /inspection_reports for decision outcomes (inspected /
+    cancelled / unreachable) and end-to-end mission time (flag to report
+    latency, sim clock)
+  - publishes a /evaluation_summary String every summary_period and
+    appends CSV rows to eval_dir/evaluation.csv
 
-  - matches /suspicious_areas detections to /ground_truth_events (published
-    by the removal simulators) within match_radius metres, giving true
-    positives, false positives and missed events;
-  - reads /inspection_reports for the decision outcome (inspected,
-    cancelled, unreachable) and the time from flag to report (sim clock);
-  - publishes /evaluation_summary every summary_period and adds CSV rows to
-    eval_dir/evaluation.csv.
-
-Detections (parrot1_odom) and ground truth (husky1_map) both start at the
-sim world origin, so their coordinates can be compared directly.
+Detection frames (parrot1_odom) and truth frames (husky1_map) are both
+anchored at the sim world origin, so coordinates compare directly.
 """
 
 import csv
@@ -55,14 +55,14 @@ class EvaluateMission(Node):
         self.csv_path = os.path.join(self.eval_dir, 'evaluation.csv')
         self._csv_header_written = os.path.exists(self.csv_path)
 
-        # Ground-truth events not yet matched to a detection
+        # Ground-truth events waiting for a matching detection
         self.events = []          # [{'x', 'y', 'stamp_ns', 'matched'}]
         self.flags = []           # [{'x', 'y', 'is_tp'}]
         self.outcomes = {'inspected': 0, 'cancelled': 0, 'unreachable': 0, 'other': 0}
-        self.latencies = []       # flag to report, seconds (sim clock)
-        self._pending_flags = deque(maxlen=100)  # (x, y, stamp_ns) without a report yet
+        self.latencies = []       # flag → report seconds (sim clock)
+        self._pending_flags = deque(maxlen=100)  # (x, y, stamp_ns) awaiting reports
 
-        # QoS
+        # -- QoS --
         alert_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.VOLATILE,
@@ -89,10 +89,10 @@ class EvaluateMission(Node):
             f'CSV: {self.csv_path}'
         )
 
-    # Ground truth and detection matching
+    # ── Ground truth / detection matching ─────────────────────────────
 
     def truth_callback(self, msg: SuspiciousArea):
-        """Record a known clearing from the simulator."""
+        """Record a known clearing event from the simulator."""
         self.events.append({
             'x': msg.position.x,
             'y': msg.position.y,
@@ -130,11 +130,11 @@ class EvaluateMission(Node):
             (fx, fy, msg.header.stamp.sec * 10**9 + msg.header.stamp.nanosec))
 
     def _pop_pending_for_report(self, text):
-        """Take the pending flag closest to the position in a report.
+        """Pop the pending flag nearest to the coordinates in a report.
 
-        Reports end with "@ (x, y)". Matching by position works better than
-        first-in-first-out when /suspicious_areas has duplicate detections.
-        If the position cannot be read, the oldest flag is used.
+        Reports end with "@ (x, y)". Matching by location is more robust than
+        blind FIFO when /suspicious_areas carries both real and duplicate
+        detections. Falls back to FIFO if the coordinates cannot be parsed.
         """
         if not self._pending_flags:
             return None
@@ -155,10 +155,10 @@ class EvaluateMission(Node):
         _, _, flag_ns = self._pending_flags[best_idx]
         del self._pending_flags[best_idx]
         return flag_ns
-    # Decision outcomes
+    # ── Decision outcomes ─────────────────────────────────────────────
 
     def report_callback(self, msg: String):
-        """Read the outcome and mission time from an inspection report."""
+        """Parse an inspection report for outcome + end-to-end mission time."""
         data = msg.data
 
         if 'INSPECTED' in data:
@@ -171,8 +171,8 @@ class EvaluateMission(Node):
             outcome = 'other'
         self.outcomes[outcome] += 1
 
-        # Mission time: from the flag stamp to the report (sim clock), with
-        # the flag found by its position.
+        # End-to-end mission time: flag stamp → report arrival (sim clock),
+        # matched back to the flag by its coordinates.
         flag_ns = self._pop_pending_for_report(data)
         if flag_ns is not None:
             now = self.get_clock().now()
@@ -186,7 +186,7 @@ class EvaluateMission(Node):
                 self.get_logger().debug(f'Negative latency {latency:.1f}s ignored '
                                         '(clock/order artefact)')
 
-    # Summary
+    # ── Summary ───────────────────────────────────────────────────────
 
     def _metrics(self):
         n_events = len(self.events)

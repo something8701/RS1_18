@@ -1,27 +1,26 @@
 #!/usr/bin/env python3
-"""Live tree removal acceptance test.
+"""Live tree-removal acceptance test.
 
-Run against a live simulation (see ``removal_test.launch.py``):
+Scenario (run against a live simulation, see ``removal_test.launch.py``):
 
   1. wait until the drone survey reaches ``min_coverage`` (default 90%) and
-     ``parrot_tree_tracker`` has frozen its tree baseline;
-  2. delete ``n_trees`` trees from the Gazebo world (default 10, picked
-     automatically inside the survey box and well apart);
-  3. keep patrolling for ``settle_loops`` survey loops;
+     ``parrot_tree_tracker`` has frozen its individual-tree baseline;
+  2. delete ``n_trees`` trees from the Gazebo world (default 10, chosen
+     automatically: inside the survey box, well separated);
+  3. keep patrolling for ``settle_loops`` survey-loop completions;
   4. score what the pipeline reported against the known removals:
 
-     * right: a LOST event at a removed tree (true positive);
-     * missed: a removed tree with no LOST event (false negative), with the
-       likely reason;
-     * wrong: a LOST event at a standing tree, or any GAINED event (false
-       positive).
+     * right:  a LOST event at a removed tree (true positive);
+     * missed: a removed tree with no LOST event (false negative), with a
+               diagnosis of why;
+     * wrong:  a LOST event at a tree that is still standing, any GAINED
+               event, or an area alert far from every cut (false positives).
 
-A markdown and a JSON report are written to ``report_dir`` and a one-line
-verdict is published on ``/removal_test_result``. PASS means every removed
-tree was reported LOST and there were no false events.
+A markdown + JSON report is written to ``report_dir`` and the one-line
+verdict is published on ``/removal_test_result``. PASS = every removed tree
+found at its tier (see ``score_removal``) and zero false events.
 
-The scoring functions have no ROS dependency, so they are unit-tested
-offline.
+The scoring functions are pure so they are unit-tested offline.
 """
 
 from __future__ import annotations
@@ -36,17 +35,19 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
+from deforestation_monitoring.survey_loops import LoopCounter  # noqa: F401 (re-exported)
+
 Tree = Tuple[str, float, float]            # (name, x, y)
 Point2 = Tuple[float, float]
 
 
-# Pure logic
+# ── Pure logic ──────────────────────────────────────────────────────
 
 def occluded_from_above(truth: Sequence[Tree],
                         radius: float = 7.0) -> set:
     """Pines within ``radius`` of an oak trunk (possibly under its crown).
 
-    Optional filter, not used by default.
+    Optional, not used by default.
     """
     oaks = [t for t in truth if t[0].startswith('oak')]
     return {t[0] for t in truth if t[0].startswith('pine') and any(
@@ -61,13 +62,19 @@ def select_removal_targets(
     min_separation: float = 10.0,
     visible_only: bool = False,
     balanced: bool = False,
+    canopy_only: bool = False,
 ) -> List[Tree]:
     """Pick ``n`` trees inside ``box`` (x_min, x_max, y_min, y_max) shrunk
-    by ``margin``: most isolated first and at least ``min_separation`` apart,
-    so each removal is scored on its own. With ``visible_only``, trees that
-    may be under another crown are skipped. The result is deterministic."""
+    by ``margin``, most isolated first, at least ``min_separation`` apart so
+    each removal is scored on its own, skipping trees hidden under another
+    crown when ``visible_only``. ``canopy_only`` keeps only trees that are
+    canopy tier by geometry (``visibility.removal_tier``): oaks, and pines
+    with no oak trunk within ``CROWN_SHARE_RADIUS``. Deterministic."""
+    from .visibility import CROWN_SHARE_RADIUS
     x0, x1, y0, y1 = box
     hidden = occluded_from_above(truth) if visible_only else set()
+    if canopy_only:
+        hidden |= occluded_from_above(truth, CROWN_SHARE_RADIUS)
     inside = [t for t in truth
               if x0 + margin <= t[1] <= x1 - margin
               and y0 + margin <= t[2] <= y1 - margin
@@ -79,8 +86,8 @@ def select_removal_targets(
 
     ranked = sorted(inside, key=lambda t: (-nn(t), t[0]))
     if balanced:
-        # Alternate species (oak, pine, oak, ...) so a demo removes both;
-        # within a species the most isolated come first.
+        # Alternate species (oak, pine, oak, ...) so a demo removes both
+        # kinds; within a species the most isolated come first.
         by_sp: Dict[str, List[Tree]] = {}
         for t in ranked:
             by_sp.setdefault(t[0].split('_')[0], []).append(t)
@@ -101,33 +108,8 @@ def select_removal_targets(
     return chosen
 
 
-class LoopCounter:
-    """Counts full survey loops from the ``/survey_status`` waypoint index.
-
-    When the waypoint index goes down (a wrap), it only counts as a loop if
-    at least half of the waypoints were visited since the last wrap. A wrap
-    right after the removal therefore does not count as a whole loop.
-    """
-
-    def __init__(self):
-        self.loops = 0
-        self._last = None
-        self._visited = set()
-
-    def update(self, wp: int, total: int) -> bool:
-        wrapped = self._last is not None and wp < self._last
-        counted = False
-        if wrapped:
-            counted = len(self._visited) >= total / 2
-            self.loops += int(counted)
-            self._visited = set()
-        self._visited.add(wp)
-        self._last = wp
-        return counted
-
-
 def parse_canopy_events(text: str) -> List[Tuple[str, float, float]]:
-    """Parse ``/canopy_change_events`` strings into [(LOST|NEW, x, y)]."""
+    """``/canopy_change_events`` strings -> [(LOST|NEW, x, y)]."""
     out = []
     for part in text.split(';'):
         m = re.search(r'(CANOPY LOST|NEW CANOPY).*near \(([-0-9.]+), ([-0-9.]+)\)',
@@ -157,27 +139,81 @@ def score_removal(
     match_radius: float = 1.5,
     baseline_radius: float = 1.0,
     canopy_radius: float = 5.0,
+    tiers: Optional[Dict[str, Dict]] = None,
+    area_alerts: Sequence[Point2] = (),
+    area_radius: float = 3.0,
+    false_area_radius: float = 6.0,
+    unchanged_tol: float = 1.0,
+    identity_radius: float = 2.0,
 ) -> Dict:
     """Score tracker events against the known removals.
 
+    With ``tiers`` (``{name: {'class': visible|understory|unobserved,
+    'top_before': m, 'top_after': m}}`` from ``visibility.classify_tree`` on
+    the pre-removal canopy map):
+
+    * canopy trees (visible) need a tree-level LOST;
+    * understory trees pass with an area alert (``area_alerts``: scan_mapper
+      CANOPY LOST clusters / pattern_scanner CLEARING flags) within
+      ``area_radius``, or are "not observable" when the canopy over the trunk
+      dropped by no more than ``unchanged_tol`` (1.0 m, the noise of that
+      quantity over standing understory trunks);
+    * false events are strict for both: any LOST at a standing tree, any
+      GAINED, any area alert farther than ``false_area_radius`` from every
+      removed trunk.
+
+    Without ``tiers`` every tree is treated as canopy.
+
+    Identity matching (``identity_radius`` > 0): baseline trees are paired
+    one-to-one with SDF trunks (closest pairs first, within
+    ``identity_radius``). A LOST whose baseline tree is paired with a removed
+    trunk counts for that tree; one paired with a standing trunk is false,
+    even if it lies near a removed tree. (Dense oaks are detected about 1 m
+    off their trunk, so position alone would credit a neighbour's LOST.)
+    Events from unpaired baseline trees fall back to position.
+
     ``baseline``: [(id, x, y)] frozen baseline trees.
-    ``events``: [{'type': 'LOST'|'GAINED', 'id', 'x', 'y', 't'}], where t is
+    ``events``: [{'type': 'LOST'|'GAINED', 'id', 'x', 'y', 't'}] with t =
     seconds after the removal.
     """
     base_pts = [(b[1], b[2]) for b in baseline]
     lost = [e for e in events if e['type'] == 'LOST']
     gained = [e for e in events if e['type'] == 'GAINED']
 
-    # One-to-one: each removed tree takes its closest unclaimed LOST event.
-    pairs = []
+    removed_names = {r[0] for r in removed}
+    rindex = {r[0]: i for i, r in enumerate(removed)}
+
+    # Identity: baseline tree <-> SDF trunk, one-to-one, closest first.
+    trunk_of: Dict[int, str] = {}
+    base_of: Dict[str, Tuple[int, float]] = {}
+    if identity_radius > 0:
+        cands = sorted(
+            (math.hypot(b[1] - t[1], b[2] - t[2]), b[0], t[0])
+            for b in baseline for t in truth
+            if math.hypot(b[1] - t[1], b[2] - t[2]) <= identity_radius)
+        for d, bid, tn in cands:
+            if bid not in trunk_of and tn not in base_of:
+                trunk_of[bid] = tn
+                base_of[tn] = (bid, d)
+
+    tree_event: Dict[int, int] = {}
+    used = set()
+    for ei, e in enumerate(lost):                 # 1. by identity
+        tn = trunk_of.get(e['id'])
+        if tn in removed_names and rindex[tn] not in tree_event:
+            tree_event[rindex[tn]] = ei
+            used.add(ei)
+    pairs = []                                    # 2. unpaired: by position
     for ri, (_, rx, ry) in enumerate(removed):
+        if ri in tree_event:
+            continue
         for ei, e in enumerate(lost):
+            if ei in used or e['id'] in trunk_of:
+                continue
             d = math.hypot(e['x'] - rx, e['y'] - ry)
             if d <= match_radius:
                 pairs.append((d, ri, ei))
     pairs.sort()
-    tree_event: Dict[int, int] = {}
-    used = set()
     for d, ri, ei in pairs:
         if ri in tree_event or ei in used:
             continue
@@ -187,12 +223,19 @@ def score_removal(
     trees = []
     for ri, (name, rx, ry) in enumerate(removed):
         bi, bd = _nearest((rx, ry), base_pts)
-        in_baseline = bi is not None and bd <= baseline_radius
+        if identity_radius > 0:
+            in_baseline = name in base_of
+            bid = base_of[name][0] if in_baseline else None
+            bdist = base_of[name][1] if in_baseline else bd
+        else:
+            in_baseline = bi is not None and bd <= baseline_radius
+            bid = baseline[bi][0] if in_baseline else None
+            bdist = bd
         entry = {
             'name': name, 'x': rx, 'y': ry,
             'in_baseline': in_baseline,
-            'baseline_id': baseline[bi][0] if in_baseline else None,
-            'baseline_dist': bd if bi is not None else None,
+            'baseline_id': bid,
+            'baseline_dist': bdist if bi is not None else None,
             'detected': ri in tree_event,
         }
         if ri in tree_event:
@@ -223,19 +266,34 @@ def score_removal(
             entry['why_missed'] = why
         trees.append(entry)
 
-    removed_names = {r[0] for r in removed}
     false_events = []
     for ei, e in enumerate(lost):
         if ei in used:
             continue
         ti, td = _nearest((e['x'], e['y']), [(t[1], t[2]) for t in truth])
         near = truth[ti][0] if ti is not None else None
+        paired = trunk_of.get(e['id'])
+        if paired is not None and paired not in removed_names:
+            why = (f'LOST for a tree that is still standing (baseline tree '
+                   f'#{e["id"]} is {paired})')
+        elif near in removed_names and td <= 3.0:
+            why = 'duplicate / off-position LOST for a removed tree'
+        elif paired is None and identity_radius > 0 and near in removed_names \
+                and td <= 5.5:
+            # A baseline crown with no trunk under it (a crown fragment): still
+            # false, one removal reported as two trees.
+            why = (f'double count: baseline #{e["id"]} was a phantom crown '
+                   f'(no trunk within {identity_radius:.0f} m) inside '
+                   f'removed {near}\'s crown reach')
+        elif paired is None and identity_radius > 0:
+            why = ('LOST for a phantom baseline crown (no trunk within '
+                   f'{identity_radius:.0f} m) where nothing was removed')
+        else:
+            why = 'LOST for a tree that is still standing'
         false_events.append({
-            **e, 'nearest_tree': near, 'nearest_dist': td,
-            'nearest_was_removed': near in removed_names,
-            'why': ('duplicate / off-position LOST for a removed tree'
-                    if near in removed_names and td <= 3.0 else
-                    'LOST for a tree that is still standing'),
+            **e, 'nearest_tree': paired or near, 'nearest_dist': td,
+            'nearest_was_removed': (paired or near) in removed_names,
+            'why': why,
         })
     for e in gained:
         ti, td = _nearest((e['x'], e['y']), [(t[1], t[2]) for t in truth])
@@ -244,7 +302,49 @@ def score_removal(
             'nearest_dist': td, 'nearest_was_removed': False,
             'why': 'GAINED — nothing was added to the world',
         })
+    # An area alert (canopy-loss cluster / clearing flag)
+    # farther than false_area_radius from every removed trunk is false too.
+    seen: List[Point2] = []
+    for a in area_alerts:
+        if any(math.hypot(a[0] - b[0], a[1] - b[1]) < 1.0 for b in seen):
+            continue
+        seen.append(a)
+        ri, rd = _nearest(a, [(r[1], r[2]) for r in removed])
+        if rd is not None and rd <= false_area_radius:
+            continue
+        false_events.append({
+            'type': 'AREA', 'id': -1, 'x': a[0], 'y': a[1], 't': float('nan'),
+            'nearest_tree': removed[ri][0] if ri is not None else None,
+            'nearest_dist': rd if rd is not None else float('nan'),
+            'nearest_was_removed': True,
+            'why': (f'canopy-loss alert > {false_area_radius:.0f} m from every '
+                    'removed tree'),
+        })
 
+    for t in trees:
+        info = (tiers or {}).get(t['name'], {})
+        cls = info.get('class', 'canopy')
+        t['tier'] = cls if cls in ('understory', 'unobserved',
+                                   'crown-shared') else 'canopy'
+        t['top_before'] = info.get('top_before')
+        t['top_after'] = info.get('top_after')
+        alert = any(math.hypot(a[0] - t['x'], a[1] - t['y']) <= area_radius
+                    for a in area_alerts)
+        t['area_alert'] = alert
+        if t['tier'] == 'canopy':
+            t['tier_ok'] = t['detected']
+        elif t['tier'] == 'crown-shared':    # inside an oak crown footprint
+            t['tier_ok'] = t['detected'] or alert
+        elif t['tier'] == 'understory':
+            unchanged = (t['top_before'] is not None and t['top_after'] is not None
+                         and t['top_before'] - t['top_after'] <= unchanged_tol)
+            t['not_observable'] = unchanged and not alert
+            t['tier_ok'] = t['detected'] or alert or unchanged
+        else:                       # never scanned before removal: not scored
+            t['tier_ok'] = True
+    canopy = [t for t in trees if t['tier'] == 'canopy']
+    under = [t for t in trees if t['tier'] == 'understory']
+    shared = [t for t in trees if t['tier'] == 'crown-shared']
     tp = sum(1 for t in trees if t['detected'])
     fn = len(trees) - tp
     fp = len(false_events)
@@ -253,7 +353,14 @@ def score_removal(
         'true_positives': tp,
         'missed': fn,
         'false_events': fp,
-        'passed': fn == 0 and fp == 0 and len(removed) > 0,
+        'canopy_trees': len(canopy),
+        'canopy_found': sum(1 for t in canopy if t['detected']),
+        'crown_shared_trees': len(shared),
+        'crown_shared_ok': sum(1 for t in shared if t['tier_ok']),
+        'understory_trees': len(under),
+        'understory_ok': sum(1 for t in under if t['tier_ok']),
+        'passed': (len(removed) > 0 and fp == 0
+                   and all(t['tier_ok'] for t in trees)),
         'trees': trees,
         'false_event_list': false_events,
         'canopy_new_events': sum(1 for c in canopy_events if c[0] == 'NEW'),
@@ -265,7 +372,7 @@ def baseline_quality(truth: Sequence[Tree],
                      baseline: Sequence[Tuple[int, float, float]],
                      box: Tuple[float, float, float, float],
                      radius: float = 1.0) -> Dict:
-    """Baseline vs SDF inside the survey box (greedy one-to-one match)."""
+    """Baseline vs SDF truth inside the survey box (one-to-one, greedy)."""
     x0, x1, y0, y1 = box
     t_in = [t for t in truth if x0 <= t[1] <= x1 and y0 <= t[2] <= y1]
     pairs = sorted(
@@ -289,9 +396,16 @@ def format_report(result: Dict, meta: Dict) -> str:
     lines += ['',
               f"**Right:** {result['true_positives']}/{result['removed']} "
               f"removed trees reported LOST.  **Missed:** {result['missed']}."
-              f"  **Wrong:** {result['false_events']} false events.",
-              '', '| tree | position | in baseline | result | detail |',
-              '|---|---|---|---|---|']
+              f"  **Wrong:** {result['false_events']} false events."]
+    if result.get('understory_trees') or result.get('crown_shared_trees'):
+        lines += ['', f"**Tiers:** canopy {result['canopy_found']}/"
+                  f"{result['canopy_trees']} LOST (tree level) · crown-shared "
+                  f"{result.get('crown_shared_ok', 0)}/"
+                  f"{result.get('crown_shared_trees', 0)} LOST or area alert · "
+                  f"understory {result['understory_ok']}/"
+                  f"{result['understory_trees']} area alert or not observable."]
+    lines += ['', '| tree | tier | canopy over trunk before→after | in baseline | result | detail |',
+              '|---|---|---|---|---|---|']
     for t in result['trees']:
         base = (f"yes (#{t['baseline_id']}, {t['baseline_dist']:.2f} m)"
                 if t['in_baseline'] else
@@ -301,14 +415,33 @@ def format_report(result: Dict, meta: Dict) -> str:
             res = 'LOST ✓'
             det = (f"#{t['event_id']} after {t['latency_s']:.0f} s, "
                    f"{t['position_error']:.2f} m off")
+        elif t.get('tier') in ('understory', 'crown-shared') and t.get('area_alert'):
+            res = 'AREA ALERT ✓'
+            det = t['tier'] + ': canopy-loss alert within 3 m'
+        elif t.get('tier') == 'understory' and t.get('tier_ok'):
+            res = 'NOT OBSERVABLE'
+            det = ('understory: canopy over the trunk did not drop beyond '
+                   'measurement noise — no top-down sensor can see it')
+        elif t.get('tier') == 'unobserved':
+            res = 'NOT SCORED'
+            det = 'never scanned before the removal'
         else:
             res = 'MISSED ✗'
             det = t['why_missed']
-        lines.append(f"| {t['name']} | ({t['x']:.1f}, {t['y']:.1f}) | "
-                     f"{base} | {res} | {det} |")
+        tb, ta = t.get('top_before'), t.get('top_after')
+        tops = (f"{tb:.1f} → {ta:.1f} m" if tb is not None and ta is not None
+                else '–')
+        lines.append(f"| {t['name']} ({t['x']:.1f}, {t['y']:.1f}) | "
+                     f"{t.get('tier', 'canopy')} | {tops} | {base} | {res} | {det} |")
     if result['false_event_list']:
         lines += ['', '**False events:**', '']
         for e in result['false_event_list']:
+            if e['type'] == 'AREA':
+                lines.append(
+                    f"- AREA alert at ({e['x']:.1f}, {e['y']:.1f}) — nearest "
+                    f"removed tree {e['nearest_tree']} {e['nearest_dist']:.1f} "
+                    f"m: {e['why']}")
+                continue
             lines.append(
                 f"- {e['type']} #{e['id']} at ({e['x']:.1f}, {e['y']:.1f}) "
                 f"after {e['t']:.0f} s — nearest tree {e['nearest_tree']} "
@@ -318,7 +451,7 @@ def format_report(result: Dict, meta: Dict) -> str:
     return '\n'.join(lines) + '\n'
 
 
-# ROS node
+# ── ROS node ────────────────────────────────────────────────────────
 
 def _cloud_xyz(cloud) -> np.ndarray:
     offs = {f.name: f.offset for f in cloud.fields}
@@ -338,12 +471,14 @@ def main(args=None):
                            HistoryPolicy)
     from sensor_msgs.msg import PointCloud2
     from std_msgs.msg import String
-    from deforestation_interfaces.msg import TreeChangeEvent
+    from deforestation_interfaces.msg import SuspiciousArea, TreeChangeEvent
+    from nav_msgs.msg import OccupancyGrid
     from rcl_interfaces.msg import ParameterDescriptor, ParameterType
     from ament_index_python.packages import get_package_share_directory
 
     from .tree_detection import parse_tree_truth
     from .simulate_tree_removal import remove_model
+    from .visibility import classify_tree, disc_max, removal_tier
 
     class RemovalTest(Node):
         def __init__(self):
@@ -352,8 +487,10 @@ def main(args=None):
             p('world', 'dense_forest')
             p('n_trees', 10)
             p('balanced', False)
+            p('canopy_only', False)
             p('tree_names', [''], ParameterDescriptor(
                 type=ParameterType.PARAMETER_STRING_ARRAY))
+            p('trees', '')      # the same as a comma-separated string (launch argument)
             for k, v in (('survey_x_min', -30.0), ('survey_x_max', 30.0),
                          ('survey_y_min', -30.0), ('survey_y_max', 30.0)):
                 p(k, v)
@@ -372,7 +509,8 @@ def main(args=None):
             sdf = os.path.join(get_package_share_directory(
                 '41068_ignition_bringup'), 'worlds', f'{self.world}.sdf')
             self.truth = parse_tree_truth(sdf)
-            names = [n for n in g('tree_names') if n]
+            names = [n for n in g('tree_names') if n] + \
+                [n.strip() for n in g('trees').split(',') if n.strip()]
             if names:
                 by_name = {t[0]: t for t in self.truth}
                 self.targets = [by_name[n] for n in names if n in by_name]
@@ -380,7 +518,8 @@ def main(args=None):
                 self.targets = select_removal_targets(
                     self.truth, int(g('n_trees')), self.box,
                     g('margin'), g('min_separation'),
-                    balanced=bool(g('balanced')))
+                    balanced=bool(g('balanced')),
+                    canopy_only=bool(g('canopy_only')))
             self.min_cov = float(g('min_coverage'))
             self.match_radius = float(g('match_radius'))
             self.settle_loops = int(g('settle_loops'))
@@ -393,6 +532,9 @@ def main(args=None):
             self.events: List[Dict] = []
             self.canopy: List[Tuple[str, float, float]] = []
             self.removed: List[Tree] = []
+            self.map = None          # latest (grid [ix,iy] m, res, origin)
+            self.pre_map = None      # canopy map at the moment of removal
+            self.flags: List[Point2] = []
             self.removal_failed: List[str] = []
             self.t_removed = None
             self.t_start = time.time()
@@ -419,6 +561,10 @@ def main(args=None):
                                      self._event_cb, rel)
             self.create_subscription(String, '/canopy_change_events',
                                      self._canopy_cb, rel)
+            self.create_subscription(OccupancyGrid, '/forest_canopy_map',
+                                     self._map_cb, latched)
+            self.create_subscription(SuspiciousArea, '/suspicious_areas',
+                                     self._flag_cb, rel)
             self.create_subscription(String, '/survey_status',
                                      self._survey_cb, rel)
             self.result_pub = self.create_publisher(
@@ -430,7 +576,7 @@ def main(args=None):
                 + ', '.join(f'{n}({x:.1f},{y:.1f})'
                             for n, x, y in self.targets))
 
-        # Callbacks
+        # -- callbacks --
         def _baseline_cb(self, msg):
             pts = _cloud_xyz(msg)
             self.baseline = [(int(round(z)), float(x), float(y))
@@ -457,6 +603,16 @@ def main(args=None):
                 f'[test] event {e["type"]} #{e["id"]} at '
                 f'({e["x"]:.1f},{e["y"]:.1f}) t={e["t"]:.0f}s')
 
+        def _map_cb(self, msg):
+            g = np.array(msg.data, dtype=np.float32).reshape(
+                msg.info.height, msg.info.width).T
+            self.map = (np.where(g >= 0, g / 10.0, -1.0), msg.info.resolution,
+                        (msg.info.origin.position.x, msg.info.origin.position.y))
+
+        def _flag_cb(self, msg):
+            if self.t_removed is not None:
+                self.flags.append((float(msg.position.x), float(msg.position.y)))
+
         def _canopy_cb(self, msg):
             if self.t_removed is not None:
                 self.canopy.extend(parse_canopy_events(msg.data))
@@ -466,15 +622,14 @@ def main(args=None):
             return self.loop_counter.loops
 
         def _survey_cb(self, msg):
-            m = re.search(r'STATE=PATROL wp=(\d+)/(\d+)', msg.data)
-            if not m or self.t_removed is None:
+            if self.t_removed is None:
                 return
-            if self.loop_counter.update(int(m.group(1)), int(m.group(2))):
+            if self.loop_counter.update_from_status(msg.data):
                 self.get_logger().info(
                     f'[test] survey loop {self.loops_after}/'
                     f'{self.settle_loops} completed after removal')
 
-        # State machine
+        # -- state machine --
         def _tick(self):
             if self.done:
                 return
@@ -511,6 +666,7 @@ def main(args=None):
                     self.get_logger().error(f'[test] still in world: {still}')
             except Exception as exc:  # noqa: BLE001
                 self.get_logger().warn(f'[test] model list failed: {exc}')
+            self.pre_map = self.map
             self.t_removed = time.time()
             self.state = 'MONITOR'
             self.get_logger().info(
@@ -521,10 +677,23 @@ def main(args=None):
             self.done = True
             after = [e for e in self.events if not e['before_removal']]
             before = [e for e in self.events if e['before_removal']]
+            tiers = {}
+            if self.pre_map is not None:
+                g0, res0, org0 = self.pre_map
+                for tree in self.removed:
+                    cls, top0 = classify_tree(g0, res0, org0, tree)
+                    cls = removal_tier(tree, cls, self.truth)
+                    top1 = (disc_max(self.map[0], self.map[1], self.map[2],
+                                     tree[1], tree[2], 0.75)
+                            if self.map is not None else None)
+                    tiers[tree[0]] = {'class': cls, 'top_before': top0,
+                                      'top_after': top1}
+            area = [(c[1], c[2]) for c in self.canopy if c[0] == 'LOST'] + self.flags
             result = score_removal(
                 self.removed, self.truth, self.baseline or [], after,
-                self.canopy, self.detections, self.match_radius)
-            for e in before:   # any event before the removal is false
+                self.canopy, self.detections, self.match_radius,
+                tiers=tiers or None, area_alerts=area)
+            for e in before:   # events before removal are false by definition
                 result['false_event_list'].append(
                     {**e, 'nearest_tree': None, 'nearest_dist': float('nan'),
                      'nearest_was_removed': False,
@@ -572,7 +741,7 @@ def main(args=None):
     try:
         while rclpy.ok() and not node.done:
             rclpy.spin_once(node, timeout_sec=0.5)
-        # Give the latched verdict time to go out
+        # let the latched verdict go out
         end = time.time() + 2.0
         while rclpy.ok() and time.time() < end:
             rclpy.spin_once(node, timeout_sec=0.2)

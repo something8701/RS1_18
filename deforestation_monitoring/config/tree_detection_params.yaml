@@ -1,12 +1,14 @@
-# Tree detector parameters, tuned on recorded live canopy maps with
-# tune_on_recording. Results with these values:
-#   sparse_trees: all 5 trees, no false trees, on every map (1.0 m)
-#   showcase_forest: F1 0.901 (1.0 m)
-#   dense_forest: F1 0.543 (1.5 m)
-# chm_resolution matches the scan_mapper grid (0.25 m), so no resampling.
-# narrow_*: a second, lightly smoothed pass adds narrow pine tops that heavy
-# smoothing flattens, unless they are within narrow_exclusion_radius of an
-# oak-height (>= narrow_tall_height) treetop.
+# Tuned 2026-09-27 on recorded live maps (tune_on_recording):
+# sparse_trees 5/0/0 on every map at 1.0 m; dense_forest F1 0.62 (P 0.74, R 0.53)
+# vs the 110 trees visible from above at 1.5 m (shipped params: F1 0.24).
+# chm_resolution 0.25 = scan_mapper resolution (no resampling).
+# 2026-09-27 (showcase): window_scale 0.5->0.35, max_window 2.0->1.5 from a
+# local search on the showcase_forest bag: showcase F1 0.874->0.892 @1.0 m,
+# dense 0.475->0.504 @1.5 m (P 0.85->0.77), sparse still 5/0/0 on every map.
+# 2026-09-27: two-scale treetops on (narrow_*): light-smoothed peaks added
+# unless within 6 m of an oak-height (>= 5.2 m) marker. Heavy smoothing hid
+# isolated pines (pine_76: raw 4.5 m -> smoothed 2.0 m). showcase F1 0.892->
+# 0.901 (pine recall 0.89->0.92), dense 0.504->0.543, sparse still 5/0/0.
 /**:
   ros__parameters:
     chm_resolution: 0.25
@@ -38,9 +40,27 @@
     merge_small_area: 0.0
     merge_radius: 5.0
     overlap_threshold: 3.0
+    # Watershed seed lock + snap and valley-aware overlap suppression.
+    # 32 recorded maps: sparse 80/0/0 unchanged,
+    # showcase F1 0.870 -> 0.882, dense canopy-tier recall @1.5/2.0 m
+    # oak 0.69/0.77 -> 0.75/0.82, pine 0.60/0.64 -> 0.70/0.75.
+    seed_lock: true
+    seed_snap: 0.5
+    overlap_valley_ratio: 0.75
+    # Short crowns (smoothed top < 4 m = pines) take their top-band
+    # position from the raw CHM, 1 m band: dense canopy pines R@1.5
+    # 0.70 -> 0.77, oaks/sparse/showcase unchanged, false crowns 442 -> 418.
+    band_surface: "raw"
+    band_raw_below: 4.0
+    band_raw_width: 1.0
     narrow_sigma: 0.25
     narrow_window: 1.0
     narrow_prominence: 0.0
-    narrow_saddle_range: 8.0
-    narrow_exclusion_radius: 6.0
+    # 0 = off: the long-range valley test (to broad markers <= 8 m) sat at
+    # the height of the crown layer between a pine and an oak (0.75 x
+    # 4.7 m = 3.5 m), so 2% map noise flipped dense canopy pines in and
+    # out (pine_163 21/33 -> 30/33 frames). Oak exclusion + 3 m saddle
+    # merge still guard sparse (80/0/0), showcase F1 0.882 unchanged.
+    narrow_saddle_range: 0.0
+    narrow_exclusion_radius: 5.5   # = visibility.CROWN_SHARE_RADIUS (clumps <= 5.2 m)
     narrow_tall_height: 5.2

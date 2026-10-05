@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""Offline calibration of the tree detector.
+"""Offline automatic calibration for the individual tree detector.
 
-The Gazebo world SDF stores the (x, y) of every tree, so no manual labels
-are needed. This tool:
+The Gazebo world SDF already stores the exact (x, y) position of every tree,
+so manual labeling is unnecessary. This tool:
 
-  1. reads the tree positions from a world file (or uses a named synthetic
-     scenario),
-  2. builds the canopy height surface the detector would see,
-  3. searches the detector parameters at random for the best F1, and
-  4. writes the best parameters as a ROS 2 parameter YAML and a JSON report.
+  1. reads that ground truth from a world file (or uses a named synthetic
+     cluster scenario),
+  2. builds the fused canopy height surface the detector will see,
+  3. random-searches the detector parameters to maximise F1, and
+  4. writes the best parameters as a ROS 2 parameter YAML plus a JSON report.
 
 Examples:
-    # Calibrate on the dense forest world (214 trees):
+    # Calibrate against the dense forest world (214 trees, many clusters):
     ros2 run deforestation_monitoring calibrate_tree_detection \
         --world /path/to/dense_forest.sdf \
         --out /tmp/tree_detection_params.yaml
 
-    # Calibrate on a recorded drone terrain cloud (x,y,z CSV):
+    # Calibrate directly on a recorded drone terrain cloud (x,y,z CSV):
     ros2 run deforestation_monitoring calibrate_tree_detection \
         --world /path/to/world.sdf --cloud /tmp/terrain.csv
 """
@@ -24,6 +24,7 @@ Examples:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -45,7 +46,7 @@ def _load_cloud(path: str) -> np.ndarray:
     suffix = Path(path).suffix.lower()
     if suffix == ".npy":
         data = np.load(path)
-    else:  # csv or txt with x,y,z (the first row may be a header)
+    else:  # csv / txt with x,y,z (and an optional first header row)
         data = np.genfromtxt(path, delimiter=",", skip_header=0)
         if data.ndim != 2 or data.shape[1] < 3:
             raise ValueError(
@@ -62,8 +63,8 @@ def _build_calibration_input(args, truth):
         chm, hits = rasterize_points(
             points, args.res, origin_x, origin_y, dim_x, dim_y)
         scanned = hits > 0
-        # Offline there is no separate map, so the cloud's own cells are the
-        # scanned area.
+        # Pad coverage with the overall map only where the cloud observed
+        # something; there is no separate map in offline mode.
         return chm, scanned
     chm = synthetic_chm(
         truth, args.res, origin_x, origin_y, dim_x, dim_y,

@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-Data server: connects to ROS through the rosbridge websocket, stores the
-data, and serves the web dashboard. History is kept across page refreshes.
+Data Server: Connects to ROS via rosbridge websocket, stores all data,
+and serves a web dashboard. History survives a page refresh.
 
-It runs as a node from the launch files but does not use rclpy itself; it
-talks to ROS through rosbridge at ws://localhost:9090.
+Run as a standalone ROS 2 node via the launch system (it does not itself
+use rclpy; it talks to the graph through rosbridge at ws://localhost:9090).
 
-Topics it subscribes to:
+Subscribes to the live topic set used by the system:
   /suspicious_areas, /inspection_reports, /mission_status, /survey_status,
   /baseline_status, /drone_baseline_status, /evaluation_summary,
-  /canopy_change_events, /forest_change_events, the change marker arrays,
-  the canopy and change grids, both robots' odometry, the drone lidar
-  point cloud and both compressed camera streams.
+  /canopy_change_events, /forest_change_events, change-marker arrays,
+  canopy + change occupancy grids, both robot odometries, the drone
+  lidar point cloud and both compressed camera streams.
 """
 
 import json
@@ -26,7 +26,7 @@ from urllib.parse import urlparse
 import websocket
 
 
-# Data store
+# ── Data store ──
 store = {
     'flags': [],
     'reports': [],
@@ -46,6 +46,9 @@ store = {
         'gained_count': 0,
     },
     'parrot_tree_positions': [],
+    'baseline_info': None,     # frozen baseline: per tree source + species, pine patches
+    'change_notes': [],        # per LOST: what caught it; per merged crown
+    'species_map': None,       # camera blue/green per cell (x100), -1 unseen
     'labels': [],
     'change_events': [],
     'canopy_map': None,
@@ -67,8 +70,8 @@ store = {
 }
 store_lock = threading.Lock()
 
-# Load saved user labels so the dashboard can show them next to the
-# automatic tree detections after a restart.
+# Load previously saved user labels so the dashboard can show them next to
+# the automatic tree detections after a restart.
 try:
     with open('/tmp/deforestation_eval/tree_labels.json') as _labels_fh:
         store['labels'] = json.load(_labels_fh)
@@ -77,39 +80,43 @@ except (OSError, ValueError):
 
 
 def _parse_count(text):
-    """Get the integer from a 'label: N' status string."""
+    """Extract an integer count from a 'label: N' status string."""
     try:
         return int(text.split(':')[1].strip().split()[0])
     except (IndexError, ValueError):
         return 0
 
 
-# Rosbridge connection
+# ── Rosbridge connection ──
 def rosbridge_thread():
-    """Connect to rosbridge and subscribe to the topics."""
+    """Connect to rosbridge websocket and subscribe to all relevant topics."""
     ws = None
     while True:
         try:
             ws = websocket.create_connection('ws://localhost:9090', timeout=30)
 
-            # Type names use rosbridge notation: package/Message
+            # Subscribe to all topics (type names are rosbridge notation:
+            # package/Message)
             subscriptions = {
-                # Decisions and communication
+                # Decision & communication
                 '/suspicious_areas': 'deforestation_interfaces/SuspiciousArea',
                 '/inspection_reports': 'std_msgs/String',
                 '/mission_status': 'std_msgs/String',
                 '/survey_status': 'std_msgs/String',
-                # Baseline and evaluation
+                # Baseline + evaluation
                 '/baseline_status': 'std_msgs/String',
                 '/drone_baseline_status': 'std_msgs/String',
                 '/scan_coverage': 'std_msgs/String',
                 '/evaluation_summary': 'std_msgs/String',
-                # Change events and markers
+                # Change events + markers
                 '/tree_change_events': 'deforestation_interfaces/TreeChangeEvent',
                 '/tree_status': 'deforestation_interfaces/TreeStatus',
                 '/parrot_tree_change_events': 'deforestation_interfaces/TreeChangeEvent',
                 '/parrot_tree_status': 'deforestation_interfaces/TreeStatus',
                 '/parrot_tree_positions': 'sensor_msgs/PointCloud2',
+                '/parrot_tree_baseline_info': 'std_msgs/String',
+                '/parrot_tree_change_notes': 'std_msgs/String',
+                '/forest_species_map': 'nav_msgs/OccupancyGrid',
                 '/canopy_change_events': 'std_msgs/String',
                 '/forest_change_events': 'std_msgs/String',
                 '/suspicious_markers': 'visualization_msgs/MarkerArray',
@@ -135,8 +142,8 @@ def rosbridge_thread():
                 try:
                     msg = json.loads(ws.recv())
                 except websocket.WebSocketTimeoutException:
-                    # The 30 s receive timeout is normal on a quiet link.
-                    # Reconnecting here would leave dead clients on rosbridge.
+                    # Healthy idle link: the 30 s recv timeout is expected.
+                    # Reconnecting here would leak dead clients on rosbridge.
                     continue
                 if msg.get('op') != 'publish':
                     continue
@@ -145,7 +152,7 @@ def rosbridge_thread():
 
                 with store_lock:
                     if topic == '/suspicious_areas':
-                        # SuspiciousArea: position is at the top level
+                        # SuspiciousArea message: position is at top level
                         pos = data.get('position', {})
                         px = pos.get('x', 0)
                         py = pos.get('y', 0)
@@ -250,6 +257,28 @@ def rosbridge_thread():
                         except OSError:
                             pass
 
+                    elif topic == '/parrot_tree_baseline_info':
+                        try:
+                            info = json.loads(data.get('data', ''))
+                        except ValueError:
+                            info = None
+                        if info is not None and info != store['baseline_info']:
+                            store['baseline_info'] = info
+                            store['change_notes'] = []   # notes belong to one baseline
+
+                    elif topic == '/parrot_tree_change_notes':
+                        try:
+                            note = json.loads(data.get('data', ''))
+                        except ValueError:
+                            note = None
+                        if isinstance(note, dict):
+                            note['time'] = time.time()
+                            store['change_notes'].append(note)
+                            store['change_notes'] = store['change_notes'][-200:]
+
+                    elif topic == '/forest_species_map':
+                        store['species_map'] = _grid_summary(data)
+
                     elif topic == '/evaluation_summary':
                         store['evaluation'] = data.get('data', '')
 
@@ -317,7 +346,7 @@ def rosbridge_thread():
 
 
 def _grid_summary(data):
-    """Pick the fields the dashboard needs from an OccupancyGrid dict."""
+    """Extract the fields the dashboard needs from an OccupancyGrid dict."""
     return {
         'width': data.get('info', {}).get('width', 0),
         'height': data.get('info', {}).get('height', 0),
@@ -329,7 +358,7 @@ def _grid_summary(data):
 
 
 def _compare_tree_labels(user_labels, auto_labels, match_radius=2.0):
-    """Compare user-drawn circles with the automatic tree points."""
+    """Compare user circles against automatic tree points."""
     matched_users = set()
     matched_autos = set()
 
@@ -367,14 +396,14 @@ def _compare_tree_labels(user_labels, auto_labels, match_radius=2.0):
     }
 
 
-# Dashboard path
+# ── Resolve dashboard path ──
 def _find_dashboard():
-    """Find the dashboard HTML next to this file or in the ROS share paths."""
-    # 1. Next to this file (source tree)
+    """Locate the dashboard HTML file relative to the script or in standard ROS paths."""
+    # First: check relative to this file (source tree layout)
     rel = os.path.join(os.path.dirname(__file__), '..', 'config', 'dashboard.html')
     if os.path.isfile(rel):
         return os.path.abspath(rel)
-    # 2. The installed share directory
+    # Second: check the installed share directory
     try:
         from ament_index_python.packages import get_package_share_directory
         return os.path.join(
@@ -383,7 +412,7 @@ def _find_dashboard():
         )
     except ImportError:
         pass
-    # 3. A known workspace path
+    # Fallback: check a known ROS workspace path
     for base in ['/home/alig/41068_ws/src', os.path.expanduser('~/41068_ws/src')]:
         p = os.path.join(base, 'deforestation_monitoring', 'config', 'dashboard.html')
         if os.path.isfile(p):
@@ -394,7 +423,7 @@ def _find_dashboard():
 HTML_PATH = _find_dashboard()
 
 
-# HTTP server
+# ── HTTP server ──
 class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = urlparse(self.path).path
@@ -443,8 +472,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             with store_lock:
-                # Camera frames are raw bytes served by /api/camera/*. They
-                # cannot be JSON-encoded, so they stay out of /api/data.
+                # Camera frames are raw bytes served by /api/camera/*; they are not
+                # JSON-serialisable, so they stay out of /api/data.
                 payload = {k: v for k, v in store.items()
                            if not isinstance(v, bytes)}
                 payload['uptime'] = time.time() - store['started']
@@ -458,7 +487,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == '/api/camera/husky':
             self._serve_cached_camera('husky_cam')
         else:
-            # Dashboard HTML
+            # Serve dashboard HTML
             if HTML_PATH and os.path.isfile(HTML_PATH):
                 try:
                     with open(HTML_PATH, 'rb') as f:
@@ -493,7 +522,7 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def log_message(self, *args):
-        pass  # no request logging
+        pass  # quiet
 
 
 def start_server():
@@ -509,7 +538,7 @@ def start_server():
 
 
 def main(args=None):
-    """Entry point for ros2 run and the launch files."""
+    """Entry point for ros2 run / launch. Starts the data server."""
     start_server()
 
 

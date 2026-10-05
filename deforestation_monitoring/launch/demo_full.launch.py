@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
-Full deforestation monitoring demo.
+Full Deforestation Monitoring Demo
+====================================
+Launches the simulation with both robots, SLAM, Nav2, RViz, then the whole
+monitoring node set (tree mapper, pattern scanner, mission coordinator,
+drone patrol, simulated deforestation events, evaluation, dashboard).
 
-Launches the simulation (robots, SLAM, Nav2, RViz) and then all monitoring
-nodes (tree mapper, pattern scanner, mission coordinator, drone patrol,
-simulated deforestation events, evaluation, dashboard).
-
-The monitoring nodes are defined once in monitoring_nodes.launch.py, which
-monitoring_only.launch.py also includes.
+The monitoring nodes live in monitoring_nodes.launch.py, which
+monitoring_only.launch.py includes too.
 
 Usage:
     ros2 launch deforestation_monitoring demo_full.launch.py
 
-Husky only, no drone:
-    ros2 launch deforestation_monitoring demo_full.launch.py drone:=false use_husky:=true
+Or for a lighter demo (Husky only, no drone):
+    ros2 launch deforestation_monitoring demo_full.launch.py drone:=false
 """
 
 from launch import LaunchDescription
@@ -28,7 +28,7 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    # Arguments
+    # --- Arguments ---
     drone_enabled = LaunchConfiguration('drone', default='true')
     use_husky = LaunchConfiguration('use_husky', default='false')
     husky_enabled = use_husky
@@ -43,7 +43,7 @@ def generate_launch_description():
     declare_husky = DeclareLaunchArgument(
         'use_husky', default_value='false',
         description='Launch the Husky ground rover (off by default to reduce '
-                    'sim load)'
+                    'sim load; the code stays so it can be re-enabled)'
     )
     declare_world = DeclareLaunchArgument(
         'world', default_value='dense_forest',
@@ -61,7 +61,7 @@ def generate_launch_description():
                     '(default: only in dense_forest)'
     )
 
-    # The 41068 simulation
+    # --- Include the main 41068 simulation ---
     sim_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([
@@ -80,7 +80,7 @@ def generate_launch_description():
         }.items(),
     )
 
-    # The monitoring nodes (perception, decision, UI)
+    # --- Include the monitoring node set (perception → decision → UI) ---
     monitoring_nodes = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([

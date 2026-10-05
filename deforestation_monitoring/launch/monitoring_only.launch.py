@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """
-Monitoring only. Use this when the simulation is already running.
+Monitoring-only launch. Use this when the simulation is already running.
 
     ros2 launch deforestation_monitoring monitoring_only.launch.py
 
-Launches the same monitoring nodes as demo_full.launch.py (both include
-monitoring_nodes.launch.py) without the simulation, for a Gazebo instance
-where the Husky and drone are already spawned. Robots can be turned off
-with drone:=false or husky:=false.
+Launches the monitoring node set (monitoring_nodes.launch.py) without the
+simulation, for a Gazebo instance with the Husky and drone already
+spawned. drone:=false / husky:=false leave one robot's nodes out.
 """
 
 from launch import LaunchDescription

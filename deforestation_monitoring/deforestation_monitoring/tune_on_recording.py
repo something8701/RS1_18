@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
-"""Tune the tree detector on recorded live canopy maps.
+"""Tune the individual-tree detector on *recorded live* canopy maps.
 
-Calibration on synthetic maps (``calibrate_tree_detection``) did not carry
-over to the live dense world, so this tool searches the detector parameters
-on real ``/forest_canopy_map`` frames from rosbags:
+Synthetic calibration (``calibrate_tree_detection``) does not transfer to
+the dense world, so this searches the detector parameters on real
+``/forest_canopy_map`` frames from rosbags:
 
-* a guard recording (for example sparse_trees) must stay perfect: every
-  frame must find all trees with 0 FP and 0 FN at ``--guard-radius``
-  (1.0 m);
-* on the target recording (for example dense_forest) F1 is maximised at
-  ``--target-radius`` (1.5 m), optionally only for trees not near an oak
-  (``--occlusion-filter``).
+* a guard recording (e.g. sparse_trees) must stay perfect: every frame
+  scores TP = all trees, 0 FP, 0 FN at ``--guard-radius`` (1.0 m);
+* the target recording (e.g. dense_forest) maximises F1 against its
+  trees (optionally only those not near an oak, ``--occlusion-filter``)
+  at ``--target-radius`` (1.5 m).
 
-It uses random search, or local search around ``--seed`` (JSON), and writes
-the best parameters merged into the params YAML (``--out``) plus a JSON
-report.
+Random search, or local search around ``--seed`` (JSON). Writes the best
+configuration merged into the params YAML (``--out``) and a JSON report.
 
     ros2 run deforestation_monitoring tune_on_recording \\
         --guard ~/rs1_18_ws/bags/sparse:sparse_trees \\
@@ -26,9 +24,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import yaml
@@ -64,9 +63,9 @@ DEFAULT_BOX = (-30.0, 30.0, -30.0, 30.0)
 
 def load_canopy_maps(bag: str, t_max: Optional[float] = None,
                      frames: int = 15) -> Tuple[List[np.ndarray], float, float, float]:
-    """Return ``frames`` evenly spaced maps from the last quarter of the bag
-    (up to ``t_max`` s after the first map). Returns (maps [ix, iy] in metres,
-    -1 = unscanned, resolution, origin_x, origin_y)."""
+    """``frames`` evenly spaced maps from the last quarter of the bag (up to
+    ``t_max`` s after the first map). Returns (maps [ix, iy] in metres with
+    -1 unscanned, resolution, origin_x, origin_y)."""
     from rclpy.serialization import deserialize_message
     from rosbag2_py import ConverterOptions, SequentialReader, StorageOptions
     from nav_msgs.msg import OccupancyGrid
