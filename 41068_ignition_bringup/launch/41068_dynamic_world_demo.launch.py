@@ -7,9 +7,9 @@ from launch_ros.actions import Node
 def generate_launch_description():
     ld = LaunchDescription()
 
-    # This launch file does not start Gazebo, robots, SLAM, Nav2 or RViz.
-    # Start the normal simulation first, then run this launch file from a
-    # second terminal as an add-on dynamic-world example.
+    # This launch file intentionally does not start Gazebo, robots, SLAM,
+    # Nav2, or RViz. Start the normal simulation first, then run this launch
+    # file from a second terminal as an add-on dynamic-world example.
     args = [
         DeclareLaunchArgument('use_sim_time', default_value='True'),
         DeclareLaunchArgument(

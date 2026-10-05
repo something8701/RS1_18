@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 """Generate worlds/showcase_forest.sdf from worlds/dense_forest.sdf.
 
-A version of the dense forest for the client demo, where the drone can see
-every tree from above:
+Showcase (client demo) variant of the dense forest in which every tree is
+visible to the drone from above:
 
-* oaks are thinned (by name, so the result is always the same) so no two
-  are closer than OAK_SEP, which keeps each oak crown separable in the
-  canopy height model;
+* oaks are thinned (deterministically, by name) so no two stand closer than
+  OAK_SEP, so each oak crown stays separable in the canopy height model;
 * every pine keeps its name and yaw, but a pine closer than PINE_CLEAR to an
-  oak is moved to open ground (at least PINE_CLEAR from every oak and
-  PINE_SEP from every other pine). In dense_forest the pines stand 4-6 m
-  from oaks, under the oak canopy, where a sensor looking down cannot
-  separate them. Pines that do not fit anywhere are dropped.
+  oak is moved into open ground (>= PINE_CLEAR from every oak, >= PINE_SEP
+  from every other pine). In dense_forest the pines stand 4-6 m from oaks,
+  under the oak canopy, where no top-down sensor can separate them. Pines
+  that do not fit are dropped.
 
-dense_forest.sdf is not changed; it stays the stress test.
+dense_forest.sdf itself is left unchanged (it stays the stress test).
 
     python3 scripts/make_showcase_world.py            # writes worlds/showcase_forest.sdf
 """
@@ -23,8 +22,8 @@ import re
 from pathlib import Path
 
 OAK_SEP = 7.0       # m between kept oaks
-PINE_CLEAR = 7.0    # m from a pine to every oak (oak crowns reach about 7 m)
-PINE_SEP = 3.5      # m between pines (pine crown radius about 1.6 m)
+PINE_CLEAR = 7.0    # m from a pine to every oak (oak crowns reach ~7 m)
+PINE_SEP = 3.5      # m between pines (pine crown radius ~1.6 m)
 EXTENT = 34.0       # keep trees within +-EXTENT m
 GRID = 0.5          # candidate spacing for relocated pines (m)
 
@@ -59,8 +58,8 @@ def main():
             kept_oaks.append(t)
     oak_xy = [(o['x'], o['y']) for o in kept_oaks]
 
-    # Open-ground candidate cells, visited in a fixed shuffled order so the
-    # moved pines spread over the whole map instead of filling rows.
+    # Candidate open-ground cells, visited in a fixed pseudo-random order
+    # so relocated pines spread over the whole map instead of filling rows.
     n = int(2 * EXTENT / GRID) + 1
     cells = [(-EXTENT + i * GRID, -EXTENT + j * GRID)
              for i in range(n) for j in range(n)]

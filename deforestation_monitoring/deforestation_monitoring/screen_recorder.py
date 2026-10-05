@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Simple X11 screen recorder without ffmpeg (Pillow grab, OpenCV MP4).
+"""Minimal X11 screen recorder (no ffmpeg needed): Pillow grab + OpenCV MP4.
 
 Records the whole display (default :1) at ``--fps`` frames per second,
-scaled to ``--width`` pixels, until SIGINT/SIGTERM or ``--duration``. A
-timestamp is drawn on each frame so time-lapse playback is easy to follow.
-Used to record the showcase runs (Gazebo, RViz, dashboard) next to the
-rosbags.
+scaled to ``--width`` pixels wide, until SIGINT/SIGTERM or ``--duration``.
+A timestamp overlay makes time-lapse playback readable. Used to capture the
+client-showcase runs (Gazebo + RViz + dashboard) alongside the rosbags.
 
     ros2 run deforestation_monitoring screen_recorder --out demo.mp4 --fps 2
 """

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Static checks of the dense forest world and the local models.
+"""Static material/world validation for the dense forest and local model set.
 
-These tests do not need a running Gazebo. They check that the worlds only
-use local model materials that exist, and that dense_forest has the
-expected grass ground tiles and oak and pine trees.
+This test is intentionally independent of a running Gazebo server. It checks
+that the SDF worlds reference only local model materials that actually exist,
+and that dense_forest contains the expected grass-plane ground tiles and
+Oak/Pine tree population.
 """
 
 from pathlib import Path
@@ -64,7 +65,7 @@ def test_dense_forest_world_structure():
 
 def test_all_world_local_model_materials_resolve():
     """Every local model:// URI in every world must point to a model whose
-    model.sdf and texture files exist."""
+    model.sdf exists and whose referenced local texture files exist."""
     world_paths = sorted(WORLDS_DIR.glob("*.sdf"))
     assert world_paths, "no worlds found"
 
@@ -87,15 +88,16 @@ def test_all_world_local_model_materials_resolve():
                 assert resolved.exists(), f"missing material texture: {resolved}"
                 checked_models.add(model_dir.name)
 
-    # The project has three local material models and the worlds use all
-    # three: grass_plane, forest_plane and forest_wall.
+    # The project ships three local material models. The worlds exercise all
+    # three: grass_plane, forest_plane, and forest_wall.
     assert {"grass_plane", "forest_plane", "forest_wall"} <= checked_models
 
 
 def test_showcase_forest_every_tree_visible_from_above():
-    """Showcase world: oaks at least 7 m apart, pines at least 7 m from every
-    oak and 3.5 m from each other (see make_showcase_world.py)."""
+    """Showcase world (option B): oaks >= 7 m apart, pines >= 7 m from every
+    oak and >= 3.5 m from each other (make_showcase_world.py)."""
     import math
+    import re
     text = (WORLDS_DIR / "showcase_forest.sdf").read_text()
     root = ET.fromstring(text)
     assert root.find("world").get("name") == "showcase_forest"

@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """
-Deforestation simulator: waits for the baseline tree map, then publishes
-known clearing sites so the pipeline can be scored.
+Deforestation Simulator: Waits for baseline tree map to be established, then
+injects suspicious area flags at known clearing sites to test the pipeline.
 
-Phase 1: baseline mapping, no sites. The Husky maps the tree trunks.
-Phase 2: monitoring, sites are published one by one.
+Phase 1: Baseline mapping (no flags). Tree trunks are being mapped by Husky.
+Phase 2: Monitoring (flags fire at pre-defined clearing sites).
 
-Sites are SuspiciousArea messages with type, confidence, area and severity.
-They are published only on /ground_truth_events, which the evaluation node
-scores against. /suspicious_areas must come from the pattern scanner;
-otherwise the test sites would also count as detections and the evaluation
-would score the simulator against itself.
+Publishes SuspiciousArea messages with full metadata (type, confidence,
+area, severity) instead of bare PoseStamped.
+
+The staged sites are published ONLY on /ground_truth_events. That topic is
+the ground truth the evaluation node scores against; /suspicious_areas must
+come from the pattern scanner, otherwise the injected test flags would also
+be counted as "detections" and the evaluation would score the simulator
+against itself instead of scoring perception.
 """
 
 import rclpy
@@ -22,7 +25,7 @@ from deforestation_interfaces.msg import SuspiciousArea
 
 
 class SimulateDeforestation(Node):
-    """Publishes known clearing sites after the baseline is taken."""
+    """Injects test flags at known clearing sites after baseline is established."""
 
     def __init__(self):
         super().__init__('simulate_deforestation')
@@ -43,7 +46,7 @@ class SimulateDeforestation(Node):
         self.baseline_ready = False
         self.trees_mapped = 0
 
-        # QoS profiles
+        # -- QoS profiles --
         alert_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.VOLATILE,
@@ -65,7 +68,7 @@ class SimulateDeforestation(Node):
         )
 
     def baseline_callback(self, msg: String):
-        """Handle the baseline notification."""
+        """Handle baseline establishment notification."""
         if self.baseline_ready:
             return
         self.baseline_ready = True
@@ -79,12 +82,12 @@ class SimulateDeforestation(Node):
             f'Baseline received: {self.trees_mapped} trees mapped. '
             'Starting monitoring phase in 30s...'
         )
-        # Humble's create_timer has no one_shot option, so a periodic 30 s
-        # timer paces the sites.
+        # Humble note: rclpy create_timer has no one_shot kwarg (Iron+ only),
+        # so a periodic 30 s timer drives the flag cadence.
         self.create_timer(30.0, self.publish_next_flag)
 
     def publish_next_flag(self):
-        """Publish the next clearing site as a SuspiciousArea message."""
+        """Publish the next staged clearing as a SuspiciousArea message."""
         if not self.baseline_ready:
             return
         if self.site_index == 0:

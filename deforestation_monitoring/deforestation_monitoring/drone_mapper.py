@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 """
-Drone terrain mapper.
+Drone Terrain Mapper.
 
-Collects the Parrot's depth point cloud (/parrot1/camera/depth/points),
-transforms it from the camera frame into parrot1_odom, downsamples it and
-republishes it as `/drone_terrain` for the dashboard's 3D terrain view.
-This is the only node that turns the raw depth cloud into a world-frame
-terrain cloud.
+Accumulates the Parrot's native depth point cloud, transforms it from the
+camera frame into parrot1_odom, downsamples it, and republishes it as
+`/drone_terrain` for the dashboard's 3D Terrain view.
+
+The source point cloud is:
+
+    /parrot1/camera/depth/points  (sensor_msgs/PointCloud2)
+
+The dashboard already subscribes to `/drone_terrain`, so this node is the
+single place where the raw depth cloud is turned into a world-frame terrain
+cloud.
 """
 
 import rclpy
@@ -24,7 +30,7 @@ import numpy as np
 
 
 class DroneMapper(Node):
-    """Transforms the Parrot depth cloud into parrot1_odom and collects it."""
+    """Transform and accumulate the Parrot depth cloud into parrot1_odom."""
 
     def __init__(self):
         super().__init__('drone_mapper')
@@ -58,7 +64,7 @@ class DroneMapper(Node):
         self.terrain_cells = {}
         self.frames = 0
 
-        # The Gazebo bridge sensor topics are best effort in this project.
+        # Gazebo bridge sensor topics are best-effort in this project.
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.VOLATILE,
@@ -81,8 +87,8 @@ class DroneMapper(Node):
         self.terrain_pub = self.create_publisher(
             PointCloud2, '/drone_terrain', terrain_qos
         )
-        # Smaller copy for the dashboard: at most 8000 points at 1 Hz, so the
-        # 3D view does not overload the rosbridge websocket.
+        # Lightweight copy for the dashboard: <=8000 points at <=1 Hz so a
+        # single 3D view never saturates the rosbridge websocket.
         self.viz_pub = self.create_publisher(
             PointCloud2, '/drone_terrain_viz', terrain_qos
         )
@@ -98,7 +104,7 @@ class DroneMapper(Node):
         )
 
     def _lookup_transform(self, cloud: PointCloud2):
-        """Return the camera-to-target transform for this cloud, or None."""
+        """Return camera->target transform for this cloud, or None."""
         try:
             return self.tf_buffer.lookup_transform(
                 self.target_frame,
@@ -115,7 +121,7 @@ class DroneMapper(Node):
             return None
 
     def _extract_points(self, cloud: PointCloud2, transform):
-        """Read x/y/z points and transform them into the target frame."""
+        """Extract x/y/z points and transform them into the target frame."""
         offsets = {}
         for field in cloud.fields:
             if field.name in ('x', 'y', 'z'):
@@ -189,7 +195,7 @@ class DroneMapper(Node):
         return xr + tx, yr + ty, zr + tz
 
     def cloud_cb(self, cloud: PointCloud2):
-        """Transform and add the latest depth cloud."""
+        """Transform and accumulate the latest depth cloud."""
         self.frames += 1
         if self.frames % self.process_every != 0:
             return
@@ -217,7 +223,7 @@ class DroneMapper(Node):
                 cell[3] += pz
 
     def publish_terrain(self):
-        """Publish the collected world-frame terrain as a PointCloud2."""
+        """Publish the accumulated world-frame terrain as PointCloud2."""
         if not self.terrain_cells:
             return
 
@@ -258,7 +264,7 @@ class DroneMapper(Node):
         cloud.data = pts.tobytes()
         self.terrain_pub.publish(cloud)
 
-        # Dashboard terrain view (throttled and downsampled here).
+        # Dashboard terrain view (throttled + downsampled server-side).
         self._viz_tick += 1
         if self._viz_tick % 2 == 0:
             max_viz = 8000

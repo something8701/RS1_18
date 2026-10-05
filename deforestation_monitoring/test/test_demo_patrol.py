@@ -38,8 +38,8 @@ def test_levelling_and_yaw_clamp(ros_ctx):
 
 
 def test_tilted_drone_stops_forward_motion(ros_ctx):
-    """A drone pitched 84 degrees that is still told to fly 3 m/s forward
-    flies into the ground."""
+    """Removal test 5: pitched 84 deg while still commanded 3 m/s forward,
+    the drone flew into the ground."""
     node = DemoPatrol()
     sent = _capture(node)
     node.roll, node.pitch = 0.0, math.radians(84)

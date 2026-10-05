@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """Small example of changing an Ignition Gazebo world from a ROS 2 node.
 
-It moves a small animal marker around the forest floor and cycles a demo
-tree between healthy, fire and burnt appearances. The file is short so
-students can read it and change it for their own dynamic-world ideas.
+This is deliberately simple: it moves a small animal marker around the forest
+floor, and cycles a demo tree between healthy, fire, and burnt appearances. The
+goal is to provide a compact Python file students can read and modify for their
+own dynamic-world ideas.
 
-The demo models already exist in ``worlds/large_demo.sdf``. This node only
-moves them with Gazebo's ``/world/<world>/set_pose`` service, which is
-simpler than inserting models at runtime.
+Implementation note:
+The demo models are already present in ``worlds/large_demo.sdf``. This node only
+moves existing models by calling Gazebo's ``/world/<world>/set_pose`` service.
+That keeps the example simple and avoids relying on dynamic model insertion.
 
-It calls the ``ign`` / ``gz`` command-line tool through ``subprocess``. That
-is not the fastest Gazebo API, but it is explicit and easy to read, and
-students can try the same service calls from a terminal.
+This script uses the ``ign`` / ``gz`` command-line tool through ``subprocess``.
+That is not the most efficient possible Gazebo API, but it is very explicit and
+readable for a teaching example: students can copy the printed service command
+idea and experiment with Gazebo services from a terminal.
 """
 
 import math
@@ -62,7 +65,8 @@ class DynamicWorldDemo(Node):
         self.declare_parameter('animal_x', -4.0)
         self.declare_parameter('animal_y', 4.0)
 
-        # update_period is 0.1 s, which moves the animal marker smoothly.
+        # update_period is intentionally left at 0.1 s. This gives a visibly
+        # smooth animal marker while still keeping the example simple.
         self.declare_parameter('update_period', 0.1)
         self.declare_parameter('tree_state_period', 3.0)
         self.declare_parameter('step_size', 0.2)
@@ -82,9 +86,9 @@ class DynamicWorldDemo(Node):
         self.step_size = float(self.get_parameter('step_size').value)
         self.wander_limit = float(self.get_parameter('wander_limit').value)
 
-        # The demo tree is three simple models. Only one is shown at the tree
-        # location at a time; the others are moved below the world. This is
-        # crude but easy to understand and reliable.
+        # The demo tree is implemented as three simple models. Only one is shown
+        # at the tree location at a time; the inactive states are moved below the
+        # world. This is crude but easy to understand and reliable.
         self.tree_states = ['healthy', 'fire', 'burnt']
         self.tree_state_index = 0
         self.seconds_since_tree_change = 0.0
@@ -201,8 +205,8 @@ class DynamicWorldDemo(Node):
 
     def move_animal(self):
         """Move the animal marker with a small bounded random walk."""
-        # Change heading randomly, then step forward. This is not physically
-        # realistic; it just gives a moving target or obstacle.
+        # Change heading randomly, then step forward. This is intentionally not
+        # physically realistic; it just creates a moving target/obstacle idea.
         self.animal_pose.yaw += random.uniform(-0.7, 0.7)
         self.animal_pose.x += self.step_size * math.cos(self.animal_pose.yaw)
         self.animal_pose.y += self.step_size * math.sin(self.animal_pose.yaw)

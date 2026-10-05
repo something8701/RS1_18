@@ -1,22 +1,21 @@
 #!/usr/bin/env python3
 """
-Tree fusion: combines tree detections from two sensors.
+Tree Fusion Node: Fuses independent tree detections from two sensor modalities.
 
 Inputs:
-  - /all_tree_positions (PointCloud2): Husky 2D lidar trunk clusters (DBSCAN)
-  - /drone_terrain (PointCloud2): drone camera canopy points (green pixels)
+  - /all_tree_positions (PointCloud2): Husky 2D lidar → DBSCAN tree clusters
+  - /drone_terrain (PointCloud2):       Drone camera → green pixel canopy points
 
 Outputs:
-  - /fused_tree_map (OccupancyGrid): 0 = no tree, 33 = lidar only,
-    66 = camera only, 100 = both
-  - /fusion_markers (MarkerArray): green = both, yellow = lidar only,
-    blue = camera only
+  - /fused_tree_map (OccupancyGrid): 0=no tree, 33=lidar-only, 66=camera-only, 100=both
+  - /fusion_markers (MarkerArray):    green=both, yellow=lidar-only, blue=camera-only
 
-Points from each sensor are counted per grid cell, and a cell counts for a
-sensor once it has enough points:
-  - LIDAR_ONLY (33): trunk seen by the lidar only (for example under canopy)
-  - CAMERA_ONLY (66): canopy seen by the camera only (for example a hidden trunk)
-  - BOTH (100): seen by both sensors, the most reliable
+Fusion logic:
+  Points from each sensor are accumulated into grids. A cell is "occupied" if
+  it has received enough points from that sensor. The fusion map encodes:
+    - LIDAR_ONLY (33):   tree trunk seen by lidar but not camera (e.g. hidden canopy)
+    - CAMERA_ONLY (66):  canopy seen by camera but lidar missed (e.g. occluded trunk)
+    - BOTH (100):        confirmed by both sensors (highest confidence)
 """
 
 import rclpy
@@ -39,12 +38,12 @@ NO_TREE = 0
 
 
 class TreeFusion(Node):
-    """Combines lidar and camera tree detections into one map."""
+    """Fuses lidar and camera tree detections into a single confidence map."""
 
     def __init__(self):
         super().__init__('tree_fusion')
 
-        # Parameters
+        # -- Parameters --
         self.declare_parameter('resolution', 0.5,
             descriptor=ParameterDescriptor(description='Grid resolution (m)'))
         self.declare_parameter('map_size_x', 80.0,
@@ -80,7 +79,7 @@ class TreeFusion(Node):
         self.lidar_points_received = 0
         self.camera_points_received = 0
 
-        # QoS
+        # -- QoS --
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.VOLATILE,
@@ -121,17 +120,17 @@ class TreeFusion(Node):
             f'Subscribing to /all_tree_positions + /drone_terrain.'
         )
 
-    # Point cloud ingestion
+    # ── Point cloud ingestion ─────────────────────────────────────────
 
     def _cloud_to_cells(self, cloud: PointCloud2):
-        """Return the (ix, iy) cells of the points in a PointCloud2.
+        """Extract (x,y) cell indices from a PointCloud2 message.
 
-        Expects x, y, z as FLOAT32 at offsets 0, 4, 8.
+        Assumes xyz fields: offset 0, 4, 8 as FLOAT32.
         """
         if cloud is None or cloud.width == 0:
             return np.array([], dtype=np.int32), np.array([], dtype=np.int32)
 
-        # Raw bytes to an (x, y, z) array
+        # Parse raw bytes into numpy array of (x, y, z)
         pts = np.frombuffer(cloud.data, dtype=np.float32).reshape(-1, cloud.point_step // 4)
         xs = pts[:, 0]
         ys = pts[:, 1]
@@ -143,7 +142,7 @@ class TreeFusion(Node):
         return ix[valid], iy[valid]
 
     def lidar_cb(self, cloud: PointCloud2):
-        """Count lidar tree detections."""
+        """Accumulate lidar tree detections."""
         ix, iy = self._cloud_to_cells(cloud)
         if len(ix) == 0:
             return
@@ -151,10 +150,10 @@ class TreeFusion(Node):
         self.lidar_points_received += len(ix)
 
     def camera_cb(self, cloud: PointCloud2):
-        """Count camera canopy detections.
+        """Accumulate camera canopy detections.
 
-        The drone_terrain cloud has both tree and ground points, so only
-        points above 2 m are counted.
+        The drone_terrain cloud contains all terrain points (tree + ground).
+        We only accumulate points with z > 2.0 (canopy height) as tree indicators.
         """
         if cloud is None or cloud.width == 0:
             return
@@ -164,7 +163,7 @@ class TreeFusion(Node):
         ys = pts[:, 1]
         zs = pts[:, 2]
 
-        # Only canopy height points (above 2 m), not ground
+        # Only count canopy-height points (z > 2m = tree canopy, not ground)
         canopy_mask = zs > 2.0
         xs = xs[canopy_mask]
         ys = ys[canopy_mask]
@@ -179,13 +178,13 @@ class TreeFusion(Node):
         np.add.at(self.camera_grid, (ix[valid], iy[valid]), 1)
         self.camera_points_received += len(ix[valid])
 
-    # Fusion publishing
+    # ── Fusion publishing ─────────────────────────────────────────────
 
     def publish_fusion(self):
-        """Build the fused map and publish it with markers."""
+        """Compute fused map and publish OccupancyGrid + markers."""
         now = self.get_clock().now().to_msg()
 
-        # Which cells count for each sensor
+        # Binarize each grid
         lidar_trees = self.lidar_grid >= self.lidar_min
         camera_trees = self.camera_grid >= self.camera_min
 
@@ -193,13 +192,13 @@ class TreeFusion(Node):
         lidar_only_mask = lidar_trees & ~camera_trees
         camera_only_mask = camera_trees & ~lidar_trees
 
-        # Fused grid
+        # Build fused grid
         fused = np.full((self.dim_x, self.dim_y), NO_TREE, dtype=np.int8)
         fused[lidar_only_mask] = LIDAR_ONLY
         fused[camera_only_mask] = CAMERA_ONLY
         fused[both_mask] = BOTH
 
-        # OccupancyGrid
+        # --- OccupancyGrid ---
         grid = OccupancyGrid()
         grid.header = Header(stamp=now, frame_id=self.fusion_frame)
         grid.info.resolution = self.res
@@ -209,27 +208,27 @@ class TreeFusion(Node):
             position=Point(x=self.origin_x, y=self.origin_y, z=0.0),
             orientation=Quaternion(w=1.0),
         )
-        # Grids are [ix, iy] but OccupancyGrid data is row-major [iy, ix].
+        # Grids are indexed [ix, iy]; OccupancyGrid data is row-major [iy, ix].
         grid.data = fused.T.flatten().tolist()
         self.fused_pub.publish(grid)
 
-        # Markers
+        # --- Markers ---
         markers = MarkerArray()
         mid = 0
 
-        # Green: both sensors
+        # Green = both sensors agree
         for ix, iy in np.argwhere(both_mask)[:100]:
             markers.markers.append(self._make_marker(
                 mid, ix, iy, now, 'both', 0.0, 1.0, 0.0))
             mid += 1
 
-        # Yellow: lidar only
+        # Yellow = lidar only
         for ix, iy in np.argwhere(lidar_only_mask)[:100]:
             markers.markers.append(self._make_marker(
                 mid, ix, iy, now, 'lidar_only', 1.0, 1.0, 0.0))
             mid += 1
 
-        # Blue: camera only
+        # Blue = camera only
         for ix, iy in np.argwhere(camera_only_mask)[:100]:
             markers.markers.append(self._make_marker(
                 mid, ix, iy, now, 'camera_only', 0.0, 0.5, 1.0))

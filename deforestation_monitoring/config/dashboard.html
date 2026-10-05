@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="dark">
 <title>Canopy Sentinel</title>
 <style>
-/* Themes (all dark). Status colors stay semantic; accent and neutrals change. */
+/* ── Themes (all dark). Status colors stay semantic; accent and neutrals change. ── */
 :root,html[data-theme="forest"]{
   --backdrop:#07100a; --accent:#30d158; --accent-ink:#052e14;
   --green:#30d158; --red:#ff453a; --orange:#ff9f0a; --yellow:#ffd60a; --cyan:#64d2ff;
@@ -60,7 +60,7 @@ button{font:inherit;color:inherit}
 body:not(.show-husky) .husky-only{display:none!important}
 body:not(.dev) .dev-only{display:none!important}
 
-/* Liquid Glass material */
+/* ── Liquid Glass material ──────────────────────────────────────────── */
 .glass{
   position:relative;isolation:isolate;
   background:rgba(var(--glass-rgb),var(--glass-alpha));
@@ -98,7 +98,7 @@ html.contrast .card,html.contrast .stat{box-shadow:inset 0 0 0 1px rgba(255,255,
 html.contrast .chip.active,html.contrast .segmented .lens{box-shadow:inset 0 0 0 1.5px var(--label)}
 html.contrast .tab:not(.active),html.contrast .chip:not(.active):not(.primary){color:var(--label)}
 
-/* Backdrop and views */
+/* ── Backdrop and views ─────────────────────────────────────────────── */
 #ambient{position:fixed;inset:0;width:100%;height:100%;z-index:0;display:block}
 #view-container{position:fixed;inset:0;z-index:1}
 .view{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .25s var(--ease)}
@@ -110,7 +110,7 @@ html.contrast .tab:not(.active),html.contrast .chip:not(.active):not(.primary){c
 .panel{position:absolute;left:var(--safe-left);top:var(--safe-top);right:var(--gap);bottom:var(--safe-bottom);
   border-radius:var(--r-panel);display:flex;flex-direction:column;overflow:hidden;transition:left .55s var(--spring)}
 
-/* Sidebar */
+/* ── Sidebar ────────────────────────────────────────────────────────── */
 #sidebar{position:fixed;z-index:5;top:var(--gap);left:var(--gap);bottom:var(--gap);width:var(--sidebar-w);
   border-radius:var(--r-panel);display:flex;flex-direction:column;overflow:hidden;
   transition:transform .55s var(--spring),opacity .3s var(--ease)}
@@ -168,7 +168,7 @@ body.sidebar-collapsed #sidebar{transform:translateX(calc(-100% - var(--gap) - 2
   box-shadow:inset 0 1px 0 rgba(255,255,255,.14);transition:background .2s,transform .15s}
 .btn:hover{background:rgba(255,255,255,.18)} .btn:active{transform:scale(.98)}
 
-/* Toolbar */
+/* ── Toolbar ────────────────────────────────────────────────────────── */
 #toolbar{position:fixed;z-index:6;top:var(--gap);right:var(--gap);left:calc(var(--gap) * 2 + var(--sidebar-w));
   display:flex;align-items:center;gap:10px;pointer-events:none;transition:left .55s var(--spring)}
 #toolbar>*{pointer-events:auto}
@@ -201,7 +201,7 @@ body:not([data-view="map"]) #toolbar .controls{display:none}
 .chip.warn{background:color-mix(in srgb,var(--orange) 18%,transparent);color:color-mix(in srgb,var(--orange) 55%,white)}
 .chip svg{width:15px;height:15px}
 
-/* Settings panel */
+/* ── Settings panel ─────────────────────────────────────────────────── */
 #settings{position:fixed;z-index:20;top:calc(var(--gap) + 58px);right:var(--gap);width:min(360px,calc(100vw - 2 * var(--gap)));
   max-height:calc(100dvh - var(--gap) * 2 - 58px);overflow-y:auto;overscroll-behavior:contain;
   padding:18px 18px 16px;border-radius:26px;
@@ -251,7 +251,7 @@ body:not([data-view="map"]) #toolbar .controls{display:none}
 .set-foot{display:flex;justify-content:space-between;align-items:center;margin-top:18px}
 .set-foot small{font-size:11px;color:var(--label3)}
 
-/* Map legend and view panels */
+/* ── Map legend and view panels ─────────────────────────────────────── */
 #legend{position:absolute;left:var(--safe-left);bottom:var(--safe-bottom);padding:11px 14px 11px 12px;border-radius:18px;font-size:12px;color:var(--label2);
   transition:left .55s var(--spring)}
 #legend summary{list-style:none;cursor:pointer;font-weight:600;color:var(--label);display:flex;align-items:center;justify-content:space-between;gap:14px;border-radius:8px}
@@ -262,6 +262,8 @@ body:not([data-view="map"]) #toolbar .controls{display:none}
 .lg-row{display:flex;align-items:center;gap:8px;margin:3px 0}
 .lg-sw{width:12px;height:12px;border-radius:3px;flex:none;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.25)}
 .lg-pt{width:10px;height:10px;border-radius:50%;flex:none;box-shadow:0 0 0 1.5px rgba(255,255,255,.9)}
+.lg-ring,.lg-dash{width:11px;height:11px;border-radius:50%;flex:none;box-sizing:border-box;border:2px solid;background:transparent!important}
+.lg-dash{border-style:dashed}
 #cameras-view{display:flex;gap:12px;padding:var(--safe-top) var(--gap) var(--safe-bottom) var(--safe-left);transition:padding .55s var(--spring)}
 #cameras-view .cam{flex:1;min-width:0;display:flex;flex-direction:column;border-radius:var(--r-panel);overflow:hidden;padding:8px}
 #cameras-view .cam .lbl{padding:6px 10px 10px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:9px}
@@ -279,7 +281,7 @@ body:not([data-view="map"]) #toolbar .controls{display:none}
   box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 8px 24px rgba(0,0,0,.45);transition:opacity .12s;font-variant-numeric:tabular-nums}
 #tooltip.visible{opacity:1}
 
-/* Changes page */
+/* ── Changes page ───────────────────────────────────────────────────── */
 .panel-head{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;padding:18px 20px 6px}
 .panel-head h2{font:600 20px/1.2 var(--font-display);letter-spacing:-.3px}
 .panel-head .count{color:var(--label2);font-size:13px;font-variant-numeric:tabular-nums}
@@ -304,7 +306,7 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
 .empty-state{max-width:420px;margin:12vh auto 0;text-align:center;color:var(--label2);font-size:14px;line-height:1.55}
 .empty-state b{display:block;color:var(--label);font:600 17px/1.3 var(--font-display);margin-bottom:6px}
 
-/* Toasts */
+/* ── Toasts ─────────────────────────────────────────────────────────── */
 #toasts{position:fixed;z-index:25;bottom:calc(var(--safe-bottom) + 8px);left:calc(var(--safe-left) + (100vw - var(--safe-left) - var(--gap)) / 2);transform:translateX(-50%);
   width:min(440px,calc(100vw - 2 * var(--gap)));display:flex;flex-direction:column;gap:8px;pointer-events:none;transition:left .55s var(--spring)}
 .toast{pointer-events:auto;display:flex;align-items:center;gap:12px;padding:9px 9px 9px 14px;border-radius:20px;animation:toast-in .5s var(--spring)}
@@ -316,7 +318,7 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
 .toast.out{opacity:0;transform:translateY(8px) scale(.97);transition:opacity .25s,transform .25s}
 @keyframes toast-in{from{opacity:0;transform:translateY(14px) scale(.96)}}
 
-/* Report page: a paper sheet that prints on its own */
+/* ── Report page: a paper sheet that prints on its own ──────────────── */
 #report-scroll{position:absolute;left:var(--safe-left);top:var(--safe-top);right:var(--gap);bottom:var(--safe-bottom);overflow:auto;
   border-radius:var(--r-panel);transition:left .55s var(--spring);padding-bottom:10px}
 .report-actions{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:4px;flex-wrap:wrap;padding:5px;border-radius:24px;margin:0 auto 14px;max-width:820px}
@@ -349,7 +351,14 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
 #r-notes:empty::before{content:attr(data-placeholder);color:#8e8e93}
 .r-foot{margin-top:30px;padding-top:12px;border-top:1px solid #e3e3df;font-size:11px;color:#8e8e93;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 
-/* Compact screens: sidebar becomes a bottom sheet */
+/* ── Compact screens: sidebar becomes a bottom sheet ────────────────── */
+/* Desktop: with more map layers the toggles move to a second row rather
+   than cover the view tabs when the window is narrow. */
+@media (min-width:821px){
+  #toolbar{flex-wrap:wrap;row-gap:8px}
+  #toolbar .segmented{flex:0 0 auto}
+  #toolbar .controls{margin-left:auto}
+}
 @media (max-width:820px){
   :root{--gap:8px}
   #sidebar{top:auto;left:var(--gap);right:var(--gap);width:auto;height:min(64dvh,560px);border-radius:28px}
@@ -492,7 +501,7 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
     <section class="card">
       <h3>Survey</h3>
       <div class="stat-grid">
-        <div class="stat"><b id="tree-count" class="g">0</b><span>Trees</span></div>
+        <div class="stat" title="Trees the drone detects in its latest map"><b id="tree-count" class="g">0</b><span id="tree-count-label">Trees</span></div>
         <div class="stat"><b id="flag-count" class="o">0</b><span>Flags</span></div>
         <div class="stat"><b id="done-count" class="g">0</b><span>Inspected</span></div>
       </div>
@@ -514,6 +523,18 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
       <button class="link-btn" id="feed-all">View all changes</button>
       <button id="reset-tree-baseline" class="btn">Re-baseline trees</button>
       <div id="rebaseline-status" class="note" role="status"></div>
+    </section>
+
+    <section class="card" id="camera-card">
+      <h3>Drone camera</h3>
+      <div class="stat-grid">
+        <div class="stat" title="Baseline trees the camera saw as pine-coloured"><b id="cam-pines" class="g">–</b><span>Pines</span></div>
+        <div class="stat" title="Pines only the camera found (the LiDAR never separated them)"><b id="cam-only" class="g">–</b><span>Camera-only</span></div>
+        <div class="stat" title="Trees reported lost on the camera's evidence"><b id="cam-caught" class="r">–</b><span>By camera</span></div>
+      </div>
+      <div class="status-line"><span>Pine patches watched</span><span class="val" id="cam-patches">–</span></div>
+      <div class="status-line"><span>Crown pieces merged</span><span class="val" id="cam-merged">–</span></div>
+      <div class="note" id="cam-note">Pines under oak crowns are tracked by the camera: a pine is reported lost when the camera can see through where it stood.</div>
     </section>
 
     <section class="card">
@@ -567,6 +588,8 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
   <div class="controls glass" role="group" aria-label="Map layers">
     <button id="toggle-change" class="chip active" aria-pressed="true"><span class="dot"></span>Change overlay</button>
     <button id="toggle-fusion" class="chip active" aria-pressed="true"><span class="dot"></span>Fusion</button>
+    <button id="toggle-trees" class="chip active" aria-pressed="true" title="Baseline trees, coloured by the species the camera saw"><span class="dot"></span>Trees</button>
+    <button id="toggle-pine" class="chip" aria-pressed="false" title="Canopy the drone camera sees as pine-coloured"><span class="dot"></span>Pine canopy</button>
     <button id="map-calibrate" class="chip dev-only">Calibrate labels</button>
   </div>
   <button id="settings-btn" class="icon-btn glass" aria-label="Settings" aria-expanded="false" aria-controls="settings">
@@ -635,7 +658,7 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
 <script src="https://cdn.jsdelivr.net/npm/roslib@1/build/roslib.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.149/build/three.min.js"></script>
 <script>
-// Config
+// ── Config ──
 const ROS_URL='ws://'+location.hostname+':9090';
 const SHOW_HUSKY=false;   // Husky is disabled (use_husky:=false). Set true to bring its UI back.
 const TRACKER_RESET_SERVICE='/parrot_tree_tracker/reset_baseline';
@@ -644,7 +667,7 @@ if(SHOW_HUSKY)document.body.classList.add('show-husky');
 const root=document.documentElement;
 const bootTime=Date.now();
 
-// Settings (theme, glass, contrast, map colors, units, developer tools)
+// ── Settings (theme, glass, contrast, map colors, units, developer tools) ──
 const THEMES={
   forest:  {glass:'30,34,32', amb:['#143824','#0a1a10','#050b07'], ambAlpha:.95, ambSat:1.35, ambDark:'rgba(3,9,5,.38)',   hint:'Deep green, built around the canopy map.'},
   graphite:{glass:'28,28,30', amb:['#1f1f22','#0e0e10','#000000'], ambAlpha:.5,  ambSat:.55,  ambDark:'rgba(0,0,0,.5)',     hint:'Neutral Apple-style dark gray. Lets the map colors stand out most.'},
@@ -655,10 +678,12 @@ const THEMES={
 const PALETTES={
   standard:{unexplored:[16,22,18],ground:[46,43,33],canopy:[[26,86,48],[42,150,76],[158,224,116]],
             lost:[255,69,58],gained:[100,210,255],fused:[[48,209,88],[100,210,255],[255,214,10]],
-            detected:'#ffd60a',sev:['#ff453a','#ff9f0a','#ffd60a'],drone:'#ff9f0a'},
+            detected:'#ffd60a',sev:['#ff453a','#ff9f0a','#ffd60a'],drone:'#ff9f0a',
+            pine:[64,224,208],oak:[255,196,120]},
   cb:      {unexplored:[16,22,24],ground:[48,44,38],canopy:[[18,62,72],[0,150,120],[150,224,200]],
             lost:[213,94,0],gained:[86,180,233],fused:[[0,158,115],[86,180,233],[240,228,66]],
-            detected:'#f0e442',sev:['#d55e00','#e69f00','#f0e442'],drone:'#cc79a7'},
+            detected:'#f0e442',sev:['#d55e00','#e69f00','#f0e442'],drone:'#cc79a7',
+            pine:[0,114,178],oak:[235,235,235]},
 };
 const SETTINGS_KEY='canopy-sentinel.settings';
 const mq=q=>!!(window.matchMedia&&matchMedia(q).matches);
@@ -690,11 +715,12 @@ function fmtPos(x,y){
   return settings.units==='local'?`${Number(x).toFixed(1)} m, ${Number(y).toFixed(1)} m`:gps(toGPS(x,y));
 }
 
-// Parsing helpers
+// ── Parsing helpers ──
 function parseKV(s){const o={};(s||'').split(/\s+/).forEach(t=>{const i=t.indexOf('=');if(i>0)o[t.slice(0,i)]=t.slice(i+1)});return o;}
 function evText(ev){
   const kind=ev.event_type==='LOST'?'Tree lost':'New tree';
-  return `${kind} #${ev.tree_id} at ${fmtPos(ev.x,ev.y)}, ${Number(ev.area_m2||0).toFixed(0)} m²`;
+  const why=ev.event_type==='LOST'?caughtBy(ev.tree_id):'';
+  return `${kind} #${ev.tree_id} at ${fmtPos(ev.x,ev.y)}, ${Number(ev.area_m2||0).toFixed(0)} m²${why?', '+why:''}`;
 }
 function bytesFromRos(data){
   if(data instanceof Uint8Array)return data;
@@ -709,8 +735,8 @@ function prettyState(s){if(!s)return '--';s=String(s).replace(/_/g,' ').toLowerC
 function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function rgb(c,a){return a==null?`rgb(${c[0]},${c[1]},${c[2]})`:`rgba(${c[0]},${c[1]},${c[2]},${a})`;}
 
-// State
-const S={flags:[],reports:[],events:[],treeEvents:[],treeStatus:{baseline_count:0,current_count:0,lost_count:0,gained_count:0},parrotTreeEvents:[],parrotTreeStatus:{baseline_count:0,current_count:0,lost_count:0,gained_count:0},trees:0,drone:{x:0,y:0},husky:{x:0,y:0},
+// ── State ──
+const S={baselineInfo:null,notes:[],flags:[],reports:[],events:[],treeEvents:[],treeStatus:{baseline_count:0,current_count:0,lost_count:0,gained_count:0},parrotTreeEvents:[],parrotTreeStatus:{baseline_count:0,current_count:0,lost_count:0,gained_count:0},trees:0,drone:{x:0,y:0},husky:{x:0,y:0},
          survey:'',scanCoverage:'',mission:'',baseline:'',droneBaseline:'',eval:'',connected:false};
 const lastMsg={};  // topic -> wall-clock ms of last message
 let dc=0, hc=0, lastSnapshotOk=0, hydratedAt=0;
@@ -718,7 +744,7 @@ function mark(topic){ lastMsg[topic]=Date.now(); }
 function treeEventList(){ return S.parrotTreeEvents.length?S.parrotTreeEvents:S.treeEvents; }
 function treeStatus(){ const p=S.parrotTreeStatus,t=S.treeStatus; return {baseline:p.baseline_count||t.baseline_count||0,current:p.current_count||t.current_count||0,lost:p.lost_count||t.lost_count||0,gained:p.gained_count||t.gained_count||0}; }
 
-// Layout: the part of the screen not covered by floating glass
+// ── Layout: the part of the screen not covered by floating glass ──
 const SAFE={left:14,top:80,right:14,bottom:14};
 const compactMQ=window.matchMedia('(max-width:820px)');
 function cssPx(name){return parseFloat(getComputedStyle(root).getPropertyValue(name))||0}
@@ -774,7 +800,7 @@ function drawWaiting(c,w,h,text){
   c.textAlign='start'; c.textBaseline='alphabetic';
 }
 
-// ROS connection
+// ── ROS connection ──
 let ros;
 try {
   ros=new ROSLIB.Ros({url:ROS_URL});
@@ -785,9 +811,10 @@ try {
 
 const canvas=document.getElementById('map-canvas'), ctx=canvas.getContext('2d');
 let grid=null, change=null, fused=null, dx=0, dy=0, hx=0, hy=0, flags=[];
-let changeEnabled=true, fusionEnabled=true;
+let changeEnabled=true, fusionEnabled=true, treesEnabled=true, pineEnabled=false;
+let species=null;   // camera blue/green per cell (x100), same grid as the canopy map
 
-// Topics
+// ── Topics ──
 function sub(name,type,cb){
   if(!ros) return;
   try{ new ROSLIB.Topic({ros,name,messageType:type}).subscribe(m=>{mark(name);cb(m)}); }
@@ -834,8 +861,35 @@ sub('/parrot_tree_status','deforestation_interfaces/TreeStatus',m=>{
   S.trees=m.current_count;
   updateUI();
 });
+// Frozen baseline with per-tree source and camera species, and one note per
+// LOST (what caught it) or merged crown piece. Both also arrive in /api/data.
+sub('/parrot_tree_baseline_info','std_msgs/String',m=>{
+  try{const info=JSON.parse(m.data); if(JSON.stringify(info)!==JSON.stringify(S.baselineInfo)){S.baselineInfo=info;S.notes=[];renderLegend();}}catch(e){}
+  if(mapActive())drawMap(); updateUI();
+});
+sub('/parrot_tree_change_notes','std_msgs/String',m=>{
+  try{const n=JSON.parse(m.data); if(!S.notes.some(o=>o.type===n.type&&o.id===n.id))S.notes.push(n);}catch(e){}
+  if(mapActive())drawMap(); updateUI();
+});
+if(ros){ try{ new ROSLIB.Topic({ros,name:'/forest_species_map',messageType:'nav_msgs/OccupancyGrid',throttle_rate:3000})
+  .subscribe(m=>{mark('/forest_species_map');species=gridFrom(m);if(mapActive()&&pineEnabled)drawMap();}); }catch(e){} }
 
-// Re-baseline goes to the Parrot tracker (/tree_mapper is disabled).
+// ── Camera-era helpers ──
+function baselineTrees(){ return (S.baselineInfo&&S.baselineInfo.trees)||[]; }
+function lostNote(id){ return S.notes.find(n=>n.type==='LOST'&&n.id===id); }
+function mergedInto(id){ return S.notes.filter(n=>n.type==='MERGED'&&n.into===id); }
+function lostIds(){ return new Set(treeEventList().filter(e=>e.event_type==='LOST').map(e=>e.tree_id)); }
+function speciesName(t){ return t.species==='pine'?'pine':t.species==='oak'?'oak':'species unknown'; }
+function sourceName(src){ return src==='camera'?'found by the camera':src==='lidar+camera'?'LiDAR + camera':'LiDAR'; }
+function caughtBy(id){
+  const n=lostNote(id); if(!n)return '';
+  return n.by==='camera'?'caught by the camera':'caught by the height map';
+}
+// "... near (x, y)" in a canopy-change alert (scan_mapper and camera alike).
+function alertPos(text){ const m=/near \((-?[\d.]+),\s*(-?[\d.]+)\)/.exec(text||''); return m?{x:+m[1],y:+m[2]}:null; }
+function isCameraAlert(text){ return /camera sees through/.test(text||''); }
+
+// Re-baseline goes to the Parrot tracker (the Husky-era /tree_mapper is disabled).
 {
   const btn=document.getElementById('reset-tree-baseline'), st=document.getElementById('rebaseline-status');
   const resetTreeBaseline=ros?new ROSLIB.Service({ros,name:TRACKER_RESET_SERVICE,serviceType:'std_srvs/srv/Trigger'}):null;
@@ -848,7 +902,7 @@ sub('/parrot_tree_status','deforestation_interfaces/TreeStatus',m=>{
   });
 }
 
-// Change tracking: first-seen times, new-change toasts, unseen badge
+// ── Change tracking: first-seen times, new-change toasts, unseen badge ──
 const seenAt=new Map();
 let changesVisitedAt=0;
 function evKey(ev){return `t|${ev.event_type}|${ev.tree_id}|${Number(ev.x).toFixed(1)}|${Number(ev.y).toFixed(1)}`;}
@@ -883,7 +937,7 @@ function toast({tone,title,sub,action}){
   x.onclick=dismiss; box.appendChild(el); setTimeout(dismiss,8000);
 }
 
-// UI update
+// ── UI update ──
 function updateConn(){
   const el=document.getElementById('conn-state');
   const snap=Date.now()-lastSnapshotOk<8000;
@@ -898,13 +952,17 @@ function updateUI(){
   trackNewChanges();
   const ts=treeStatus();
   document.getElementById('tree-count').textContent=S.trees||0;
+  // Before the freeze this counts the forest being found; after it, only
+  // what is in view right now (the standing count is in Forest change).
+  document.getElementById('tree-count-label').textContent=ts.baseline?'Detected now':'Trees';
   document.getElementById('forest-tree-count').textContent=ts.baseline;
   document.getElementById('forest-lost-count').textContent=ts.lost;
   document.getElementById('forest-remain-count').textContent=Math.max(0,ts.baseline-ts.lost);
   const fe=treeEventList().slice(-4).reverse();
   document.getElementById('tree-loss-feed').innerHTML=fe.length?fe.map(ev=>`<div class="feed-item ${ev.event_type==='LOST'?'bad':'info'}">`+
     `<b>${ev.event_type==='LOST'?'Tree lost':'New tree'} #${esc(ev.tree_id)}</b><span>${Number(ev.area_m2||0).toFixed(0)} m²</span>`+
-    `<small>${esc(fmtPos(ev.x,ev.y))}</small></div>`).join(''):'<div class="empty">No tree changes yet.</div>';
+    `<small>${esc(fmtPos(ev.x,ev.y))}${ev.event_type==='LOST'&&caughtBy(ev.tree_id)?' · '+esc(caughtBy(ev.tree_id)):''}</small></div>`).join(''):'<div class="empty">No tree changes yet.</div>';
+  updateCameraCard();
   document.getElementById('flag-count').textContent=S.flags.length;
   document.getElementById('done-count').textContent=S.reports.length;
   document.getElementById('drone-gps').textContent=fmtPos(S.drone.x,S.drone.y);
@@ -957,12 +1015,24 @@ function updateUI(){
   updateChangesBadge();
   if(viewActive('changes'))renderChanges(false);
 }
+function updateCameraCard(){
+  const bt=baselineTrees(), have=!!S.baselineInfo;
+  const set=(id,v)=>{document.getElementById(id).textContent=v;};
+  set('cam-pines',have?bt.filter(t=>t.species==='pine').length:'–');
+  set('cam-only',have?bt.filter(t=>t.source==='camera').length:'–');
+  set('cam-caught',have?S.notes.filter(n=>n.type==='LOST'&&n.by==='camera').length:'–');
+  set('cam-patches',have?(S.baselineInfo.pine_patches||[]).length:'–');
+  set('cam-merged',have?S.notes.filter(n=>n.type==='MERGED').length:'–');
+  document.getElementById('cam-note').textContent=have
+    ?'Pines under oak crowns are tracked by the camera: a pine is reported lost when the camera can see through where it stood.'
+    :'Waiting for the tree baseline. The camera counts appear when the survey freezes it.';
+}
 function scanCov(){
   const sc=parseKV(S.scanCoverage);
   return {cov:parseFloat((sc.coverage||'0').replace('%',''))||0,req:parseFloat((sc.required||'0').replace('%',''))||0};
 }
 
-// Map drawing
+// ── Map drawing ──
 function viewActive(v){return document.getElementById(v+'-view').classList.contains('active')}
 function mapActive(){return viewActive('map')}
 function labelActive(){return viewActive('label')}
@@ -994,7 +1064,8 @@ function canopyBase(g){
 let compCache={};
 function mapComposite(){
   const k=compCache;
-  if(k.cv&&k.g===grid&&k.c===change&&k.f===fused&&k.ce===changeEnabled&&k.fe===fusionEnabled&&k.p===settings.mapColors)return k.cv;
+  if(k.cv&&k.g===grid&&k.c===change&&k.f===fused&&k.ce===changeEnabled&&k.fe===fusionEnabled&&k.p===settings.mapColors
+     &&k.sp===species&&k.pe===pineEnabled)return k.cv;
   const {w,h,data}=grid;
   const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
   const c=cv.getContext('2d'); const img=c.createImageData(w,h); const d=img.data;
@@ -1007,6 +1078,7 @@ function mapComposite(){
         d[o]+=(col[0]-d[o])*a; d[o+1]+=(col[1]-d[o+1])*a; d[o+2]+=(col[2]-d[o+2])*a;}
     } else pending.push([layer,fn]);
   };
+  if(pineEnabled)overlay(species,v=>v>=65?[...pal().pine,.55]:null);
   if(changeEnabled)overlay(change,changeColor);
   if(fusionEnabled)overlay(fused,fusedColor);
   c.putImageData(img,0,0);
@@ -1017,7 +1089,7 @@ function mapComposite(){
       if(col){c.fillStyle=rgb(col,col[3]);c.fillRect(ix,iy,1,1);}
     }
   });
-  compCache={g:grid,c:change,f:fused,ce:changeEnabled,fe:fusionEnabled,p:settings.mapColors,cv};
+  compCache={g:grid,c:change,f:fused,ce:changeEnabled,fe:fusionEnabled,p:settings.mapColors,sp:species,pe:pineEnabled,cv};
   return cv;
 }
 // Draw a map image as a raised platter.
@@ -1044,11 +1116,31 @@ function drawMarkers(c,toScreen,opts){
     c.fillStyle=fl.sev>=70?P.sev[0]:(fl.sev>=40?P.sev[1]:P.sev[2]); c.fill();
     c.strokeStyle='#fff'; c.lineWidth=1.2; c.stroke();
   });
+  // Baseline trees: a ring in the species colour the camera saw (dashed =
+  // a pine only the camera found). Lost ones fade; their LOST dot sits on top.
+  if(opts.trees){
+    const gone=lostIds();
+    baselineTrees().forEach(t=>{
+      const [px,py]=toScreen(t.x,t.y), col=t.species==='pine'?P.pine:t.species==='oak'?P.oak:[255,255,255];
+      c.save(); c.globalAlpha=gone.has(t.id)?.35:.95;
+      c.beginPath(); c.arc(px,py,7*opts.k,0,Math.PI*2);
+      c.setLineDash(t.source==='camera'?[3*opts.k,2.5*opts.k]:[]);
+      c.strokeStyle=rgb(col); c.lineWidth=2*opts.k; c.stroke(); c.restore();
+    });
+  }
   autoTrees.forEach(t=>{
     const [px,py]=toScreen(t.x,t.y);
     c.beginPath(); c.arc(px,py,5*opts.k,0,Math.PI*2);
     c.fillStyle=P.detected; c.fill();
     c.strokeStyle='#111'; c.lineWidth=1.5*opts.k; c.stroke();
+  });
+  // Canopy-loss alerts placed where they happened (dashed = seen by the camera).
+  if(opts.alerts)S.events.forEach(e=>{
+    const at=alertPos(e.text); if(!at||!/LOST/.test(e.text))return;
+    const [px,py]=toScreen(at.x,at.y);
+    c.save(); c.beginPath(); c.arc(px,py,11*opts.k,0,Math.PI*2);
+    c.setLineDash(isCameraAlert(e.text)?[4*opts.k,3*opts.k]:[]);
+    c.strokeStyle=P.sev[1]; c.lineWidth=2.2*opts.k; c.stroke(); c.restore();
   });
   treeEventList().slice(-100).forEach(ev=>{
     const [px,py]=toScreen(ev.x,ev.y);
@@ -1068,7 +1160,7 @@ function renderMap(){
   const f=mapFit(cw,ch);
   drawPlatter(ctx,mapComposite(),f,w,h,.05);
   const toScreen=(x,y)=>[f.mx+(x-ox)/res*f.scale,f.my+(y-oy)/res*f.scale];
-  drawMarkers(ctx,toScreen,{flags:true,pulse:true,k:1});
+  drawMarkers(ctx,toScreen,{flags:true,pulse:true,k:1,trees:treesEnabled,alerts:changeEnabled});
   // Drone last, so it is never hidden under a marker.
   const [px,py]=toScreen(dx,dy);
   ctx.beginPath(); ctx.arc(px,py,6.5,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
@@ -1097,7 +1189,7 @@ function focusOn(x,y){
   focusPt={x,y,t0:performance.now()}; drawMap();
 }
 
-// Legend (built from the active palette so it always matches the map)
+// ── Legend (built from the active palette so it always matches the map) ──
 function legendItems(){
   const P=pal();
   return [
@@ -1109,12 +1201,16 @@ function legendItems(){
     ['pt',P.detected,'Detected tree'],
     ['pt',`linear-gradient(90deg,${rgb(P.lost)} 50%,${rgb(P.gained)} 50%)`,'Tree lost / gained'],
     ['pt',P.sev[1],'Suspicious area'],
+    ['ring',P.sev[1],'Canopy-loss alert'],
+    ...(baselineTrees().length?[['ring',rgb(P.pine),'Pine (camera colour)'],['ring',rgb(P.oak),'Oak'],['dash',rgb(P.pine),'Pine found by the camera']]:[]),
+    ...(pineEnabled?[['sw',rgb(P.pine),'Pine-coloured canopy']]:[]),
     ['drone',P.drone,'Drone'],
   ];
 }
 function legendHTML(items){
   return items.map(([k,c,t])=>k==='drone'
     ?`<div class="lg-row"><span class="lg-pt" style="background:#fff;box-shadow:0 0 0 2.5px ${c}"></span>${t}</div>`
+    :(k==='ring'||k==='dash')?`<div class="lg-row"><span class="lg-${k}" style="border-color:${c}"></span>${t}</div>`
     :`<div class="lg-row"><span class="lg-${k}" style="background:${c}"></span>${t}</div>`).join('');
 }
 function renderLegend(){
@@ -1122,7 +1218,7 @@ function renderLegend(){
   root.style.setProperty('--drone',pal().drone);
 }
 
-// Ambient backdrop: a heavily diffused copy of the map for the glass to refract
+// ── Ambient backdrop: a heavily diffused copy of the map for the glass to refract ──
 const amb=document.getElementById('ambient'), actx=amb.getContext('2d');
 let ambKey=undefined;
 function drawAmbient(force){
@@ -1151,14 +1247,21 @@ function drawAmbient(force){
   actx.fillStyle=v; actx.fillRect(0,0,w,h);
 }
 
-// Changes page
+// ── Changes page ──
 let changesFilter='all', changesSig='';
 function collectChanges(){
   const rows=[];
-  treeEventList().forEach(ev=>{const k=evKey(ev);noteSeen(k);rows.push({cat:'trees',key:k,seen:seenAt.get(k),
+  treeEventList().forEach(ev=>{const k=evKey(ev);noteSeen(k);
+    const t=baselineTrees().find(b=>b.id===ev.tree_id), bits=[`Tree #${ev.tree_id}, ${Number(ev.area_m2||0).toFixed(0)} m² crown`];
+    if(t)bits.push(`${speciesName(t)}, ${sourceName(t.source)}`);
+    if(ev.event_type==='LOST'&&caughtBy(ev.tree_id))bits.push(caughtBy(ev.tree_id));
+    const pieces=mergedInto(ev.tree_id).map(n=>'#'+n.id);
+    if(pieces.length)bits.push(`crown piece${pieces.length>1?'s':''} ${pieces.join(', ')} merged in`);
+    rows.push({cat:'trees',key:k,seen:seenAt.get(k),
     type:ev.event_type==='LOST'?'Tree lost':'New tree',tone:ev.event_type==='LOST'?'bad':'info',
-    detail:`Tree #${ev.tree_id}, ${Number(ev.area_m2||0).toFixed(0)} m² crown`,x:ev.x,y:ev.y});});
-  S.events.forEach(e=>{const k='c|'+e.text;noteSeen(k);rows.push({cat:'canopy',key:k,seen:seenAt.get(k),type:'Canopy change',tone:'warn',detail:e.text});});
+    detail:bits.join(' · '),x:ev.x,y:ev.y});});
+  S.events.forEach(e=>{const k='c|'+e.text;noteSeen(k);const at=alertPos(e.text);
+    rows.push({cat:'canopy',key:k,seen:seenAt.get(k),type:isCameraAlert(e.text)?'Camera: canopy gone':'Canopy change',tone:'warn',detail:e.text,x:at?at.x:null,y:at?at.y:null});});
   S.flags.forEach(f=>{const k=flagKey(f);noteSeen(k);rows.push({cat:'suspicious',key:k,seen:seenAt.get(k),type:'Suspicious area',tone:f.sev>=70?'bad':'warn',
     detail:`${prettyState(f.type||'flag')}, severity ${f.sev!=null?f.sev.toFixed(0):'?'}, confidence ${f.conf!=null?f.conf.toFixed(0):'?'}%, ${Math.round(f.area||0)} m²${f.ok?', inspected':''}`,x:f.x,y:f.y});});
   S.reports.forEach(r=>{const k='r|'+r.text;noteSeen(k);rows.push({cat:'inspections',key:k,seen:seenAt.get(k),type:'Inspection',tone:'ok',detail:r.text});});
@@ -1226,7 +1329,7 @@ function downloadCSV(){
 document.getElementById('changes-export').addEventListener('click',downloadCSV);
 document.getElementById('feed-all').addEventListener('click',()=>{selectView(tabFor('changes'));if(isCompact())setSidebar(false);});
 
-// Report page
+// ── Report page ──
 const NOTES_KEY='canopy-sentinel.report-notes';
 const notesEl=document.getElementById('r-notes');
 try{notesEl.textContent=localStorage.getItem(NOTES_KEY)||'';}catch(e){}
@@ -1239,7 +1342,7 @@ function reportMapImage(){
   const {w,h,res,ox,oy}=grid, W=1400, s=W/w, H=Math.round(h*s);
   const c=document.createElement('canvas'); c.width=W; c.height=H; const g=c.getContext('2d');
   g.imageSmoothingEnabled=false; g.drawImage(mapComposite(),0,0,w,h,0,0,W,H);
-  drawMarkers(g,(x,y)=>[(x-ox)/res*s,(y-oy)/res*s],{flags:true,pulse:false,k:1.6});
+  drawMarkers(g,(x,y)=>[(x-ox)/res*s,(y-oy)/res*s],{flags:true,pulse:false,k:1.6,trees:true,alerts:true});
   return c.toDataURL('image/png');
 }
 function rTable(head,rows){
@@ -1254,16 +1357,20 @@ function buildReport(){
   const now=new Date();
   document.getElementById('r-meta').textContent=`Generated ${now.toLocaleString(undefined,{dateStyle:'long',timeStyle:'short'})}. Site reference ${REF_LAT.toFixed(4)}, ${REF_LON.toFixed(4)}.`;
   const figs=[
-    ['Baseline trees',ts.baseline,''],['Trees now',ts.current,''],['Trees lost',ts.lost,ts.lost?'bad':''],['New trees',ts.gained,ts.gained?'good':''],
+    ['Baseline trees',ts.baseline,''],['Still standing',Math.max(0,ts.baseline-ts.lost+ts.gained),''],['Trees lost',ts.lost,ts.lost?'bad':''],['New trees',ts.gained,ts.gained?'good':''],
     ['Crown area lost',`${Math.round(lostArea)} m²`,lostArea?'bad':''],['Area scanned',`${sc.cov.toFixed(0)}%`,''],
     ['Suspicious areas',S.flags.length,S.flags.length?'bad':''],['Inspected',`${inspected} of ${S.flags.length}`,''],
+    ...(S.baselineInfo?[['Pines tracked by camera',baselineTrees().filter(t=>t.species==='pine').length,''],
+                        ['Losses caught by camera',S.notes.filter(n=>n.type==='LOST'&&n.by==='camera').length,'']]:[]),
   ];
   document.getElementById('r-figures').innerHTML=figs.map(([l,v,c])=>`<div class="r-fig ${c}"><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('');
   const img=document.getElementById('r-map'), src=reportMapImage();
   img.hidden=!src; if(src)img.src=src;
   document.getElementById('r-legend').innerHTML=src?legendHTML(legendItems().filter(i=>i[0]!=='drone')):'<span class="r-empty">The canopy map hasn’t arrived yet.</span>';
-  const treeRows=evs.map(e=>[`#${e.tree_id}`,e.event_type==='LOST'?'Lost':'New',fmtPos(e.x,e.y),`${Number(e.area_m2||0).toFixed(0)} m²`]);
-  document.getElementById('r-trees').innerHTML=rTable(['Tree','Change','Position','Crown area'],treeRows)||'<p class="r-empty">No tree changes since the baseline.</p>';
+  const treeRows=evs.map(e=>{const t=baselineTrees().find(b=>b.id===e.tree_id), n=lostNote(e.tree_id);
+    return [`#${e.tree_id}`,e.event_type==='LOST'?'Lost':'New',t?speciesName(t):'—',fmtPos(e.x,e.y),`${Number(e.area_m2||0).toFixed(0)} m²`,
+      n?(n.by==='camera'?'Camera':'Height map'):'—'];});
+  document.getElementById('r-trees').innerHTML=rTable(['Tree','Change','Species','Position','Crown area','Detected by'],treeRows)||'<p class="r-empty">No tree changes since the baseline.</p>';
   const flagRows=S.flags.map(f=>[fmtPos(f.x,f.y),prettyState(f.type||'flag'),f.sev!=null?f.sev.toFixed(0):'?',f.conf!=null?f.conf.toFixed(0)+'%':'?',`${Math.round(f.area||0)} m²`,f.ok?'Inspected':'Open']);
   document.getElementById('r-flags').innerHTML=rTable(['Position','Type','Severity','Confidence','Area','Status'],flagRows)||'<p class="r-empty">No suspicious areas found.</p>';
   document.getElementById('r-reports').innerHTML=S.reports.length?'<ul class="r-list">'+S.reports.map(r=>`<li>${esc(r.text)}</li>`).join('')+'</ul>':'<p class="r-empty">No inspections yet.</p>';
@@ -1276,7 +1383,7 @@ document.getElementById('report-csv').addEventListener('click',downloadCSV);
 document.getElementById('report-refresh').addEventListener('click',buildReport);
 window.addEventListener('beforeprint',()=>{buildReport();});
 
-// Debug view
+// ── Debug view ──
 function drawDebug(){
   const age=t=>{if(!lastMsg[t])return '—';const s=(Date.now()-lastMsg[t])/1000;return s<2?'<span class="ok">'+s.toFixed(1)+'s</span>':'<span class="warn">'+s.toFixed(0)+'s</span>'};
   const topics=['/forest_canopy_map','/canopy_change_map','/fused_tree_map','/parrot1/odometry',...(SHOW_HUSKY?['/husky1/odometry']:[]),'/drone_terrain_viz','/parrot_tree_change_events','/parrot_tree_status','/tree_change_events','/tree_status','/suspicious_areas','/inspection_reports','/mission_status','/survey_status','/scan_coverage','/baseline_status','/drone_baseline_status','/evaluation_summary'];
@@ -1298,7 +1405,7 @@ function drawDebug(){
   document.getElementById('debug-content').innerHTML=L.join('');
 }
 
-// Tabs (the lens slides to the selected view)
+// ── Tabs (the lens slides to the selected view) ──
 const tabs=[...document.querySelectorAll('.tab[data-view]')];
 const segmented=document.querySelector('.segmented'), lens=segmented.querySelector('.lens');
 function tabFor(view){return tabs.find(t=>t.dataset.view===view)}
@@ -1349,12 +1456,23 @@ document.getElementById('toggle-fusion').addEventListener('click',()=>{
   const b=document.getElementById('toggle-fusion'); b.classList.toggle('active',fusionEnabled); b.setAttribute('aria-pressed',fusionEnabled);
   if(mapActive())drawMap();
 });
+document.getElementById('toggle-trees').addEventListener('click',()=>{
+  treesEnabled=!treesEnabled;
+  const b=document.getElementById('toggle-trees'); b.classList.toggle('active',treesEnabled); b.setAttribute('aria-pressed',treesEnabled);
+  if(mapActive())drawMap();
+});
+document.getElementById('toggle-pine').addEventListener('click',()=>{
+  pineEnabled=!pineEnabled;
+  const b=document.getElementById('toggle-pine'); b.classList.toggle('active',pineEnabled); b.setAttribute('aria-pressed',pineEnabled);
+  if(pineEnabled&&!species)toast({tone:'info',title:'No camera colour map yet',sub:'It appears once the drone camera has seen some canopy.'});
+  renderLegend(); if(mapActive())drawMap();
+});
 document.getElementById('map-calibrate').addEventListener('click',()=>{
   selectView(tabFor('label'));
   document.getElementById('label-calibrate').click();
 });
 
-// Cameras: refresh every 1s
+// ── Cameras: refresh every 1s ──
 function refreshCamera(name,imgId,onFrame){
   fetch('/api/camera/'+name).then(r=>r.ok&&r.status===200?r.blob():null).then(b=>{
     if(!b||b.size<200||!/^image\//.test(b.type||'image/'))return; const u=URL.createObjectURL(b); const el=document.getElementById(imgId);
@@ -1366,7 +1484,7 @@ setInterval(()=>{
   if(SHOW_HUSKY)refreshCamera('husky','husky-img',()=>hc++);
 },1000);
 
-// 3D terrain (Three.js, with fallback)
+// ── 3D terrain (Three.js, with fallback) ──
 let scene=null,cam=null,rend=null,cloud=null,allPts=[],drag=false,lx=0,ly=0,vx=0,vy=0;
 const TERRAIN_HEIGHT_SCALE=1.6;
 let pointTex=null;
@@ -1440,7 +1558,7 @@ sub('/drone_terrain_viz','sensor_msgs/PointCloud2',msg=>{
   if(pts.length)updateTerrain(pts);
 });
 
-// Map tooltip
+// ── Map tooltip ──
 const tip=document.getElementById('tooltip');
 function showTip(e,text){tip.textContent=text;tip.style.left=(e.clientX+14)+'px';tip.style.top=(e.clientY-30)+'px';tip.classList.add('visible');}
 canvas.addEventListener('pointermove',e=>{
@@ -1452,13 +1570,20 @@ canvas.addEventListener('pointermove',e=>{
     if(Math.hypot(e.offsetX-px,e.offsetY-py)<9)treeHit=ev;
   });
   if(treeHit){showTip(e,evText(treeHit));return;}
+  let baseHit=null, alertHit=null;
+  const near=(x,y,r)=>Math.hypot(e.offsetX-(f.mx+(x-ox)/res*f.scale),e.offsetY-(f.my+(y-oy)/res*f.scale))<r;
+  if(treesEnabled)baselineTrees().forEach(t=>{if(near(t.x,t.y,9))baseHit=t;});
+  if(baseHit){const lost=lostIds().has(baseHit.id);
+    showTip(e,`Tree #${baseHit.id} · ${speciesName(baseHit)} · ${sourceName(baseHit.source)} · ${lost?'lost':'standing'}`);return;}
+  if(changeEnabled)S.events.forEach(ev=>{const at=alertPos(ev.text);if(at&&near(at.x,at.y,13))alertHit=ev;});
+  if(alertHit){showTip(e,alertHit.text);return;}
   const ix=Math.floor((e.offsetX-f.mx)/f.scale), iy=Math.floor((e.offsetY-f.my)/f.scale);
   if(ix>=0&&ix<w&&iy>=0&&iy<h){const v=data[iy*w+ix];showTip(e,fmtPos(ox+ix*res,oy+iy*res)+' · '+(v<0?'unexplored':(v/10).toFixed(1)+' m canopy'));}
   else tip.classList.remove('visible');
 });
 canvas.addEventListener('pointerleave',()=>tip.classList.remove('visible'));
 
-// Tree labelling page
+// ── Tree labelling page ──
 let treeLabels=[], autoTrees=[], labelDrawing=null, labelEraseMode=false, labelDrag=null, lastLabelMouse=null;
 let labelCalibration=null, labelCalibrationStage=0, labelCalibrationPoints=[];
 let labelsHydrated=false, labelCss={w:800,h:800}, labelNoteTimer=0;
@@ -1477,7 +1602,8 @@ function labelScreenToWorld(sx,sy){
     return {x:labelCalibration.ox+labelCalibration.sx*sx, y:labelCalibration.oy+labelCalibration.sy*sy};
   }
   const t=labelScreenTransform();
-  // Scale by res: screen pixels map to cells, and cells to metres.
+  // FIX: the original omitted *res here, so clicks landed 1/res times too far from
+  // the map origin (5x at 0.2 m cells) and every new label was drawn off-screen.
   return {x:t.ox+(sx-t.mx)/t.scale*t.res, y:t.oy+(sy-t.my)/t.scale*t.res};
 }
 function labelWorldToScreen(wx,wy){
@@ -1662,8 +1788,8 @@ document.getElementById('label-save').addEventListener('click',async()=>{
   setTimeout(()=>{b.textContent='Save labels';},1800);
 });
 
-// Load /api/data on page load so the page is filled at once instead of
-// waiting for the ROS subscriptions.
+// ── Instant refresh: hydrate from /api/data so the page is populated
+// immediately on load/reload instead of waiting for ROS subscriptions. ──
 async function loadSnapshot(){
   try{
     const r=await fetch('/api/data'); if(!r.ok)return;
@@ -1694,11 +1820,17 @@ async function loadSnapshot(){
               res:d.canopy_change_map.resolution,ox:d.canopy_change_map.ox,oy:d.canopy_change_map.oy};
     }
     autoTrees=(d.parrot_tree_positions||[]).map(p=>({x:p.x,y:p.y}));
+    if(d.baseline_info&&JSON.stringify(d.baseline_info)!==JSON.stringify(S.baselineInfo)){S.baselineInfo=d.baseline_info;renderLegend();}
+    if(Array.isArray(d.change_notes)&&d.change_notes.length>=S.notes.length)S.notes=d.change_notes;
+    if(d.species_map&&(!species||species.w!==d.species_map.width)){
+      species={w:d.species_map.width,h:d.species_map.height,data:new Int8Array(d.species_map.data),
+               res:d.species_map.resolution,ox:d.species_map.ox,oy:d.species_map.oy};
+    }
     // Robot positions fall back to the HTTP snapshot when the direct ROSLIB
     // odometry subscription is not delivering (QoS/discovery edge cases).
     if(d.drone_pos){dx=d.drone_pos.x;dy=d.drone_pos.y;S.drone={x:dx,y:dy};}
-    // Saved labels load once per page load, so "Clear" is not undone by the
-    // next snapshot.
+    // Saved labels load once per page load. Previously they reloaded whenever the
+    // list was empty, so "Clear" was undone by the next snapshot 3 s later.
     if(!labelsHydrated){
       labelsHydrated=true;
       if(Array.isArray(d.labels)&&d.labels.length&&!treeLabels.length){
@@ -1712,7 +1844,7 @@ async function loadSnapshot(){
   }catch(e){}
 }
 
-// Settings panel
+// ── Settings panel ──
 const matSlider=document.getElementById('material'), matName=document.getElementById('material-name');
 function materialName(v){return v<12?'Clear':v<38?'Light':v<65?'Frosted':v<92?'Dense':'Solid'}
 function applySettings(save){
@@ -1781,7 +1913,7 @@ function wireSheen(el){
 }
 document.querySelectorAll('.glass').forEach(wireSheen);
 
-// Sidebar: floating panel on wide screens, bottom sheet on narrow ones
+// ── Sidebar: floating panel on wide screens, bottom sheet on narrow ones ──
 const sidebarEl=document.getElementById('sidebar'), sidebarBtn=document.getElementById('sidebar-toggle'), sidebarHeader=document.getElementById('sidebar-header');
 function relayout(){
   updateSafeArea(); moveLens();
@@ -1810,7 +1942,7 @@ function applyCompactMode(){
 document.getElementById('legend').addEventListener('toggle',()=>{if(mapActive())drawMap();});
 if(compactMQ.addEventListener)compactMQ.addEventListener('change',applyCompactMode);
 
-// Init
+// ── Init ──
 applySettings(false);
 applyCompactMode();
 requestAnimationFrame(()=>{moveLens();requestAnimationFrame(()=>segmented.classList.remove('no-anim'));});

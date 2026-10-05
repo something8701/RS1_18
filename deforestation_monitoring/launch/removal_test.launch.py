@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Live tree removal acceptance test.
+"""Live tree-removal acceptance test.
 
-Starts the full demo (drone only, no scripted tree removal) and the
-removal_test node. The node waits for 90% coverage and the frozen tree
+Starts the full demo (drone only, no scripted tree removal) plus the
+removal_test node, which waits for >=90% coverage and the frozen tree
 baseline, deletes 10 trees, keeps patrolling for 2 survey loops and writes
 a report to /tmp/deforestation_eval/removal_test_<stamp>.md.
 
@@ -30,6 +30,7 @@ def generate_launch_description():
     n_trees = LaunchConfiguration('n_trees')
     settle_loops = LaunchConfiguration('settle_loops')
     balanced = LaunchConfiguration('balanced')
+    canopy_only = LaunchConfiguration('canopy_only')
 
     demo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([PathJoinSubstitution([
@@ -48,6 +49,8 @@ def generate_launch_description():
             'n_trees': n_trees,
             'settle_loops': settle_loops,
             'balanced': PythonExpression(["'", balanced, "' == 'true'"]),
+            'canopy_only': PythonExpression(["'", canopy_only, "' == 'true'"]),
+            'trees': LaunchConfiguration('trees'),
             'min_coverage': 0.9,
             'survey_x_min': _box(world, -15.0, -10.0, -30.0),
             'survey_x_max': _box(world, 15.0, 10.0, 30.0),
@@ -62,6 +65,12 @@ def generate_launch_description():
         DeclareLaunchArgument('settle_loops', default_value='2'),
         DeclareLaunchArgument('balanced', default_value='false',
                               description='Remove oaks and pines alternately'),
+        DeclareLaunchArgument('trees', default_value='',
+                              description='Comma-separated tree names to cut '
+                              '(overrides n_trees / balanced / canopy_only)'),
+        DeclareLaunchArgument('canopy_only', default_value='false',
+                              description='Only canopy-tier targets (oaks, '
+                              'pines > 5.5 m from any oak trunk)'),
         demo,
         TimerAction(period=20.0, actions=[test]),
     ])

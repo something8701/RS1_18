@@ -4,13 +4,13 @@
     ros2 launch deforestation_monitoring showcase_demo.launch.py
     ros2 launch deforestation_monitoring showcase_demo.launch.py n_trees:=10
 
-Runs removal_test.launch.py on the showcase_forest world (every tree can be
-seen from above), removing oaks and pines alternately. The drone surveys to
-90% coverage and freezes the tree baseline, 4 trees are deleted from
-Gazebo, and the drone keeps patrolling for 2 survey loops. The report
-comparing the detections with the simulator ground truth is written to
-/tmp/deforestation_eval/removal_test_<stamp>.md, and the verdict is
-published on /removal_test_result. Dashboard: http://localhost:8081
+Runs removal_test.launch.py on world showcase_forest (every tree visible
+from above) with oak/pine targets alternating. The drone surveys to >= 90%
+coverage and freezes the tree baseline, 4 trees are deleted from Gazebo,
+the drone keeps patrolling for 2 survey loops, and the report comparing the
+detections with the simulator ground truth is written to
+/tmp/deforestation_eval/removal_test_<stamp>.md (verdict on
+/removal_test_result). Dashboard: http://localhost:8081
 """
 
 from launch import LaunchDescription
