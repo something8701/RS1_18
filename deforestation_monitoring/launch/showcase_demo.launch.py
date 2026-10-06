@@ -3,6 +3,7 @@
 
     ros2 launch deforestation_monitoring showcase_demo.launch.py
     ros2 launch deforestation_monitoring showcase_demo.launch.py n_trees:=10
+    ros2 launch deforestation_monitoring showcase_demo.launch.py lite:=true
 
 Runs removal_test.launch.py on world showcase_forest (every tree visible
 from above) with oak/pine targets alternating. The drone surveys to >= 90%
@@ -23,6 +24,8 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('n_trees', default_value='4'),
+        DeclareLaunchArgument('lite', default_value='false',
+                              description='Lighter run for slower PCs'),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource([PathJoinSubstitution([
                 FindPackageShare('deforestation_monitoring'), 'launch',
@@ -31,6 +34,7 @@ def generate_launch_description():
                 'world': 'showcase_forest',
                 'n_trees': LaunchConfiguration('n_trees'),
                 'balanced': 'true',
+                'lite': LaunchConfiguration('lite'),
             }.items(),
         ),
     ])
