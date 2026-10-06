@@ -12,8 +12,14 @@ monitoring_only.launch.py includes too.
 Usage:
     ros2 launch deforestation_monitoring demo_full.launch.py
 
-Or for a lighter demo (Husky only, no drone):
-    ros2 launch deforestation_monitoring demo_full.launch.py drone:=false
+For a slower PC:
+    ros2 launch deforestation_monitoring demo_full.launch.py lite:=true
+
+lite:=true turns off the Gazebo window, RViz and the drone camera in one go
+(the dashboard at http://localhost:8081 still works). Each can also be set on
+its own: gui:=false, rviz:=false, camera:=false. Without the camera the
+tracker uses the height map only, so pines cut from under oak crowns are
+missed more often.
 """
 
 from launch import LaunchDescription
@@ -35,6 +41,28 @@ def generate_launch_description():
     world_name = LaunchConfiguration('world', default='dense_forest')
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     remove_trees = LaunchConfiguration('remove_trees')
+    lite = LaunchConfiguration('lite')
+    gui = LaunchConfiguration('gui')
+    rviz = LaunchConfiguration('rviz')
+    camera = LaunchConfiguration('camera')
+    # gui / rviz / camera default to on, or to off with lite:=true
+    not_lite = PythonExpression(["'false' if '", lite, "'.lower() in ['true', '1'] else 'true'"])
+    declare_lite = DeclareLaunchArgument(
+        'lite', default_value='false',
+        description='Lighter run for slower PCs: gui, rviz and camera off'
+    )
+    declare_gui = DeclareLaunchArgument(
+        'gui', default_value=not_lite,
+        description='Open the Gazebo window (on unless lite:=true)'
+    )
+    declare_rviz = DeclareLaunchArgument(
+        'rviz', default_value=not_lite,
+        description='Open RViz (on unless lite:=true)'
+    )
+    declare_camera = DeclareLaunchArgument(
+        'camera', default_value=not_lite,
+        description='Simulate and process the drone camera (on unless lite:=true)'
+    )
 
     declare_drone = DeclareLaunchArgument(
         'drone', default_value='true',
@@ -75,7 +103,9 @@ def generate_launch_description():
             'parrot': drone_enabled,
             'slam': 'true',
             'nav2': 'true',
-            'rviz': 'true',
+            'rviz': rviz,
+            'gui': gui,
+            'parrot_camera': camera,
             'world': world_name,
         }.items(),
     )
@@ -95,6 +125,7 @@ def generate_launch_description():
             'use_sim_time': use_sim_time,
             'world': world_name,
             'remove_trees': remove_trees,
+            'camera': camera,
         }.items(),
     )
 
@@ -104,7 +135,12 @@ def generate_launch_description():
         declare_world,
         declare_sim_time,
         declare_remove_trees,
+        declare_lite,
+        declare_gui,
+        declare_rviz,
+        declare_camera,
         LogInfo(msg='=== Deforestation Monitoring Demo ==='),
+        LogInfo(msg=['Gazebo window: ', gui, ', RViz: ', rviz, ', drone camera: ', camera]),
         LogInfo(msg='Starting simulation (Husky: Nav2, Drone: cmd_vel patrol)...'),
         sim_launch,
         monitoring_nodes,

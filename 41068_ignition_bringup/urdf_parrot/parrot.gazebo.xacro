@@ -4,6 +4,8 @@
   <xacro:arg name="camera_visual" default="false"/>
   <xacro:arg name="imu_visual"    default="false"/>
   <xacro:arg name="gz_model_name" default="parrot"/>
+  <!-- camera:=false leaves out the RGB-D camera sensor (lighter simulation) -->
+  <xacro:arg name="camera" default="true"/>
   <xacro:property name="gz_model_name" value="$(arg gz_model_name)"/>
 
   
@@ -144,6 +146,7 @@
 
   <gazebo reference="${prefix}camera_link">
     <turnGravityOff>true</turnGravityOff>
+    <xacro:if value="$(arg camera)">
     <sensor name="rgbd_camera" type="rgbd_camera">
       <camera>
         <horizontal_fov>2.0944</horizontal_fov>
@@ -175,6 +178,7 @@
       <topic>/model/${gz_model_name}/camera</topic>
       <gz_frame_id>${prefix}camera_link</gz_frame_id>
     </sensor>
+    </xacro:if>
   </gazebo>
 
 </robot>

@@ -46,6 +46,7 @@ def add_robot(
     gz_model_name,
     xacro_parts,
     bridge_config,
+    xacro_args=(),
     localization_config,
     x,
     y,
@@ -71,6 +72,7 @@ def add_robot(
             'prefix:=', frame_prefix,
             ' ',
             'gz_model_name:=', gz_model_name,
+            *xacro_args,
         ]),
         value_type=str,
     )
@@ -269,6 +271,20 @@ def generate_launch_description():
     )
     ld.add_action(parrot_launch_arg)
 
+    gui_launch_arg = DeclareLaunchArgument(
+        'gui',
+        default_value='True',
+        description='Open the Gazebo window (False = run the simulation without it, lighter)',
+    )
+    ld.add_action(gui_launch_arg)
+
+    parrot_camera_launch_arg = DeclareLaunchArgument(
+        'parrot_camera',
+        default_value='True',
+        description='Give the Parrot its RGB-D camera (False = lighter simulation)',
+    )
+    ld.add_action(parrot_camera_launch_arg)
+
     world_launch_arg = DeclareLaunchArgument(
         'world',
         default_value='simple_trees',
@@ -310,7 +326,9 @@ def generate_launch_description():
                     'worlds',
                     [LaunchConfiguration('world'), '.sdf'],
                 ]),
-        ' -r',
+                ' -r',
+                # server only (no Gazebo window) when gui is false
+                PythonExpression(["'' if "] + _is_true_expression('gui') + [" else ' -s'"]),
             ]
         }.items(),
     ))
@@ -355,6 +373,8 @@ def generate_launch_description():
         frame_prefix='parrot1_',
         gz_model_name='parrot1',
         xacro_parts=['urdf_parrot', 'parrot.urdf.xacro'],
+        xacro_args=[' camera:=', PythonExpression(
+            ["'true' if "] + _is_true_expression('parrot_camera') + [" else 'false'"])],
         bridge_config='gazebo_bridge_parrot1.yaml',
         localization_config='robot_localization_parrot1.yaml',
         x='2.0',

@@ -13,7 +13,8 @@ Arguments:
     world        (dense_forest)  must match the simulated world; sets the
                          survey boxes and the dense-only settings
     remove_trees (true for dense_forest)  cut trees once the baseline freezes
-    camera_lost  (true)  camera LOST rules in the tracker
+    camera       (true)  process the drone camera (false = lighter, height map only)
+    camera_lost  (= camera)  camera LOST rules in the tracker
     camera_pines (false) add pine tips found by camera colour as trees
     use_sim_time (true)  use simulation /clock time
 """
@@ -58,12 +59,22 @@ def generate_launch_description():
             ["'true' if '", world_name, "' == 'dense_forest' else 'false'"]),
         description='Delete target trees after the tree baseline freezes'
     )
+    # camera:=false runs without the drone camera's processing (species
+    # colours, depth-to-terrain cloud, dashboard feed): lighter, but the
+    # tracker then uses the height map only.
+    camera = LaunchConfiguration('camera')
+    declare_camera = DeclareLaunchArgument(
+        'camera', default_value='true',
+        description='Process the drone camera (false = lighter, height map only)'
+    )
+    drone_camera = IfCondition(PythonExpression(
+        ["'", drone_enabled, "'.lower() == 'true' and '", camera, "'.lower() == 'true'"]))
     # Drone camera cues for the tracker (option A). camera_lost turns on the
     # camera LOST rules, which catch pines cut from under oak crowns.
     # camera_pines stays off: it adds false trees at oak crown edges.
     camera_lost = LaunchConfiguration('camera_lost')
     declare_camera_lost = DeclareLaunchArgument(
-        'camera_lost', default_value='true',
+        'camera_lost', default_value=camera,
         description='Tracker: the camera seeing through a tree\'s spot counts as LOST evidence'
     )
     camera_pines = LaunchConfiguration('camera_pines')
@@ -261,7 +272,7 @@ def generate_launch_description():
             ('/tf', '/parrot1/tf'),
             ('/tf_static', '/parrot1/tf_static'),
         ],
-        condition=IfCondition(drone_enabled),
+        condition=drone_camera,
         parameters=[{
             'publish_rate': 2.0,
             'depth_topic': '/parrot1/camera/depth/points',
@@ -281,7 +292,7 @@ def generate_launch_description():
         executable='camera_species_mapper',
         name='camera_species_mapper',
         output='screen',
-        condition=IfCondition(drone_enabled),
+        condition=drone_camera,
         parameters=[{'altitude': 10.0, 'use_sim_time': use_sim_time}],
     )
 
@@ -458,7 +469,7 @@ def generate_launch_description():
             'max_rate': 5.0,
             'use_sim_time': use_sim_time,
         }],
-        condition=IfCondition(drone_enabled),
+        condition=drone_camera,
     )
     husky_cam_compressed = Node(
         package='deforestation_monitoring',
@@ -495,6 +506,7 @@ def generate_launch_description():
         declare_sim_time,
         declare_world,
         declare_remove_trees,
+        declare_camera,
         declare_camera_lost,
         declare_camera_pines,
         rosbridge,

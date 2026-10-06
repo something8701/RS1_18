@@ -8,6 +8,7 @@ a report to /tmp/deforestation_eval/removal_test_<stamp>.md.
 
     ros2 launch deforestation_monitoring removal_test.launch.py
     ros2 launch deforestation_monitoring removal_test.launch.py n_trees:=5
+    ros2 launch deforestation_monitoring removal_test.launch.py lite:=true
     ros2 topic echo /removal_test_result
 """
 
@@ -36,7 +37,8 @@ def generate_launch_description():
         PythonLaunchDescriptionSource([PathJoinSubstitution([
             FindPackageShare('deforestation_monitoring'), 'launch',
             'demo_full.launch.py'])]),
-        launch_arguments={'world': world, 'remove_trees': 'false'}.items(),
+        launch_arguments={'world': world, 'remove_trees': 'false',
+                          'lite': LaunchConfiguration('lite')}.items(),
     )
 
     test = Node(
@@ -61,6 +63,10 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument('world', default_value='dense_forest'),
+        DeclareLaunchArgument('lite', default_value='false',
+                              description='Lighter run for slower PCs (no Gazebo '
+                              'window, RViz or drone camera); gui:=, rviz:=, '
+                              'camera:= set them one at a time'),
         DeclareLaunchArgument('n_trees', default_value='10'),
         DeclareLaunchArgument('settle_loops', default_value='2'),
         DeclareLaunchArgument('balanced', default_value='false',
