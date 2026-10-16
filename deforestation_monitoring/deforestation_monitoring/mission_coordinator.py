@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Takes suspicious areas and sends the Husky out to inspect each one.
+
 """
 Mission Coordinator: Receives SuspiciousArea flags and dispatches the
 Husky ground rover to inspect each site via Nav2 NavigateToPose.
@@ -21,10 +23,14 @@ Behaviour:
   - Nav2 readiness is checked without blocking the queue timer.
   - /mission_status shows the decision state on the dashboard.
   - Active Nav2 goals are cancelled on shutdown.
+  - area_search: each suspected area is swept, not just visited: the box of
+    canopy loss around the flag plus a margin, in lanes (area_search.py),
+    with a photo per waypoint. /mission_queue shows queue, path and photos.
 """
 
 import cv2
 import heapq
+import numpy as np
 import math
 import os
 import csv
@@ -40,14 +46,18 @@ from rclpy.action import ActionClient
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
 from nav2_msgs.action import NavigateToPose
 from action_msgs.msg import GoalStatus
-from geometry_msgs.msg import PoseStamped, Point, Pose, Quaternion
-from nav_msgs.msg import Odometry
+from geometry_msgs.msg import PoseStamped, Point, Pose, Quaternion, Twist, Vector3
+from nav_msgs.msg import OccupancyGrid, Odometry
 from sensor_msgs.msg import Image
-from sensor_msgs.msg import LaserScan
+from sensor_msgs.msg import LaserScan, PointCloud2
+from sensor_msgs_py.point_cloud2 import create_cloud_xyz32
 from std_msgs.msg import Header, String
-from deforestation_interfaces.msg import SuspiciousArea
+from deforestation_interfaces.msg import (MissionInfo, MissionQueue, SuspiciousArea,
+                                          TreeChangeEvent, WasteSiteArray)
 from cv_bridge import CvBridge, CvBridgeError
 from tf2_ros import Buffer, TransformException, TransformListener
+
+from .area_search import free_spot, loss_box, sweep_path
 
 
 @dataclass(order=True)
@@ -69,6 +79,20 @@ class Mission:
     frame_id: str = field(compare=False)
     seq: int = field(default=0)
     attempts: int = field(default=0, compare=False)
+
+
+
+    site: tuple = field(default=None, compare=False)
+    box: tuple = field(default=None, compare=False)
+    path: list = field(default_factory=list, compare=False)
+    stops: list = field(default_factory=list, compare=False)
+    reached: int = field(default=0, compare=False)
+    photos: list = field(default_factory=list, compare=False)
+    status: int = field(default=MissionInfo.QUEUED, compare=False)
+    result: str = field(default='', compare=False)
+    staging: tuple = field(default=None, compare=False)
+    hops: int = field(default=0, compare=False)
+    second_try: bool = field(default=False, compare=False)
 
 
 class MissionCoordinator(Node):
@@ -97,6 +121,13 @@ class MissionCoordinator(Node):
         self.declare_parameter('map_frame', 'husky1_map',
             descriptor=ParameterDescriptor(
                 description='Nav2 global frame — flags are transformed into it before dispatch'))
+        self.declare_parameter('world_frame', 'husky1_odom',
+            descriptor=ParameterDescriptor(
+                description='Frame the drone\'s flags are taken in when there is no TF to '
+                            'map_frame (the drone and the Husky have separate TF trees). '
+                            'The Husky\'s odometry is world-aligned in the sim; its SLAM map '
+                            'drifts metres from it, so goals go out in this frame and Nav2 '
+                            'moves them into its map'))
         self.declare_parameter('dedup_radius', 10.0,
             descriptor=ParameterDescriptor(
                 description='Skip flags within this radius (m) of a queued or '
@@ -115,27 +146,66 @@ class MissionCoordinator(Node):
         self.declare_parameter('inspection_standoff', 1.0,
             descriptor=ParameterDescriptor(
                 description='Distance in metres Husky stops from a suspicious area'))
+        self.declare_parameter('area_search', False,
+            descriptor=ParameterDescriptor(
+                description='Sweep each suspected area instead of stopping at the flag: '
+                            'the box of canopy loss around it (drone change map) plus '
+                            'search_margin, in lanes search_spacing apart, from the corner '
+                            'nearest the Husky, a photo at each lane end (looks for dumped '
+                            'waste; the LiDAR maps the trunks there)'))
+        self.declare_parameter('search_margin', 2.0,
+            descriptor=ParameterDescriptor(
+                description='How far around the suspected area the sweep goes (m); the '
+                            'Husky starts this far outside it'))
+        self.declare_parameter('search_spacing', 3.0,
+            descriptor=ParameterDescriptor(description='Distance between sweep lanes (m)'))
+        self.declare_parameter('waypoint_timeout', 45.0,
+            descriptor=ParameterDescriptor(
+                description='A sweep goal is given up after this many seconds plus 4 s '
+                            'per metre to it (Nav2 recoveries can take minutes)'))
+        self.declare_parameter('wait_for_drone_baseline', False,
+            descriptor=ParameterDescriptor(
+                description='Keep the Husky still until the drone has frozen its tree '
+                            'baseline (/drone_baseline_status "frozen: ..."); flags '
+                            'are queued meanwhile'))
 
+        self.area_search = bool(self.get_parameter('area_search').value)
+        self.search_margin = float(self.get_parameter('search_margin').value)
+        self.search_spacing = float(self.get_parameter('search_spacing').value)
+        self.waypoint_timeout = float(self.get_parameter('waypoint_timeout').value)
+        self._goal_deadline = None
+        self._timed_out = False
+        self._sent_from = None
+        self._escape_until = None
+        self._after_escape = None
+        self.robot_yaw = 0.0
+        self.hazards = []
+        self.wait_for_drone = bool(self.get_parameter('wait_for_drone_baseline').value)
+        self.drone_ready = not self.wait_for_drone
         self.priority_mode = self.get_parameter('priority_mode').value
         self.capture_enabled = self.get_parameter('capture_images').value
         self.image_dir = self.get_parameter('image_dir').value
         self.map_frame = self.get_parameter('map_frame').value
+        self.world_frame = self.get_parameter('world_frame').value
         self.dedup_radius = self.get_parameter('dedup_radius').value
         self.dedup_window = self.get_parameter('dedup_window').value
         self.max_retries = self.get_parameter('max_retries').value
         self.requeue_penalty = self.get_parameter('requeue_penalty').value
         self.inspection_standoff = self.get_parameter('inspection_standoff').value
 
-        # TF for transforming flag coordinates into the Nav2 map frame
+
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
-        # Ensure image directory exists
+
         if self.capture_enabled:
             os.makedirs(self.image_dir, exist_ok=True)
 
         self.mission_queue = []
         self.current_mission = None
+        self.done = deque(maxlen=50)
+        self.change_map = None
+        self.costmap = None
         self.active = False
         self.inspected = 0
         self.report_seq = 0
@@ -143,18 +213,18 @@ class MissionCoordinator(Node):
         self._seq_counter = 0
         self._goal_handle = None
 
-        # Robot pose (unknown until first odometry message)
+
         self.robot_x = None
         self.robot_y = None
 
-        # Recently queued/inspected sites for dedup: (x, y, sim-clock ns)
+
         self._recent_sites = deque(maxlen=50)
 
-        # Latest camera frame, kept for evidence capture
+
         self.bridge = CvBridge()
         self._latest_image = None
 
-        # -- QoS profiles --
+
         alert_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.VOLATILE,
@@ -168,7 +238,7 @@ class MissionCoordinator(Node):
             depth=5,
         )
 
-        # Subscribers
+
         self.flag_sub = self.create_subscription(
             SuspiciousArea, '/suspicious_areas', self.flag_callback, alert_qos
         )
@@ -181,23 +251,49 @@ class MissionCoordinator(Node):
         self.report_pub = self.create_publisher(
             String, '/inspection_reports', alert_qos
         )
+        self.queue_pub = self.create_publisher(MissionQueue, '/mission_queue', alert_qos)
+        if self.wait_for_drone:
+            self.create_subscription(String, '/drone_baseline_status',
+                                     self._drone_baseline_cb, alert_qos)
+        if self.area_search:
+            latched = QoSProfile(reliability=ReliabilityPolicy.RELIABLE,
+                                 durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                                 history=HistoryPolicy.KEEP_LAST, depth=1)
+            self.create_subscription(OccupancyGrid, '/canopy_change_map',
+                                     lambda m: setattr(self, 'change_map', m), latched)
+            self.create_subscription(OccupancyGrid, '/husky1/global_costmap/costmap',
+                                     lambda m: setattr(self, 'costmap', m), latched)
+            self.waste = []
+            self.create_subscription(WasteSiteArray, '/waste_sites', lambda m: setattr(
+                self, 'waste', [(w.position.x, w.position.y) for w in m.sites]), latched)
+            self.create_timer(2.0, self._watchdog)
+            self.cmd_pub = self.create_publisher(Twist, '/husky1/cmd_vel', 10)
+            self.create_timer(0.1, self._escape_tick)
+
+            self.hazard_pub = self.create_publisher(PointCloud2, '/husky1/hazards', 10)
+            self.create_timer(1.0, self._publish_hazards)
+
+
+            self.create_subscription(TreeChangeEvent, '/parrot_tree_change_events',
+                                     self._lost_tree_cb, alert_qos)
         self.status_pub = self.create_publisher(
             String, '/mission_status', alert_qos
         )
 
-        # Nav2 action client
+
         self.nav_client = ActionClient(
             self, NavigateToPose, '/husky1/navigate_to_pose'
         )
 
         self.create_timer(2.0, self.process_queue)
+        self.create_timer(2.0, self._publish_status)
         self._publish_status()
         self.get_logger().info(
             f'Mission Coordinator ready. Priority mode: {self.priority_mode}. '
             f'Camera capture: {self.capture_enabled}.'
         )
 
-    # ── Priority scoring ─────────────────────────────────────────────
+
 
     def _compute_priority_value(self, mode: str, severity: float,
                                 confidence: float, area_m2: float,
@@ -207,25 +303,25 @@ class MissionCoordinator(Node):
         All modes return values where smaller = more urgent.
         """
         if mode == 'closest':
-            # Closest first
+
             return dist
 
         elif mode == 'confidence':
-            # Highest confidence first. Negate so higher confidence = lower priority value.
+
             return -confidence
 
         elif mode == 'area':
-            # Largest area first
+
             return -area_m2
 
         elif mode == 'severity':
-            # Highest severity first
+
             return -severity
 
         elif mode == 'composite':
-            # Composite: (severity * confidence) / (distance + 1).
-            # Closer, higher-confidence, bigger threats = lower priority value.
-            # The +1 prevents division by zero. Negate the score.
+
+
+
             score = (severity * confidence) / (dist + 1.0)
             return -score
 
@@ -247,12 +343,14 @@ class MissionCoordinator(Node):
             throttle_duration_sec=10.0)
         return math.hypot(gx, gy)
 
-    # ── Flag handling ─────────────────────────────────────────────────
+
 
     def odom_callback(self, msg: Odometry):
         """Track the Husky pose for robot-relative priority scoring."""
         self.robot_x = msg.pose.pose.position.x
         self.robot_y = msg.pose.pose.position.y
+        q = msg.pose.pose.orientation
+        self.robot_yaw = math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
 
     def cam_callback(self, msg: Image):
         """Keep the latest camera frame for inspection evidence."""
@@ -264,8 +362,8 @@ class MissionCoordinator(Node):
         gy = msg.position.y
         now_ns = self.get_clock().now().nanoseconds
 
-        # Dedup: skip a flag within dedup_radius of a site inspected within
-        # dedup_window; older inspections expire, so a site can be revisited.
+
+
         for sx, sy, st in self._recent_sites:
             if (now_ns - st) < self.dedup_window * 1e9 and \
                     math.hypot(gx - sx, gy - sy) < self.dedup_radius:
@@ -275,12 +373,24 @@ class MissionCoordinator(Node):
                     throttle_duration_sec=5.0)
                 return
 
+
+
+        if self.area_search:
+            for m in [*self.done, *([self.current_mission] if self.current_mission else []),
+                      *self.mission_queue]:
+                b = m.box or self._area_box(m)
+                if b[0] - self.search_margin <= gx <= b[2] + self.search_margin and \
+                        b[1] - self.search_margin <= gy <= b[3] + self.search_margin:
+                    self.get_logger().info(
+                        f'Flag @ ({gx:.1f},{gy:.1f}) is in the area of {m.label}: skipped.')
+                    return
+
         dist = self._distance_to(gx, gy)
 
         self.total += 1
         self._recent_sites.append((gx, gy, now_ns))
 
-        # Compute priority for this flag using the selected strategy
+
         priority = self._compute_priority_value(
             self.priority_mode, msg.severity, msg.confidence,
             msg.area_m2, dist)
@@ -293,10 +403,9 @@ class MissionCoordinator(Node):
             confidence=msg.confidence,
             area_m2=msg.area_m2,
             severity=msg.severity,
-            label=(
-                f'[{msg.type}] S={msg.severity:.0f} '
-                f'C={msg.confidence:.0f}% {msg.area_m2:.0f}m²'
-            ),
+            label=(msg.description if msg.type == 'TREE_LOST' else
+                   f'[{msg.type}] S={msg.severity:.0f} '
+                   f'C={msg.confidence:.0f}% {msg.area_m2:.0f}m²'),
             frame_id=msg.header.frame_id,
         ))
         self._seq_counter += 1
@@ -310,21 +419,35 @@ class MissionCoordinator(Node):
         )
         self._publish_status()
 
+    def _lost_tree_cb(self, msg: TreeChangeEvent):
+        if msg.event_type != 'LOST':
+            return
+        flag = SuspiciousArea(header=msg.header, type='TREE_LOST', confidence=90.0,
+                              area_m2=float(msg.area_m2), severity=50.0,
+                              description=f'Lost tree #{msg.tree_id}')
+        flag.position.x, flag.position.y = float(msg.x), float(msg.y)
+        self.flag_callback(flag)
+
     def process_queue(self):
         """Process next mission in the queue if idle."""
-        if self.active or not self.mission_queue:
+        if self.active or not self.mission_queue or self._escape_until is not None:
+            return
+        if not self.drone_ready:
+            self.get_logger().info(
+                "Holding the Husky until the drone's tree baseline is frozen.",
+                throttle_duration_sec=30.0)
             return
 
-        # Non-blocking Nav2 readiness check (the action server may still be
-        # starting up at launch).
+
+
         if not self.nav_client.server_is_ready():
             self.get_logger().warn(
                 'Nav2 server not ready — waiting.', throttle_duration_sec=5.0)
             return
 
-        # Distance-based modes: re-rank the whole queue as the robot moves,
-        # so proximity reflects the current Husky pose, not the pose at the
-        # time each flag was queued.
+
+
+
         if self.robot_x is not None and \
                 self.priority_mode in ('closest', 'composite'):
             re_scored = []
@@ -333,7 +456,7 @@ class MissionCoordinator(Node):
                 dist = math.hypot(m.x - self.robot_x, m.y - self.robot_y)
                 m.priority = self._compute_priority_value(
                     self.priority_mode, m.severity, m.confidence,
-                    m.area_m2, dist)
+                    m.area_m2, dist) + (1000.0 if m.second_try else 0.0)
                 re_scored.append(m)
             for m in re_scored:
                 heapq.heappush(self.mission_queue, m)
@@ -344,12 +467,13 @@ class MissionCoordinator(Node):
         self._publish_status()
         self._send_goal(mission)
 
-    # ── Navigation ────────────────────────────────────────────────────
+
 
     def _requeue(self, mission: Mission, penalty: float):
         """Re-queue a mission with a priority penalty and a retry counter."""
         mission.priority += penalty
         mission.attempts += 1
+        mission.status = MissionInfo.QUEUED
         heapq.heappush(self.mission_queue, mission)
         self.get_logger().warn(
             f'Requeued {mission.label} (attempt {mission.attempts}/'
@@ -381,7 +505,7 @@ class MissionCoordinator(Node):
                 )
                 t = tf.transform.translation
                 q = tf.transform.rotation
-                # Ground-plane (yaw-only) rotation of the flag offset
+
                 siny = 2.0 * (q.w * q.z + q.x * q.y)
                 cosy = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
                 yaw = math.atan2(siny, cosy)
@@ -392,14 +516,26 @@ class MissionCoordinator(Node):
                 gframe = self.map_frame
             except TransformException:
                 self.get_logger().warn(
-                    f'No TF {gframe} → {self.map_frame}; assuming frames coincide '
-                    f'(using raw flag coordinates)',
-                    throttle_duration_sec=10.0)
+                    f'No TF {gframe} → {self.map_frame}; taking the flag in '
+                    f'{self.world_frame} (both world-aligned)',
+                    throttle_duration_sec=60.0)
 
-        # Safe inspection pose: stop 1 m before the suspicious area
+
+
+                gframe = self.world_frame
+
+        mission.site = (gx, gy)
+        mission.status = MissionInfo.ACTIVE
+        if self.area_search:
+            self._start_search(mission, gx, gy)
+            return
+
+
         inspection_standoff = self.inspection_standoff
 
         try:
+            if gframe == self.world_frame and self.robot_x is not None:
+                raise TransformException('odometry is in the goal frame')
             robot_tf = self.tf_buffer.lookup_transform(
                 self.map_frame,
                 'husky1_base_link',
@@ -441,7 +577,8 @@ class MissionCoordinator(Node):
         goal = NavigateToPose.Goal()
         goal.pose = PoseStamped(
             header=Header(
-                stamp=self.get_clock().now().to_msg(),
+                stamp=(rclpy.time.Time() if gframe == self.world_frame
+                       else self.get_clock().now()).to_msg(),
                 frame_id=gframe,
             ),
             pose=Pose(
@@ -469,6 +606,8 @@ class MissionCoordinator(Node):
                 msg = f'SITE UNREACHABLE #{self.report_seq}: {m.label} @ ({m.x:.1f},{m.y:.1f})'
                 self.get_logger().warn(msg)
                 self.report_pub.publish(String(data=msg))
+                m.status, m.result = MissionInfo.UNREACHABLE, msg
+                self.done.append(m)
             self.current_mission = None
             self.active = False
             self._publish_status()
@@ -484,18 +623,33 @@ class MissionCoordinator(Node):
         status = result.status
         m = self.current_mission
 
+        if self._timed_out:
+            self._timed_out = False
+            if status == GoalStatus.STATUS_CANCELED:
+                status = GoalStatus.STATUS_ABORTED
+        if self.area_search and m is not None and m.path:
+            if self._search_step(m, status):
+                return
+            if m.reached:
+                status = GoalStatus.STATUS_SUCCEEDED
+
         if status == GoalStatus.STATUS_SUCCEEDED:
             self.inspected += 1
             self.report_seq += 1
-            evidence_path = self._capture_evidence()
+            evidence_path = self._capture_evidence(m)
             evidence_str = f' [image: {evidence_path}]' if evidence_path else ' [no image]'
             lidar_path = self._save_lidar_evidence(evidence_path)
             classification, reason = self._classify_disturbance(m, evidence_path)
 
+            m.photos.append(evidence_path)
+            search_str = (f' [search: {m.reached}/{len(m.path)} waypoints, '
+                          f'{sum(1 for p in m.photos if p)} photos]'
+                          if self.area_search and m.path else '')
             msg = (
                 f'SITE INSPECTED #{self.report_seq}: {m.label} '
-                f'@ ({m.x:.1f},{m.y:.1f}) [{classification}]{evidence_str}'
+                f'@ ({m.x:.1f},{m.y:.1f}) [{classification}]{evidence_str}{search_str}'
             )
+            m.status = MissionInfo.INSPECTED
             self.get_logger().info(msg)
             self.get_logger().info(f'  decision: {classification} - {reason}')
 
@@ -503,14 +657,29 @@ class MissionCoordinator(Node):
             self.report_seq += 1
             msg = f'SITE CANCELLED #{self.report_seq}: {m.label} @ ({m.x:.1f},{m.y:.1f})'
             self.get_logger().warn(msg)
+            m.status = MissionInfo.CANCELLED
 
         elif status == GoalStatus.STATUS_ABORTED:
             if m.attempts < self.max_retries:
-                # Transient failure (stuck path, stale costmap): retry with a
-                # priority penalty instead of dropping the site.
+
+
                 self.get_logger().warn(
                     f'SITE RETRY: {m.label} aborted — requeuing.')
+                if self.area_search and self._stuck():
+                    self._escape()
                 self._requeue(m, self.requeue_penalty)
+                self.current_mission = None
+                self.active = False
+                self._publish_status()
+                return
+            if self.area_search and not m.second_try:
+
+
+                self.get_logger().warn(f'{m.label}: no way in for now; trying it again last.')
+                m.second_try, m.attempts = True, 0
+                m.path, m.stops = [], []
+                self._requeue(m, 1000.0)
+                m.attempts = 0
                 self.current_mission = None
                 self.active = False
                 self._publish_status()
@@ -518,6 +687,7 @@ class MissionCoordinator(Node):
             self.report_seq += 1
             msg = f'SITE UNREACHABLE #{self.report_seq}: {m.label} @ ({m.x:.1f},{m.y:.1f})'
             self.get_logger().warn(msg)
+            m.status = MissionInfo.UNREACHABLE
 
         else:
             self.report_seq += 1
@@ -525,13 +695,251 @@ class MissionCoordinator(Node):
             self.get_logger().warn(msg)
 
         self.report_pub.publish(String(data=msg))
+        m.result = msg
+        self.done.append(m)
         self.current_mission = None
         self.active = False
         self._publish_status()
 
-    # ── Evidence capture ──────────────────────────────────────────────
 
-    def _capture_evidence(self) -> str:
+
+    def _area_box(self, m, gx=None, gy=None):
+        """The suspected area's box: the canopy loss around the flag on the
+        drone's change map (flag frame), moved to the site in the map frame."""
+        gx = m.x if gx is None else gx
+        gy = m.y if gy is None else gy
+        cm = self.change_map
+        if cm is None:
+            return loss_box(np.zeros((1, 1)), 1.0, 1e9, 1e9, gx, gy)
+        info = cm.info
+        grid = np.asarray(cm.data, np.int8).reshape(info.height, info.width)
+        b = loss_box(grid, info.resolution, info.origin.position.x, info.origin.position.y,
+                     m.x, m.y)
+        dx, dy = gx - m.x, gy - m.y
+        return (b[0] + dx, b[1] + dy, b[2] + dx, b[3] + dy)
+
+    def _start_search(self, m, gx, gy):
+        """Lay out the sweep over the area (once per mission; a retry reuses
+        it) and drive to its first waypoint, the corner nearest the Husky."""
+        if not m.path:
+            rx = self.robot_x if self.robot_x is not None else gx
+            ry = self.robot_y if self.robot_y is not None else gy
+            m.box = self._area_box(m, gx, gy)
+            cost = None
+            if self.costmap is not None:
+                ci = self.costmap.info
+                cost = (np.asarray(self.costmap.data, np.int8).reshape(ci.height, ci.width),
+                        ci.resolution, ci.origin.position.x, ci.origin.position.y)
+            tf = self._map_tf()
+            for x, y, yaw in sweep_path(m.box, (rx, ry), self.search_margin, self.search_spacing):
+                x, y = self._off_waste(x, y)
+                spot = (x, y)
+                if cost:
+                    spot = free_spot(*cost, *self._to_map(tf, x, y))
+                    spot = self._to_world(tf, *spot) if spot is not None else None
+                if spot is not None:
+                    m.path.append((spot[0], spot[1], yaw))
+            b = m.box
+            self.get_logger().info(
+                f'Area search of {m.label}: box ({b[0]:.1f},{b[1]:.1f})-({b[2]:.1f},{b[3]:.1f}) '
+                f'+ {self.search_margin:.1f} m, {len(m.path)} waypoints')
+        if not m.path:
+            m.path = [(gx, gy, 0.0)]
+        m.stops = list(m.path[1:])
+        x, y, yaw = m.path[0]
+        self.get_logger().info(f'Dispatching Husky → {m.label}: start of the sweep at ({x:.1f},{y:.1f})')
+        self._send_waypoint(m, x, y, yaw)
+
+    def _off_waste(self, x, y, clear=1.5):
+        """Move a waypoint off known waste: the Husky should not stop on a bag
+        (the camera sees nothing that close)."""
+        for wx, wy in self.waste:
+            d = math.hypot(x - wx, y - wy)
+            if d < clear:
+                ux, uy = ((x - wx) / d, (y - wy) / d) if d > 1e-3 else (1.0, 0.0)
+                x, y = wx + ux * clear, wy + uy * clear
+        return x, y
+
+    def _map_tf(self):
+        """map <- world (x, y, cos, sin), from the SLAM correction; None without TF."""
+        try:
+            t = self.tf_buffer.lookup_transform(self.map_frame, self.world_frame, rclpy.time.Time())
+        except TransformException:
+            return None
+        q = t.transform.rotation
+        yaw = math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
+        return t.transform.translation.x, t.transform.translation.y, math.cos(yaw), math.sin(yaw)
+
+    @staticmethod
+    def _to_map(tf, x, y):
+        if tf is None:
+            return x, y
+        tx, ty, c, s = tf
+        return tx + c * x - s * y, ty + s * x + c * y
+
+    @staticmethod
+    def _to_world(tf, x, y):
+        if tf is None:
+            return x, y
+        tx, ty, c, s = tf
+        dx, dy = x - tx, y - ty
+        return c * dx + s * dy, -s * dx + c * dy
+
+    def _staging(self, x, y):
+        """Nav2's global costmap is only as big as the Husky's SLAM map so far,
+        and a goal off it always fails. For such a goal: the point on the way
+        to it 3 m inside the map (None if the goal is on the map, or the
+        Husky is already at the edge)."""
+        cm = self.costmap
+        if cm is None or self.robot_x is None:
+            return None
+        tf = self._map_tf()
+        x, y = self._to_map(tf, x, y)
+        i, m = cm.info, 3.0
+        x0, y0 = i.origin.position.x + m, i.origin.position.y + m
+        x1 = i.origin.position.x + i.width * i.resolution - m
+        y1 = i.origin.position.y + i.height * i.resolution - m
+        if x0 <= x <= x1 and y0 <= y <= y1:
+            return None
+        rx, ry = self._to_map(tf, self.robot_x, self.robot_y)
+        for k in range(1, 101):
+            px, py = x + (rx - x) * k / 100, y + (ry - y) * k / 100
+            if x0 <= px <= x1 and y0 <= py <= y1:
+                return self._to_world(tf, px, py) if math.hypot(px - rx, py - ry) > 2.0 else None
+        return None
+
+    def _free_now(self, x, y):
+        """(x, y) moved off trees on the current costmap (the area may have been
+        unknown when the sweep was laid out); unchanged if none is free nearby."""
+        if self.costmap is None:
+            return x, y
+        ci, tf = self.costmap.info, self._map_tf()
+        cost = np.asarray(self.costmap.data, np.int8).reshape(ci.height, ci.width)
+        spot = free_spot(cost, ci.resolution, ci.origin.position.x, ci.origin.position.y,
+                         *self._to_map(tf, x, y))
+        return self._to_world(tf, *spot) if spot is not None else (x, y)
+
+    def _send_waypoint(self, m, x, y, yaw):
+        """Send a sweep goal, by way of a staging goal while it is off the map."""
+        x, y = self._free_now(x, y)
+        stage = self._staging(x, y) if m.hops < 4 else None
+        if stage is not None:
+            stage = self._free_now(*stage)
+            m.staging, m.hops = (x, y, yaw), m.hops + 1
+            self.get_logger().info(
+                f'({x:.1f},{y:.1f}) is beyond the Husky\'s map so far: '
+                f'driving to ({stage[0]:.1f},{stage[1]:.1f}) first')
+            x, y, yaw = stage[0], stage[1], math.atan2(y - stage[1], x - stage[0])
+        else:
+            m.staging, m.hops = None, 0
+        d = math.hypot(x - self.robot_x, y - self.robot_y) if self.robot_x is not None else 20.0
+        self._goal_deadline = time.monotonic() + self.waypoint_timeout + 4.0 * d
+        self._goal_xy = (x, y)
+        self._sent_from = (self.robot_x, self.robot_y) if self.robot_x is not None else None
+        self._send_pose(x, y, yaw)
+
+    def _stuck(self) -> bool:
+        """The last goal failed without the Husky moving: wedged (pine branches)."""
+        f = self._sent_from
+        return f is not None and self.robot_x is not None and \
+            math.hypot(self.robot_x - f[0], self.robot_y - f[1]) < 0.5
+
+    def _escape(self, then=None):
+        """Back straight out for 4 s (~1.2 m): Nav2's own backup is a few cm and
+        its spin fails when the Husky is caught in branches. What caught it,
+        just ahead, becomes a hazard on Nav2's costmaps."""
+        hx = self.robot_x + 0.9 * math.cos(self.robot_yaw)
+        hy = self.robot_y + 0.9 * math.sin(self.robot_yaw)
+        self.hazards.append((hx, hy))
+        self.get_logger().warn(
+            f'The Husky is stuck: backing out; hazard marked at ({hx:.1f},{hy:.1f}).')
+        self._escape_until, self._after_escape, self._sent_from = time.monotonic() + 4.0, then, None
+
+    def _publish_hazards(self):
+        if not self.hazards:
+            return
+        pts = [(hx + dx, hy + dy, 0.3) for hx, hy in self.hazards
+               for dx in np.arange(-0.5, 0.51, 0.1) for dy in np.arange(-0.5, 0.51, 0.1)
+               if dx * dx + dy * dy <= 0.25]
+        hdr = Header(stamp=self.get_clock().now().to_msg(), frame_id=self.world_frame)
+        self.hazard_pub.publish(create_cloud_xyz32(hdr, pts))
+
+    def _escape_tick(self):
+        if self._escape_until is None:
+            return
+        if time.monotonic() < self._escape_until:
+            self.cmd_pub.publish(Twist(linear=Vector3(x=-0.3)))
+            return
+        self.cmd_pub.publish(Twist())
+        self._escape_until = None
+        then, self._after_escape = self._after_escape, None
+        if then is not None:
+            then()
+
+    def _watchdog(self):
+        """Give up a sweep goal that takes too long (stuck, endless recoveries)."""
+        if self._goal_deadline is None or self._goal_handle is None:
+            return
+        if time.monotonic() > self._goal_deadline:
+            self._goal_deadline = None
+            self._timed_out = True
+            self.get_logger().warn('Sweep goal is taking too long: giving it up.')
+            self._goal_handle.cancel_goal_async()
+
+    def _search_step(self, m, status) -> bool:
+        """After a goal of the sweep finished: True while the sweep goes on.
+
+        The first goal is the approach; if it fails, the mission is retried
+        (from the next waypoint, this one may be in a tree). A later waypoint
+        it cannot reach is skipped. A photo is taken at each one reached.
+        """
+        ok = status == GoalStatus.STATUS_SUCCEEDED
+        self._goal_deadline = None
+        gx, gy = getattr(self, '_goal_xy', (None, None))
+        if not ok and status != GoalStatus.STATUS_CANCELED and gx is not None and \
+                self.robot_x is not None and math.hypot(gx - self.robot_x, gy - self.robot_y) <= 2.5:
+            ok = True
+        if m.staging is not None:
+            x, y, yaw = m.staging
+            if ok:
+                self._send_waypoint(m, x, y, yaw)
+                return True
+            m.staging = None
+        if m.reached == 0 and not ok:
+            if len(m.path) > 2:
+                m.path.pop(0)
+            return False
+        if ok:
+            m.reached += 1
+            m.photos.append(self._capture_evidence(m))
+        elif status == GoalStatus.STATUS_CANCELED:
+            m.stops = []
+        if not m.stops:
+            return False
+        x, y, yaw = m.stops.pop(0)
+        self.get_logger().info(
+            f'Searching {m.label}: waypoint {len(m.path) - len(m.stops)}/{len(m.path)} '
+            f'at ({x:.1f},{y:.1f})')
+        if not ok and self._stuck():
+            self._escape(lambda: self._send_waypoint(m, x, y, yaw))
+        else:
+            self._send_waypoint(m, x, y, yaw)
+        self._publish_status()
+        return True
+
+    def _send_pose(self, x, y, yaw):
+        goal = NavigateToPose.Goal()
+        goal.pose = PoseStamped(
+
+            header=Header(stamp=rclpy.time.Time().to_msg(), frame_id=self.world_frame),
+            pose=Pose(position=Point(x=x, y=y, z=0.0),
+                      orientation=Quaternion(z=math.sin(yaw / 2.0), w=math.cos(yaw / 2.0))))
+        future = self.nav_client.send_goal_async(goal)
+        future.add_done_callback(self._goal_response)
+
+
+
+    def _capture_evidence(self, mission=None) -> str:
         """Save the latest Husky camera frame as inspection evidence.
 
         Uses the persistent latest-image subscription, so nothing spins
@@ -553,7 +961,10 @@ class MissionCoordinator(Node):
             return ''
 
         ts = time.strftime('%Y%m%d_%H%M%S')
-        filename = f'inspection_{self.inspected:03d}_{ts}.jpg'
+        if mission is not None:
+            filename = f'site{mission.seq + 1:02d}_{len(mission.photos) + 1:02d}_{ts}.jpg'
+        else:
+            filename = f'inspection_{self.inspected:03d}_{ts}.jpg'
         filepath = os.path.join(self.image_dir, filename)
         cv2.imwrite(filepath, frame)
         self.get_logger().info(f'Evidence saved: {filepath}')
@@ -633,7 +1044,7 @@ class MissionCoordinator(Node):
         if frame is None:
             return 'UNCERTAIN', 'camera evidence could not be loaded'
 
-        # Detect strong straight edges in the ground-level camera image.
+
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         gray = cv2.GaussianBlur(gray, (5, 5), 0)
         edges = cv2.Canny(gray, 50, 150)
@@ -660,8 +1071,8 @@ class MissionCoordinator(Node):
 
         alert_type = (mission.type or '').upper()
 
-        # A LINE alert should have supporting straight-edge evidence
-        # before being classified as deliberate cutting.
+
+
         if alert_type == 'LINE':
             if line_count >= 3:
                 return (
@@ -677,8 +1088,8 @@ class MissionCoordinator(Node):
             )
 
         if alert_type == 'GAP':
-            # A gap with very little straight-edge evidence is treated
-            # as more consistent with an irregular/natural disturbance.
+
+
             if line_count <= 5:
                 return (
                     'NATURAL',
@@ -701,7 +1112,36 @@ class MissionCoordinator(Node):
 
         return 'UNCERTAIN', 'camera evidence available but disturbance type is unknown'
 
-    # ── Mission status (feeds the dashboard) ──────────────────────────
+
+
+    def _drone_baseline_cb(self, msg):
+        if not self.drone_ready and msg.data.startswith('frozen'):
+            self.drone_ready = True
+            self.get_logger().info(
+                f'Drone baseline frozen ({msg.data}): the Husky may go out now.')
+            self._publish_status()
+
+    def _info(self, m) -> MissionInfo:
+        if m is None:
+            return MissionInfo()
+        box = m.box or (self._area_box(m) if self.area_search else (m.x, m.y, m.x, m.y))
+        return MissionInfo(
+            label=m.label, type=m.type, position=Point(x=m.x, y=m.y, z=0.0),
+            area_min=Point(x=float(box[0]), y=float(box[1])),
+            area_max=Point(x=float(box[2]), y=float(box[3])),
+            priority=float(m.priority), attempts=min(255, int(m.attempts)), status=m.status,
+            path=[Point(x=float(x), y=float(y), z=float(yaw)) for x, y, yaw in m.path],
+            reached=min(65535, m.reached), photos=[p for p in m.photos if p], result=m.result)
+
+    def _publish_queue(self, state):
+        msg = MissionQueue(state=state, drone_ready=self.drone_ready,
+                           current=self._info(self.current_mission),
+                           queue=[self._info(q) for q in sorted(self.mission_queue)],
+                           done=[self._info(d) for d in self.done],
+                           inspected=self.inspected, total=self.total)
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = self.world_frame
+        self.queue_pub.publish(msg)
 
     def _publish_status(self):
         if self.active and self.current_mission is not None:
@@ -719,6 +1159,15 @@ class MissionCoordinator(Node):
                 f'mode={self.priority_mode}'
             )
         self.status_pub.publish(String(data=status))
+        if not self.drone_ready:
+            state = 'WAITING_FOR_DRONE'
+        elif self.active and self.current_mission is not None:
+            m = self.current_mission
+            state = ('SEARCHING' if self.area_search and m.reached > 0
+                     else 'ENROUTE' if self._goal_handle is not None else 'DISPATCHING')
+        else:
+            state = 'IDLE'
+        self._publish_queue(state)
 
     def destroy_node(self):
         self.get_logger().info(
@@ -739,8 +1188,8 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        # Ctrl+C may already shut down the ROS context.
-        # Only clean up if ROS is still active.
+
+
         if rclpy.ok():
             node.destroy_node()
             rclpy.shutdown()

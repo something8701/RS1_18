@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Finds tree trunks with the Husky's 2D lidar and maps them.
+
 """
 Tree Trunk Mapper: Uses the Husky's 2D lidar to detect and map tree trunks.
 
@@ -37,7 +39,7 @@ class TreeMapper(Node):
     def __init__(self):
         super().__init__('tree_mapper')
 
-        # -- Parameters --
+
         self.declare_parameter('resolution', 0.5,
             descriptor=ParameterDescriptor(description='Grid cell size in metres'))
         self.declare_parameter('map_size_x', 80.0,
@@ -77,43 +79,43 @@ class TreeMapper(Node):
         self.origin_x = -self.map_x / 2.0
         self.origin_y = -self.map_y / 2.0
 
-        # --- Grids ---
-        # All-time hit count per cell, for the trunk map and the baseline
-        # snapshot (which must include every tree ever seen).
+
+
+
         self.tree_hits = np.zeros((self.dim_x, self.dim_y), dtype=np.float32)
-        # Recent hit count, decayed every scan, so a removed trunk falls below
-        # the confidence threshold.
+
+
         self.recent_hits = np.zeros((self.dim_x, self.dim_y), dtype=np.float32)
-        # Cells covered by the lidar since the last baseline. Only re-observed
-        # cells are eligible for "lost" detection, so areas never revisited
-        # after the baseline are not falsely reported as cleared.
+
+
+
         self.swept = np.zeros((self.dim_x, self.dim_y), dtype=np.float32)
-        # Baseline snapshot: frozen copy taken when baseline is established
+
         self.baseline_hits = None
-        # Whether the baseline snapshot has been taken
+
         self.baseline_established = False
-        # Stable tree IDs, assigned at baseline and updated as trees appear.
+
         self.tree_id_grid = np.zeros((self.dim_x, self.dim_y), dtype=np.int32)
         self.baseline_tree_ids = None
         self.next_tree_id = 1
         self.baseline_tree_count = 0
         self.scan_count = 0
 
-        # Change tracking stats
+
         self.total_trees_lost = 0
         self.total_trees_gained = 0
         self.last_change_alert = ''
         self._alerted_tree_ids = set()
         self._alerted_gained_tree_ids = set()
 
-        # DBSCAN clusterer
+
         self.clusterer = DBSCAN(eps=self.cluster_eps, min_samples=self.min_cluster)
 
-        # TF2
+
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
-        # -- QoS profiles --
+
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.VOLATILE,
@@ -133,14 +135,14 @@ class TreeMapper(Node):
             depth=10,
         )
 
-        # Subscribers
+
         self.scan_sub = self.create_subscription(
             LaserScan, '/husky1/scan', self.scan_callback, sensor_qos
         )
 
-        # Publishers
-        # Trunk map (Husky lidar). /forest_canopy_map belongs to the drone's
-        # scan_mapper; two grids on one topic would confuse pattern_scanner.
+
+
+
         self.trunk_pub = self.create_publisher(
             OccupancyGrid, '/forest_trunk_map', map_qos
         )
@@ -172,7 +174,7 @@ class TreeMapper(Node):
             TreeStatus, '/tree_status', default_qos
         )
 
-        # Reset baseline service
+
         self.reset_srv = self.create_service(
             Trigger, '~/reset_baseline', self.reset_baseline_callback
         )
@@ -186,7 +188,7 @@ class TreeMapper(Node):
             f'Hit decay: {self.hit_decay}.'
         )
 
-    # ── Lidar processing ──────────────────────────────────────────────
+
 
     def _scan_to_xy(self, scan: LaserScan):
         """Convert LaserScan ranges to (x,y) points in base_link frame."""
@@ -236,23 +238,23 @@ class TreeMapper(Node):
         if pts_world is None or len(pts_world) < self.min_cluster:
             return
 
-        # Decay the recent hit count every processed scan, then re-add detections
-        # below. This is what makes change detection able to report "lost": a
-        # cumulative count can only grow, so a removed tree would stay "present".
+
+
+
         self.recent_hits *= self.hit_decay
 
-        # Decay the recent sweep mask in lockstep with recent_hits, then mark
-        # every lidar return's cell as swept. A removed trunk only counts as
-        # lost while its location is being actively re-covered; once the robot
-        # drives away both recent_hits AND swept decay together, so a still-
-        # present tree that is simply out of view is never reported lost.
+
+
+
+
+
         self.swept *= self.hit_decay
         six = ((pts_world[:, 0] - self.origin_x) / self.res).astype(np.int32)
         siy = ((pts_world[:, 1] - self.origin_y) / self.res).astype(np.int32)
         s_in = (six >= 0) & (six < self.dim_x) & (siy >= 0) & (siy < self.dim_y)
         self.swept[six[s_in], siy[s_in]] = 1.0
 
-        # DBSCAN clustering
+
         labels = self.clusterer.fit_predict(pts_world)
 
         unique_labels = set(labels)
@@ -273,7 +275,7 @@ class TreeMapper(Node):
                 self.recent_hits[ix, iy] += 1.0
                 tree_count += 1
 
-        # Publish live cluster points
+
         if cluster_centroids:
             pts = np.array(cluster_centroids, dtype=np.float32)
             cloud = PointCloud2()
@@ -294,7 +296,7 @@ class TreeMapper(Node):
 
         self.scan_count += 1
 
-        # Baseline: snapshot the current hit map
+
         if not self.baseline_established and self.scan_count >= self.baseline_threshold:
             self._snapshot_baseline()
 
@@ -307,7 +309,7 @@ class TreeMapper(Node):
                 f'{total_trees} confirmed tree cells{loss_str}'
             )
 
-    # ── Baseline management ───────────────────────────────────────────
+
 
     def _assign_ids_for_mask(self, mask):
         """Assign new stable IDs to connected components in a boolean mask.
@@ -317,9 +319,9 @@ class TreeMapper(Node):
         """
         if not np.any(mask):
             return None
-        # Merge nearby cells that belong to the same physical trunk. Lidar
-        # cluster centroids can land in neighbouring grid cells, so labelling
-        # the raw mask directly can split one tree into several IDs.
+
+
+
         closed_mask = ndimage.binary_closing(
             mask, structure=np.ones((3, 3), dtype=bool), iterations=1
         )
@@ -356,7 +358,7 @@ class TreeMapper(Node):
         self._assign_ids_for_mask(baseline_mask)
         self.baseline_tree_ids = self.tree_id_grid.copy()
         self.baseline_tree_count = int(len(np.unique(self.baseline_tree_ids)) - 1)
-        # Only lidar coverage AFTER this baseline counts as re-observation.
+
         self.swept[:] = 0.0
         total = self.baseline_tree_count
         self.get_logger().info(
@@ -378,7 +380,7 @@ class TreeMapper(Node):
         )
         return response
 
-    # ── Change detection ──────────────────────────────────────────────
+
 
     def _compute_change(self):
         """Compare current tree_hits against baseline.
@@ -392,13 +394,13 @@ class TreeMapper(Node):
         if self.baseline_hits is None:
             return None, None, None, None
 
-        # Binarize: a cell is currently a tree if its RECENT hit count is high
-        # enough. The baseline uses the cumulative count (every tree seen).
+
+
         current_trees = self.recent_hits >= self.tree_confidence
         baseline_trees = self.baseline_hits >= self.tree_confidence
 
-        # A tree is lost only if it was in the baseline, its location has been
-        # re-observed since baseline, and it is no longer detected now.
+
+
         lost_mask = baseline_trees & (self.swept >= 0.5) & ~current_trees
         gained_mask = current_trees & ~baseline_trees
 
@@ -430,12 +432,12 @@ class TreeMapper(Node):
         marker.color.a = 0.9
         return marker
 
-    # ── Publishing ────────────────────────────────────────────────────
+
 
     def publish_maps(self):
         now = self.get_clock().now().to_msg()
 
-        # --- 1. Tree trunk map (current state) ---
+
         if np.max(self.tree_hits) > 0:
             max_hit = max(1.0, np.max(self.tree_hits))
             data = np.clip((self.tree_hits / max_hit) * 100, 0, 100).astype(np.int8)
@@ -451,11 +453,11 @@ class TreeMapper(Node):
             position=Point(x=self.origin_x, y=self.origin_y, z=0.0),
             orientation=Quaternion(w=1.0)
         )
-        # Grids are indexed [ix, iy]; OccupancyGrid data is row-major [iy, ix].
+
         grid.data = data.T.flatten().tolist()
         self.trunk_pub.publish(grid)
 
-        # --- 2. Change map (diff vs baseline) ---
+
         change_grid, lost_mask, gained_mask, current_trees = self._compute_change()
 
         if change_grid is not None:
@@ -465,7 +467,7 @@ class TreeMapper(Node):
             change_msg.data = change_grid.T.flatten().tolist()
             self.change_pub.publish(change_msg)
 
-            # --- 3. Structured change events (tree IDs + area) ---
+
             new_alerts = []
             change_markers = MarkerArray()
             marker_id = 0
@@ -543,8 +545,8 @@ class TreeMapper(Node):
                         marker_id += 1
                         change_markers.markers.append(marker)
 
-            # Drop IDs for cells that are no longer trees, then assign IDs to
-            # any current cells that still do not have one.
+
+
             self.tree_id_grid[~current_trees] = 0
             remaining_without_id = current_trees & (self.tree_id_grid == 0)
             if np.any(remaining_without_id):
@@ -566,9 +568,9 @@ class TreeMapper(Node):
             status_msg.gained_count = self.total_trees_gained
             self.tree_status_pub.publish(status_msg)
 
-        # --- 4. Change markers are published above ---
 
-        # --- 5. Tree markers (current) ---
+
+
         markers = MarkerArray()
         tree_cells = np.argwhere(self.tree_id_grid > 0)
         for i, (ix, iy) in enumerate(tree_cells[:200]):
@@ -591,7 +593,7 @@ class TreeMapper(Node):
             markers.markers.append(m)
         self.marker_pub.publish(markers)
 
-        # --- 6. All tree positions as PointCloud2 ---
+
         if len(tree_cells) > 0:
             pts_all = np.column_stack([
                 self.origin_x + (tree_cells[:, 0] + 0.5) * self.res,

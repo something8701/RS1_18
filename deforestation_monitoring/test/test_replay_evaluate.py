@@ -1,3 +1,5 @@
+# Offline tests for replay_evaluate.
+
 """Offline tests for replay_evaluate (GATE 4 evaluator)."""
 
 import math
@@ -62,7 +64,7 @@ def test_time_split_separates_passes():
         FakeReader(_bag()), altitude=10.0, split_ns=split)
     ix_a = int((-5.0 + 40.0) / 0.25)
     ix_b = int((5.0 + 40.0) / 0.25)
-    # Pass A only saw x=-5, pass B only saw x=+5.
+
     assert half_hits[0][ix_a - 2:ix_a + 3, :].sum() > 0
     assert half_hits[0][ix_b - 2:ix_b + 3, :].sum() == 0
     assert half_hits[1][ix_b - 2:ix_b + 3, :].sum() > 0
@@ -103,7 +105,7 @@ def test_flicker_ignores_centimetre_jitter():
 def test_flicker_counts_a_real_removal():
     from deforestation_monitoring.replay_evaluate import match_passes
     a = [(-12.0, 0.0), (-8.0, -8.0), (0.0, 8.0)]
-    b = [(-12.0, 0.0), (0.0, 8.0)]           # oak_1 removed
+    b = [(-12.0, 0.0), (0.0, 8.0)]
     assert match_passes(a, b)[:2] == (1, 0)
 
 
@@ -112,7 +114,7 @@ def test_recent_grid_is_latest_reading():
     reading grid: a crown seen first, then ground, reads ground."""
     msgs = []
     t = 0
-    for rng in (4.0, 10.0):          # first 6 m canopy, then 0 m ground
+    for rng in (4.0, 10.0):
         msgs.append(('/parrot1/odometry', serialize_message(_odom(0, 0)), t))
         msgs.append(('/parrot1/scan', serialize_message(_nadir_scan(rng)), t + 1))
         t += 10**8
@@ -126,7 +128,7 @@ def test_recent_grid_returns_to_ground_below_zero():
     """Ground projects to about -0.2 m; it must still overwrite a tree."""
     msgs = []
     t = 0
-    for rng in (4.0, 10.2):          # 6 m canopy, then ground at -0.2 m
+    for rng in (4.0, 10.2):
         msgs.append(('/parrot1/odometry', serialize_message(_odom(0, 0)), t))
         msgs.append(('/parrot1/scan', serialize_message(_nadir_scan(rng)), t + 1))
         t += 10**8

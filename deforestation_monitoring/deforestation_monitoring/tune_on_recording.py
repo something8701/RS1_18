@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Tunes the tree detector on recorded live canopy maps.
+
 """Tune the individual-tree detector on *recorded live* canopy maps.
 
 Synthetic calibration (``calibrate_tree_detection``) does not transfer to

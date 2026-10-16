@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# The client showcase: survey four trees, cut them, detect them.
+
 """Client showcase: survey the showcase forest, remove 4 trees, detect them.
 
     ros2 launch deforestation_monitoring showcase_demo.launch.py

@@ -1,3 +1,5 @@
+# Simulates a camera area alert for pines the baseline missed.
+
 """Simulate a camera area alert for pines missing from the baseline (option A).
 
 usage: camera_blobs.py BAG WORLD [--log LAUNCH_LOG] [--min-cells 6]
@@ -94,7 +96,7 @@ def main():
     r = SequentialReader()
     r.open(StorageOptions(uri=a.bag, storage_id='sqlite3'), ConverterOptions('cdr', 'cdr'))
     odoms, rgbs, depths, maps, base, t_freeze, recv = [], {}, {}, [], None, None, []
-    positions = []                                   # pre-freeze detections per tick
+    positions = []
     while r.has_next():
         topic, data, ts = r.read_next()
         if topic == '/parrot1/odometry':
@@ -129,7 +131,7 @@ def main():
     shape = (DIM, DIM)
     colour_n, colour_s = np.zeros(shape), np.zeros(shape)
     high, opened = np.zeros(shape), np.zeros(shape)
-    after = []                                      # (t, high grid, open grid) after the freeze
+    after = []
     for t in sorted(set(rgbs) & set(depths)):
         i = int(np.argmin(np.abs(odom_t - t)))
         if abs(odom_t[i] - t) > 0.1:
@@ -223,7 +225,7 @@ def main():
                 d, n = min((math.hypot(px - x, py - y), n) for n, (x, y) in truth.items())
                 print(f'  admit patch ({px:.1f}, {py:.1f}) {cells} cells: {len(hits)} hits; '
                       f'nearest trunk {n} {d:.2f} m')
-    pairs, used_t, used_b = {}, set(), set()        # identity: baseline index -> trunk
+    pairs, used_t, used_b = {}, set(), set()
     cand = sorted((math.hypot(bx - tx, by - ty), i, n) for i, (bx, by) in enumerate(base)
                   for n, (tx, ty) in truth.items()
                   if math.hypot(bx - tx, by - ty) <= 2.0)

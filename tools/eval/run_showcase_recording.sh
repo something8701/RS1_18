@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
-# run_showcase_recording.sh OUT_DIR [extra launch args]: one removal test,
-# fully recorded for showing: rosbag (incl. the drone camera and the
-# dashboard's camera topics), a dashboard-only video (time-lapse, ends on the
-# Changes view and the report), the launch log and the removal-test report.
-# Then run demo_replay on OUT_DIR/bag for replay.mp4 + comparison.png.
-#   WORLD=dense_forest (default) | showcase_forest ...
-#   SPEED=10 (time-lapse factor of the dashboard video, captured at 1 fps)
+# One removal test recorded for the showcase.
+
+
+
+
+
+
+
 OUT=$(realpath -m "$1"); shift
 WORLD=${WORLD:-dense_forest}; SPEED=${SPEED:-10}
 mkdir -p "$OUT"; L=$OUT/launch.log
-# A previous run's stop_sim.sh may still be in its kill pass; it would take
-# this run's fresh processes with it (it matches every sim process).
+
+
 until ! ps -eo args | grep -q "^bash .*tools/eval/stop_sim.sh"; do sleep 1; done
 cd ~/rs1_18_ws && export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-7} ROS_LOCALHOST_ONLY=1 ROS_LOG_DIR=$OUT/ros DISPLAY=:1
 source /opt/ros/humble/setup.bash && source install/setup.bash
@@ -27,7 +28,7 @@ python3 src/RS1_18/tools/eval/record_dashboard.py --out "$OUT/dashboard.mp4" --f
   --speed "$SPEED" --duration 3600 --finale-file "$OUT/finale" --finale-s 6 > "$OUT/recorder.log" 2>&1 &
 REC=$!
 until grep -qE "\[test\] (PASS|FAIL)|max_wait_s exceeded|removal_test.*process has died" "$L"; do sleep 10; done
-sleep 20                                   # the final map, live, before the finale
+sleep 20
 touch "$OUT/finale"; wait $REC
 grep -E "\[report\]" "$L" | sed 's/.*\[report\] //' | tee "$OUT/summary.txt"
 R=$(ls -t /tmp/deforestation_eval/removal_test_*.md | head -1)

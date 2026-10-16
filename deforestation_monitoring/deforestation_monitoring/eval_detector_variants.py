@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# A/B tests detector parameter sets against recorded canopy maps.
+
 """A/B detector parameter variants on recorded live canopy maps.
 
 For every variant (``name:key=value,key=value``, applied on top of
@@ -32,7 +34,7 @@ from .visibility import classify_tree, removal_tier
 
 HOME = os.path.expanduser('~/rs1_18_ws')
 SRC = os.path.join(HOME, 'src/RS1_18')
-# (bag, world, t_max s after the first map = just before any removal, box)
+
 DATASETS = {
     'sparse': [('sparse_survey', 'sparse_trees', None, 15.0),
                ('removal_sparse1', 'sparse_trees', 125.0, 15.0)],
@@ -147,7 +149,7 @@ def main(argv=None) -> int:
         name, _, rest = spec.partition(':')
         ov = dict(kv.split('=', 1) for kv in rest.split(',') if kv)
         jobs.append((name, ov, a.frames, a.cache))
-    # Fill the cache once, serially (bag reading is the slow part).
+
     for sets in DATASETS.values():
         for bag, _, t_max, _ in sets:
             _cached_maps(bag, t_max, a.frames, a.cache)

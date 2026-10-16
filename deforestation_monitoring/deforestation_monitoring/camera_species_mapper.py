@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Projects what the drone camera sees onto the map grid.
+
 """Camera species mapper: what the drone camera sees, on the map grid.
 
 Subscribes to the Parrot RGB and depth images (same sensor, same stamps) and
@@ -12,6 +14,8 @@ and publishes three OccupancyGrids, -1 = no data:
                            crossing `open_height` over a cell, the share that
                            hit canopy there. The tracker stores each tree's
                            value at the baseline freeze.
+  /forest_red_map          with ``red_map``: red camera pixels (garbage bags)
+                           per cell so far, placed on the ground, capped at 100.
   /forest_canopy_seen      the same fraction from the latest frame that saw
                            the cell, for cells seen in the last `fresh_s`
                            seconds. After a cut the camera sees through the
@@ -33,7 +37,9 @@ from rcl_interfaces.msg import ParameterDescriptor
 from sensor_msgs.msg import Image
 from std_msgs.msg import Header
 
-from .camera_species import cell_colour, cell_counts, open_rays, project, quat_to_matrix
+from .camera_species import (MIN_DEPTH, cell_colour, cell_counts, open_rays, plane_points,
+                             project, quat_to_matrix)
+from .waste import BAG_HEIGHT, red_mask
 
 
 def _stamp(msg) -> float:
@@ -53,13 +59,15 @@ class CameraSpeciesMapper(Node):
         self.res = float(param('resolution', 0.25, 'Grid cell size (m), as scan_mapper'))
         self.origin = float(param('origin', -40.0, 'Grid origin x = y (m), as scan_mapper'))
         self.dim = int(param('dim', 320, 'Grid cells per side, as scan_mapper'))
-        # Short, so that each lane pass over a spot is its own camera visit
-        # for the tracker (tools/eval/camera_visits.py: visits split at
-        # ~15 s give the see-through evidence 2-3x sooner than loop-long ones).
+
+
+
         self.fresh_s = float(param('fresh_s', 3.0, 'Recent map keeps cells seen this recently (s)'))
         self.open_height = float(param('open_height', 3.0,
                                        'Canopy fraction is measured at this height (m)'))
         self.frame = str(param('map_frame', 'parrot1_odom', 'Frame of the published grids'))
+        self.red_map = bool(param('red_map', False,
+                                  'Also map red pixels on the ground (land waste)'))
         image_topic = param('image_topic', '/parrot1/camera/image', 'RGB image')
         depth_topic = param('depth_topic', '/parrot1/camera/depth/image', 'Depth image (32FC1)')
 
@@ -70,6 +78,7 @@ class CameraSpeciesMapper(Node):
         self.open = np.zeros(shape, np.float32)
         self.seen_recent = np.full(shape, np.nan, np.float32)
         self.seen_t = np.full(shape, -np.inf)
+        self.red_hits = np.zeros(shape, np.float32)
         self.odom = deque(maxlen=200)
         self.frames = 0
 
@@ -78,14 +87,16 @@ class CameraSpeciesMapper(Node):
         depth = Subscriber(self, Image, depth_topic, qos_profile=qos_profile_sensor_data)
         self.sync = TimeSynchronizer([rgb, depth], 10)
         self.sync.registerCallback(self.frame_cb)
-        # Same QoS as scan_mapper's maps: the tracker subscribes to every map
-        # transient-local, and a volatile publisher is never matched to it.
+
+
         map_qos = QoSProfile(reliability=ReliabilityPolicy.RELIABLE,
                              durability=DurabilityPolicy.TRANSIENT_LOCAL,
                              history=HistoryPolicy.KEEP_LAST, depth=1)
         self.species_pub = self.create_publisher(OccupancyGrid, '/forest_species_map', map_qos)
         self.seen_map_pub = self.create_publisher(OccupancyGrid, '/forest_canopy_seen_map', map_qos)
         self.seen_pub = self.create_publisher(OccupancyGrid, '/forest_canopy_seen', map_qos)
+        self.red_pub = (self.create_publisher(OccupancyGrid, '/forest_red_map', map_qos)
+                        if self.red_map else None)
         self.create_timer(1.0, self.publish)
         self.get_logger().info(
             f'Camera species mapper ready: {self.dim}x{self.dim} at {self.res} m, '
@@ -125,12 +136,19 @@ class CameraSpeciesMapper(Node):
                                  *grid)
         self.high.flat[h_cells] += h
         self.open.flat[o_cells] += o
-        # This frame's fraction for every cell it saw at open_height.
+
         u, inv = np.unique(np.concatenate([h_cells, o_cells]), return_inverse=True)
         fh = np.bincount(inv, np.concatenate([h, np.zeros_like(o)]))
         fo = np.bincount(inv, np.concatenate([np.zeros_like(h), o]))
         self.seen_recent.flat[u] = fh / (fh + fo)
         self.seen_t.flat[u] = t
+        if self.red_map:
+
+            red = red_mask(rgb) & ~(np.isfinite(depth) & (depth < MIN_DEPTH))
+            if red.any():
+                r_cells, r = cell_counts(
+                    plane_points(red, rot, x, y, self.altitude, BAG_HEIGHT / 2), *grid)
+                self.red_hits.flat[r_cells] += r
         self.frames += 1
 
     def _grid(self, values, stamp) -> OccupancyGrid:
@@ -139,7 +157,7 @@ class CameraSpeciesMapper(Node):
         info.origin.position.x = self.origin
         info.origin.position.y = self.origin
         info.origin.orientation.w = 1.0
-        # OccupancyGrid is row-major [iy, ix]; the arrays here are [ix, iy].
+
         return OccupancyGrid(header=Header(stamp=stamp, frame_id=self.frame), info=info,
                              data=data.T.astype(np.int8).ravel().tolist())
 
@@ -156,6 +174,8 @@ class CameraSpeciesMapper(Node):
         self.species_pub.publish(self._grid(colour, stamp))
         self.seen_map_pub.publish(self._grid(seen_all, stamp))
         self.seen_pub.publish(self._grid(recent, stamp))
+        if self.red_pub is not None:
+            self.red_pub.publish(self._grid(np.minimum(self.red_hits, 100.0) / 100.0, stamp))
 
 
 def main(args=None):

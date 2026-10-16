@@ -1,3 +1,5 @@
+# Whether camera colour finds pines the height map misses.
+
 """Can camera colour find pines the height map misses? (option A)
 
 usage: camera_pines.py MAP.npz WORLD [--mode spires|patches] [--min-bg 0.6]
@@ -51,7 +53,7 @@ def spires(d, min_bg, window, min_top):
     k = max(3, int(round(window / RES)) | 1)
     peak = (chm == ndimage.maximum_filter(chm, size=k)) & (chm >= min_top)
     gx, gy = np.meshgrid(np.arange(-2, 3), np.arange(-2, 3), indexing='ij')
-    disc = gx ** 2 + gy ** 2 <= 4                     # 0.5 m radius
+    disc = gx ** 2 + gy ** 2 <= 4
     out = []
     for ix, iy in zip(*np.nonzero(peak)):
         if not (2 <= ix < DIM - 2 and 2 <= iy < DIM - 2):

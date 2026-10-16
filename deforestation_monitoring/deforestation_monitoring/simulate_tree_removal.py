@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Deletes a cluster of trees in Gazebo so detection has real change to find.
+
 """
 Tree Removal Simulator: deletes a known cluster of trees in Gazebo so the
 perception pipeline can detect a real canopy/tree loss.
@@ -32,7 +34,7 @@ from deforestation_interfaces.msg import SuspiciousArea
 from .tree_detection import parse_tree_truth
 
 
-# Ground-truth (x, y) positions of the 13 trees in simple_trees.sdf.
+
 SIMPLE_TREES: Dict[str, Tuple[float, float]] = {
     'oak_1': (-23.9, -28.8),
     'oak_2': (-27.9, -15.2),
@@ -49,7 +51,7 @@ SIMPLE_TREES: Dict[str, Tuple[float, float]] = {
     'pine_13': (12.2, -10.9),
 }
 
-# Ground-truth (x, y) positions of the 214 trees in dense_forest.sdf.
+
 DENSE_FOREST_TREES: Dict[str, Tuple[float, float]] = {
     'oak_1': (-36.9, -35.9), 'oak_2': (-33.4, -31.7), 'pine_3': (-36.1, -24.6),
     'oak_4': (-34.6, -18.8), 'pine_5': (-35.6, -16.4), 'pine_6': (-35.5, -10.6),
@@ -142,7 +144,7 @@ def positions_for_world(world: str) -> Dict[str, Tuple[float, float]]:
             truth = parse_tree_truth(path)
             if truth:
                 return {name: (x, y) for name, x, y in truth}
-    except Exception:  # noqa: BLE001 - any lookup failure -> fallback
+    except Exception:
         pass
     if world == 'dense_forest':
         return DENSE_FOREST_TREES
@@ -250,7 +252,7 @@ class TreeRemoval(Node):
             f'Tree Removal ready. World={self.world}, targets={self.target_trees}. '
             f'Waiting for baselines (both={self.require_both}).')
 
-    # ── Tree selection ───────────────────────────────────────────────
+
 
     def _select_trees(self) -> List[str]:
         if not self.use_center:
@@ -267,7 +269,7 @@ class TreeRemoval(Node):
             return list(self.tree_names)
         return chosen
 
-    # ── Baseline handling ────────────────────────────────────────────
+
 
     def _tree_baseline_cb(self, _msg):
         if not self.tree_baseline_ready:
@@ -275,10 +277,10 @@ class TreeRemoval(Node):
             self.get_logger().info('tree_mapper baseline received')
 
     def _drone_baseline_cb(self, msg):
-        # /drone_baseline_status is shared: parrot_tree_tracker publishes
-        # "waiting: coverage ..." until its baseline exists. Only "frozen: N
-        # trees" means the trees are baselined; cutting earlier would make the
-        # loss invisible.
+
+
+
+
         if self.drone_baseline_ready or not msg.data.startswith('frozen'):
             return
         self.drone_baseline_ready = True
@@ -289,7 +291,7 @@ class TreeRemoval(Node):
             return self.tree_baseline_ready and self.drone_baseline_ready
         return self.tree_baseline_ready or self.drone_baseline_ready
 
-    # ── Triggering ───────────────────────────────────────────────────
+
 
     def _manual_trigger(self, _request, response):
         removed = self._remove_targets()
@@ -317,7 +319,7 @@ class TreeRemoval(Node):
         if removed:
             self._publish_ground_truth(removed)
 
-    # ── Gazebo deletion ──────────────────────────────────────────────
+
 
     def _remove_tree(self, name: str) -> bool:
         ok, out = remove_model(self.world, name)
@@ -339,7 +341,7 @@ class TreeRemoval(Node):
             mat = ('<material><ambient>0.4 0.25 0.15 1</ambient>'
                    '<diffuse>0.4 0.25 0.15 1</diffuse></material>')
             mname = f'windthrow_{name}'
-        else:  # cut
+        else:
             geom = '<cylinder><radius>0.18</radius><length>0.5</length></cylinder>'
             rot = '0 0 0'
             mat = ('<material><ambient>0.35 0.2 0.1 1</ambient>'
@@ -391,7 +393,7 @@ class TreeRemoval(Node):
                 self._spawn_replacement(name, pos[0], pos[1])
         return removed
 
-    # ── Ground truth ─────────────────────────────────────────────────
+
 
     def _publish_ground_truth(self, removed: List[str]):
         tree_map = positions_for_world(self.world)
@@ -401,7 +403,7 @@ class TreeRemoval(Node):
             return
         cx = sum(p[0] for p in positions) / len(positions)
         cy = sum(p[1] for p in positions) / len(positions)
-        area = float(len(removed) * 12.0)  # rough per-tree footprint estimate
+        area = float(len(removed) * 12.0)
 
         flag = SuspiciousArea()
         flag.header = Header(

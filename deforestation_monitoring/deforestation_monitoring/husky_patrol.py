@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Drives the Husky on a lawnmower grid via Nav2, once SLAM and EKF are ready.
+
 """
 Husky Survey Patrol: Systematic lawnmower grid with Nav2 obstacle avoidance.
 Waits for SLAM + EKF before dispatching goals, and spaces them out.
@@ -23,10 +25,10 @@ class HuskyPatrol(Node):
     def __init__(self):
         super().__init__('husky_patrol')
 
-        # Survey grid parameters. Defaults start INSIDE the initial SLAM
-        # map (~28.5x30.7 m around the spawn): Nav2 rejects goals outside
-        # the global costmap, so an off-map first waypoint would keep the
-        # robot stationary forever and the map could never grow.
+
+
+
+
         self.declare_parameter('grid_x_min', -10.0,
             descriptor=ParameterDescriptor(description='Min X grid boundary (m)'))
         self.declare_parameter('grid_x_max', 10.0,
@@ -61,15 +63,15 @@ class HuskyPatrol(Node):
         self._delay_timer = None
         self._mission_active = False
 
-        # TF to check map frame exists
+
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
         self.nav_client = ActionClient(self, NavigateToPose, '/husky1/navigate_to_pose')
 
-        # Yield Nav2 to the mission coordinator: while it has an active
-        # mission (ENROUTE/DISPATCHING) the patrol sends no waypoint, because
-        # a new goal would cancel the coordinator's site inspection.
+
+
+
         self.mission_sub = self.create_subscription(
             String, '/mission_status', self._on_mission_status,
             QoSProfile(reliability=ReliabilityPolicy.RELIABLE,
@@ -82,7 +84,7 @@ class HuskyPatrol(Node):
             f'Husky Survey ready: {len(self.waypoints)} waypoints, '
             f'{spacing}m spacing, {x_max-x_min:.0f}x{y_max-y_min:.0f}m'
         )
-        # Check every 5s if SLAM + EKF are ready
+
         self.create_timer(5.0, self._try_start)
 
     def _try_start(self):
@@ -119,7 +121,7 @@ class HuskyPatrol(Node):
         if self.goal_in_flight:
             return
         if self._mission_active:
-            # The mission coordinator is using Nav2: hold the patrol.
+
             self.get_logger().info(
                 'Patrol holding — mission coordinator active.',
                 throttle_duration_sec=30.0)
@@ -160,9 +162,9 @@ class HuskyPatrol(Node):
         else:
             self.get_logger().warn('Goal rejected. Retrying after 5s...')
             self.goal_in_flight = False
-            self.wp_idx -= 1  # retry same waypoint
-            # Humble note: no one_shot kwarg on create_timer (Iron+ only),
-            # so the delay timer is stored and destroyed when it fires.
+            self.wp_idx -= 1
+
+
             self._delay_timer = self.create_timer(5.0, self._delayed_send_next)
 
     def _result_done(self, future):

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Starts the drone-only demo plus the removal test node.
+
 """Live tree-removal acceptance test.
 
 Starts the full demo (drone only, no scripted tree removal) plus the
@@ -53,6 +55,9 @@ def generate_launch_description():
             'balanced': PythonExpression(["'", balanced, "' == 'true'"]),
             'canopy_only': PythonExpression(["'", canopy_only, "' == 'true'"]),
             'trees': LaunchConfiguration('trees'),
+            'waste': PythonExpression(["'", LaunchConfiguration('waste'), "'.lower() == 'true'"]),
+
+            'wait_for_husky': PythonExpression(["'", LaunchConfiguration('waste'), "'.lower() == 'true'"]),
             'min_coverage': 0.9,
             'survey_x_min': _box(world, -15.0, -10.0, -30.0),
             'survey_x_max': _box(world, 15.0, 10.0, 30.0),
@@ -68,6 +73,8 @@ def generate_launch_description():
                               'window, RViz or drone camera); gui:=, rviz:=, '
                               'camera:= set them one at a time'),
         DeclareLaunchArgument('n_trees', default_value='10'),
+        DeclareLaunchArgument('waste', default_value='false',
+                              description='Dump a red garbage bag next to each cut tree'),
         DeclareLaunchArgument('settle_loops', default_value='2'),
         DeclareLaunchArgument('balanced', default_value='false',
                               description='Remove oaks and pines alternately'),

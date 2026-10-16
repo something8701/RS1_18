@@ -1,3 +1,5 @@
+# Checks whether a cut pine shows up as a colour change.
+
 """Does a cut pine show up as a colour change? (option A, change cue)
 
 usage: camera_change.py MAP.npz WORLD [--bag BAG --log LAUNCH_LOG]
@@ -151,7 +153,7 @@ def canopy_fraction(d, truth, removed, cut_bin):
                 continue
             f, n = fraction_series(high, opened, x, y)
             before = pooled(f, n, slice(0, max(cut_bin, 1)))
-            if not before >= 0.6:                  # a visible canopy tree
+            if not before >= 0.6:
                 continue
             v = f[np.isfinite(f)]
             trees += 1

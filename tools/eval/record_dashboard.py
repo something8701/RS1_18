@@ -1,3 +1,5 @@
+# Records just the dashboard to MP4 with headless Chrome.
+
 """Record the dashboard (only the dashboard) to an MP4 with headless Chrome.
 
 usage: record_dashboard.py --out demo.mp4 [--url http://localhost:8081]
@@ -47,7 +49,7 @@ def devtools_page(port, timeout=20.0):
 
 class Page:
     def __init__(self, ws_url):
-        # Chrome rejects the default Origin header on the DevTools socket.
+
         self.ws = websocket.create_connection(ws_url, suppress_origin=True, timeout=30)
         self.next_id = 0
 
@@ -107,7 +109,7 @@ def main():
         page = Page(devtools_page(a.port))
         page.call('Emulation.setDeviceMetricsOverride', width=w, height=h,
                   deviceScaleFactor=1, mobile=False)
-        time.sleep(4.0)                      # let the dashboard connect and draw
+        time.sleep(4.0)
         t_end = time.time() + a.duration
         period = 1.0 / a.fps
         next_t = time.time()
@@ -116,7 +118,7 @@ def main():
                 break
             if a.finale_file and os.path.exists(a.finale_file) and video is not None:
                 hold(page, "selectView(tabFor('changes'));renderChanges(true)", a.finale_s)
-                # Scroll the report's own container, leaving room for its sticky actions bar.
+
                 scroll_to = ("(id=>{const s=document.getElementById('report-scroll'),"
                              "e=document.getElementById(id).closest('section')||"
                              "document.getElementById(id);s.scrollTop+=e.getBoundingClientRect()"

@@ -10,6 +10,12 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/SuspiciousArea.msg"
   "msg/TreeChangeEvent.msg"
   "msg/TreeStatus.msg"
+  "msg/WasteSite.msg"
+  "msg/WasteSiteArray.msg"
+  "msg/RefinedTree.msg"
+  "msg/RefinedTreeArray.msg"
+  "msg/MissionInfo.msg"
+  "msg/MissionQueue.msg"
   DEPENDENCIES std_msgs geometry_msgs
 )
 

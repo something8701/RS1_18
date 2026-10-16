@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Static checks on the dense forest world and local models.
+
 """Static material/world validation for the dense forest and local model set.
 
 This test is intentionally independent of a running Gazebo server. It checks
@@ -88,8 +90,8 @@ def test_all_world_local_model_materials_resolve():
                 assert resolved.exists(), f"missing material texture: {resolved}"
                 checked_models.add(model_dir.name)
 
-    # The project ships three local material models. The worlds exercise all
-    # three: grass_plane, forest_plane, and forest_wall.
+
+
     assert {"grass_plane", "forest_plane", "forest_wall"} <= checked_models
 
 
@@ -105,7 +107,7 @@ def test_showcase_forest_every_tree_visible_from_above():
              for e in root.iter("include") if "tree" in _uri(e).lower()]
     oaks = [t for t in trees if t[0].startswith("oak")]
     pines = [t for t in trees if t[0].startswith("pine")]
-    d = lambda a, b: math.hypot(a[1] - b[1], a[2] - b[2])  # noqa: E731
+    d = lambda a, b: math.hypot(a[1] - b[1], a[2] - b[2])
     assert min(d(a, b) for a in oaks for b in oaks if a is not b) >= 7.0 - 1e-6
     assert min(d(p, o) for p in pines for o in oaks) >= 7.0 - 1e-6
     assert min(d(a, b) for a in pines for b in pines if a is not b) >= 3.5 - 1e-6

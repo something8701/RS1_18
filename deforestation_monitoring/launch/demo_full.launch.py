@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# The whole shebang: sim, robots, SLAM, monitoring and dashboard.
+
 """
 Full Deforestation Monitoring Demo
 ====================================
@@ -34,7 +36,7 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    # --- Arguments ---
+
     drone_enabled = LaunchConfiguration('drone', default='true')
     use_husky = LaunchConfiguration('use_husky', default='false')
     husky_enabled = use_husky
@@ -45,7 +47,7 @@ def generate_launch_description():
     gui = LaunchConfiguration('gui')
     rviz = LaunchConfiguration('rviz')
     camera = LaunchConfiguration('camera')
-    # gui / rviz / camera default to on, or to off with lite:=true
+
     not_lite = PythonExpression(["'false' if '", lite, "'.lower() in ['true', '1'] else 'true'"])
     declare_lite = DeclareLaunchArgument(
         'lite', default_value='false',
@@ -89,7 +91,7 @@ def generate_launch_description():
                     '(default: only in dense_forest)'
     )
 
-    # --- Include the main 41068 simulation ---
+
     sim_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([
@@ -110,7 +112,7 @@ def generate_launch_description():
         }.items(),
     )
 
-    # --- Include the monitoring node set (perception → decision → UI) ---
+
     monitoring_nodes = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([

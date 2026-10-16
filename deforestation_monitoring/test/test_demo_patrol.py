@@ -1,3 +1,5 @@
+# Tests demo_patrol's cmd_vel safety clamps.
+
 """demo_patrol cmd_vel safety: attitude hold, yaw-rate clamp, tilt stop."""
 
 import math
@@ -28,12 +30,12 @@ def test_levelling_and_yaw_clamp(ros_ctx):
     node.roll, node.pitch = math.radians(5), math.radians(-8)
     cmd = Twist()
     cmd.linear.x = 3.0
-    cmd.angular.z = 6.0                      # orbit P-term can reach ~2*pi
+    cmd.angular.z = 6.0
     node._publish(cmd)
     out = sent[-1]
     assert out.linear.x == 3.0
     assert out.angular.z == pytest.approx(node.max_yaw_rate)
-    assert out.angular.x < 0 < out.angular.y   # opposes roll / pitch
+    assert out.angular.x < 0 < out.angular.y
     node.destroy_node()
 
 

@@ -1,3 +1,5 @@
+# Offline tests for removal-test scoring.
+
 """Offline tests for the live removal-test scoring."""
 
 import math
@@ -24,7 +26,7 @@ def test_dense_targets_are_inside_and_separated():
     for i, a in enumerate(chosen):
         for b in chosen[i + 1:]:
             assert math.hypot(a[1] - b[1], a[2] - b[2]) >= 10.0
-    assert chosen == select_removal_targets(truth, 10, box)  # deterministic
+    assert chosen == select_removal_targets(truth, 10, box)
 
 
 def test_all_found_no_false_is_pass():
@@ -35,7 +37,7 @@ def test_all_found_no_false_is_pass():
 
 
 def test_missed_tree_is_diagnosed():
-    # 'b' is not in the baseline as its own tree -> can never be LOST
+
     base = [(1, 0.1, 0.0), (3, 20.0, 0.0)]
     events = [{'type': 'LOST', 'id': 1, 'x': 0.1, 'y': 0.0, 't': 30.0}]
     r = score_removal(TRUTH[:2], TRUTH, base, events)
@@ -102,11 +104,11 @@ def test_loop_counter_ignores_partial_loop_after_removal():
     """Removal test 7: removal at wp 18/18, wrap two seconds later."""
     from deforestation_monitoring.removal_test import LoopCounter
     c = LoopCounter()
-    counted = [c.update(wp, 18) for wp in [18, 1, 2]]   # partial loop
+    counted = [c.update(wp, 18) for wp in [18, 1, 2]]
     assert counted == [False, False, False] and c.loops == 0
     for wp in range(3, 19):
         c.update(wp, 18)
-    assert c.update(1, 18) is True and c.loops == 1     # a real loop
+    assert c.update(1, 18) is True and c.loops == 1
 
 
 def test_balanced_targets_alternate_species():
@@ -141,9 +143,9 @@ def test_two_tier_understory_unchanged_is_not_observable():
 
 
 def test_understory_tolerance_is_the_measured_noise_one_sided():
-    # Dense run 8, pine_53 under an oak: 5.5 -> 5.2 m is within the noise
-    # of standing understory trunks (p95 0.84 m, max 1.2 m); a rise is
-    # never a removal signature.
+
+
+
     for before, after in ((5.5, 5.2), (5.0, 5.9), (5.4, 4.5)):
         tiers = _tiers(b=("understory", before, after))
         r = score_removal(TRUTH[1:2], TRUTH, BASE, [], tiers=tiers)
@@ -160,7 +162,7 @@ def test_two_tier_canopy_tree_still_needs_tree_level_lost():
     tiers = _tiers(a=("visible", 6.2, 0.0))
     r = score_removal(TRUTH[:1], TRUTH, BASE, [], tiers=tiers,
                       area_alerts=[(0.0, 0.0)])
-    assert not r['passed']          # an area alert is not enough for canopy
+    assert not r['passed']
 
 
 def test_crown_shared_tree_passes_with_area_alert():
@@ -176,19 +178,19 @@ def test_identity_credits_an_offset_oak_detection():
     """Dense oaks are detected ~1-2 m off their trunk; the baseline tree
     paired with the removed trunk going LOST is the right tree."""
     truth = [("oak_1", 0.0, 0.0), ("oak_2", 8.0, 0.0)]
-    base = [(1, 1.8, 0.3), (2, 8.2, 0.0)]           # oak_1 detected 1.8 m off
+    base = [(1, 1.8, 0.3), (2, 8.2, 0.0)]
     events = [{'type': 'LOST', 'id': 1, 'x': 1.8, 'y': 0.3, 't': 40.0}]
     r = score_removal(truth[:1], truth, base, events)
     assert r['passed'] and r['trees'][0]['baseline_id'] == 1
     legacy = score_removal(truth[:1], truth, base, events, identity_radius=0)
-    assert not legacy['passed']                      # 1.5 m position match misses
+    assert not legacy['passed']
 
 
 def test_identity_never_credits_a_neighbours_lost():
     """A neighbour's LOST 1.2 m from the removed trunk is still a false
     report when that baseline tree is paired with the neighbour."""
     truth = [("oak_1", 0.0, 0.0), ("pine_2", 2.4, 0.0)]
-    base = [(1, 0.3, 0.0), (2, 1.2, 0.0)]            # pine_2 detected 1.2 m off
+    base = [(1, 0.3, 0.0), (2, 1.2, 0.0)]
     events = [{'type': 'LOST', 'id': 2, 'x': 1.2, 'y': 0.0, 't': 40.0}]
     r = score_removal(truth[:1], truth, base, events)
     assert r['true_positives'] == 0 and r['false_events'] == 1
@@ -219,7 +221,20 @@ def test_loop_counter_reads_patrol_status_strings():
     for loop in range(2):
         for wp in range(1, 19):
             c.update_from_status(f'STATE=PATROL wp={wp}/18 coverage=50% diverted=0')
-        c.update_from_status('STATE=ORBITING target=(1.0,2.0) diverted=1')   # ignored
-    assert c.loops == 1                          # the second wrap has not come yet
+        c.update_from_status('STATE=ORBITING target=(1.0,2.0) diverted=1')
+    assert c.loops == 1
     assert c.update_from_status('STATE=PATROL wp=1/18 coverage=0% diverted=0') is True
     assert c.loops == 2
+
+
+def test_husky_score_counts_bags_and_ground_checks():
+    from deforestation_monitoring.removal_test import score_husky
+    bags = [(0.0, 0.0), (10.0, 0.0), (20.0, 0.0)]
+    sites = [{'id': 1, 'x': 0.5, 'y': 0.0, 'status': 1},
+             {'id': 2, 'x': 10.3, 'y': 0.4, 'status': 0},
+             {'id': 3, 'x': 30.0, 'y': 0.0, 'status': 1}]
+    refined = [{'id': 7, 'status': 3}, {'id': 8, 'status': 4}, {'id': 9, 'status': 1},
+               {'id': 0, 'status': 5}]
+    h = score_husky(bags, sites, refined, [7, 8, 11])
+    assert (h['found'], h['air_only'], h['missed'], h['false_sites']) == (1, 1, 1, 1)
+    assert (h['cut_confirmed'], h['contradicted'], h['hidden'], h['standing']) == (1, 1, 1, 1)

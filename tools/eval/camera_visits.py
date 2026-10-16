@@ -1,3 +1,5 @@
+# Simulates the tracker's camera see-through rule on a bag.
+
 """Simulate the tracker's camera see-through rule per frame on a bag (option A).
 
 usage: camera_visits.py BAG WORLD [--log LAUNCH_LOG] [--gap 30] [--min-rays 4]
@@ -99,7 +101,7 @@ def main():
     pos = np.array(list(sites.values()))
     names = list(sites)
     odom_t = np.array([t for t, _ in odoms])
-    frames = {n: [] for n in names}               # (t, high, open) per site
+    frames = {n: [] for n in names}
     discs = [disc_cells(px, py, a.radius) for px, py in pos]
     grid = (RES, ORIGIN, ORIGIN, DIM, DIM)
     for t in sorted(set(rgbs) & set(depths)):
@@ -160,7 +162,7 @@ def main():
         p = sites[n]
         if removed and min(math.hypot(p[0] - truth[r][0], p[1] - truth[r][1])
                            for r in removed) < 6.0:
-            continue                               # near a cut: a drop is real
+            continue
         vs = visits(frames[n])
         pairs = [i for i in range(1, len(vs)) if vs[i][2] < a.open and vs[i - 1][2] < a.open]
         if pairs:

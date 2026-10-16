@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Decides whether a tree is actually visible from above.
+
 """Detector-independent "visible from above" classification.
 
 A tree counts as canopy (visible) when its own top is part of the canopy
@@ -26,7 +28,7 @@ import numpy as np
 
 Tree = Tuple[str, float, float]
 
-# Measured top heights (m) of the Fuel tree models, isolated, raw LiDAR map.
+
 DEFAULT_SPECIES_HEIGHT = {'oak': 6.2, 'pine': 4.6}
 
 
@@ -87,10 +89,10 @@ def classify_trees(grid, res, origin, trees: Sequence[Tree],
             for t in trees}
 
 
-# A Fuel oak crown is clumps of branches reaching up to 5.2 m from the trunk
-# (measured on real maps); each clump looks like a pine spire in a height
-# map. A visible pine within this distance of an oak trunk shares the oak's
-# crown footprint and cannot be separated from it by a height model alone.
+
+
+
+
 CROWN_SHARE_RADIUS = 5.5
 
 
@@ -160,6 +162,6 @@ def top_drop(before: np.ndarray, now: np.ndarray, res: float,
     if not cells.any():
         return 0.0
     drops = b[cells] - n[cells]
-    if mode == 'frac':          # fraction of top cells that fell >= 0.6 m
-        return float(np.mean(drops >= 0.6 - 1e-6))   # 0.1 m map steps
+    if mode == 'frac':
+        return float(np.mean(drops >= 0.6 - 1e-6))
     return float(np.median(drops))

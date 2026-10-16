@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Re-encodes raw camera images to JPEG so the dashboard feed does not eat the network.
+
 """
 Camera republisher: raw sensor_msgs/Image -> JPEG CompressedImage feed for
 the dashboard.
@@ -24,6 +26,7 @@ class CameraRepublisher(Node):
     """Throttled JPEG republisher: Image -> CompressedImage."""
 
     def __init__(self):
+        """Read the topics and limits, subscribe to the raw camera."""
         super().__init__('camera_republisher')
 
         self.declare_parameter('in_topic', '/parrot1/camera/image',
@@ -45,14 +48,14 @@ class CameraRepublisher(Node):
         self.quality = int(self.get_parameter('jpeg_quality').value)
         self.min_interval = 1.0 / max(0.1, float(self.get_parameter('max_rate').value))
 
-        # Gazebo camera bridge publishes sensor data best-effort.
+
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.VOLATILE,
             history=HistoryPolicy.KEEP_LAST,
             depth=5,
         )
-        # Dashboard subscribes through rosbridge with default (reliable) QoS.
+
         pub_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.VOLATILE,
@@ -73,6 +76,7 @@ class CameraRepublisher(Node):
 
     def _on_image(self, msg: Image):
         """Encode the latest raw frame to JPEG and publish, rate-limited."""
+
         now = time.time()
         if now - self._last_pub < self.min_interval:
             return
@@ -88,6 +92,7 @@ class CameraRepublisher(Node):
             self.get_logger().warn(
                 'JPEG encode failed', throttle_duration_sec=30.0)
             return
+
         out = CompressedImage()
         out.header = msg.header
         out.format = 'jpeg'
@@ -97,6 +102,7 @@ class CameraRepublisher(Node):
         self._frames += 1
 
     def destroy_node(self):
+        """Log how many frames went out, then shut down."""
         self.get_logger().info(
             f'Camera republisher shutting down. {self._frames} frames sent.')
         super().destroy_node()

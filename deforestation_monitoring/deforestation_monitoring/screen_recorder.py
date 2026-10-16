@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Grabs the screen with Pillow and writes an MP4, no ffmpeg.
+
 """Minimal X11 screen recorder (no ffmpeg needed): Pillow grab + OpenCV MP4.
 
 Records the whole display (default :1) at ``--fps`` frames per second,
@@ -19,6 +21,7 @@ from PIL import ImageGrab
 
 
 def main(argv=None) -> int:
+    """Record the display to an MP4 until stopped; returns the exit code."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--out', required=True, help='output .mp4')
     ap.add_argument('--display', default=':1')
@@ -29,15 +32,18 @@ def main(argv=None) -> int:
     ap.add_argument('--duration', type=float, default=0.0, help='seconds (0 = until stopped)')
     args = ap.parse_args(argv)
 
+
     stop = {'flag': False}
     signal.signal(signal.SIGINT, lambda *_: stop.update(flag=True))
     signal.signal(signal.SIGTERM, lambda *_: stop.update(flag=True))
+
 
     first = ImageGrab.grab(xdisplay=args.display)
     scale = args.width / first.width
     size = (args.width, int(round(first.height * scale)) // 2 * 2)
     writer = cv2.VideoWriter(args.out, cv2.VideoWriter_fourcc(*'mp4v'),
                              args.playback_fps or args.fps, size)
+
     t0 = time.time()
     period = 1.0 / args.fps
     frames = 0
@@ -47,6 +53,7 @@ def main(argv=None) -> int:
             break
         img = ImageGrab.grab(xdisplay=args.display).resize(size)
         frame = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
+
         stamp = time.strftime('%H:%M:%S') + f'  +{t - t0:5.0f}s'
         cv2.putText(frame, stamp, (12, size[1] - 14), cv2.FONT_HERSHEY_SIMPLEX,
                     0.8, (0, 0, 0), 4, cv2.LINE_AA)

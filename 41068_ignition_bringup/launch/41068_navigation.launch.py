@@ -1,3 +1,5 @@
+# Brings up SLAM so the robots know where they are.
+
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -84,16 +86,16 @@ def generate_launch_description():
         _params_filename('nav2_params', config_filename_suffix)
     ])
 
-    # Start Simultaneous Localisation and Mapping (SLAM).
-    # Use the official slam_toolbox launch file, but wrap it in the robot
-    # namespace and remap TF to relative names so it uses /<robot>/tf.
+
+
+
     slam = GroupAction(scoped=True, condition=_if_slam_needed(), actions=[
         PushRosNamespace(namespace),
         SetRemap(src='/tf', dst='tf'),
         SetRemap(src='/tf_static', dst='tf_static'),
-        # Some packages publish/subscribe absolute /map topics even when
-        # started under a namespace. Force them back to relative names so
-        # they become /<robot>/map and /<robot>/map_updates.
+
+
+
         SetRemap(src='/map', dst='map'),
         SetRemap(src='/map_updates', dst='map_updates'),
 
@@ -108,25 +110,25 @@ def generate_launch_description():
             launch_arguments={
                 'use_sim_time': use_sim_time,
                 'slam_params_file': slam_params_file,
-                # Keep slam_toolbox lifecycle handling inside its own launch
-                # file. This avoids mismatches between executable/node type
-                # across ROS distributions.
+
+
+
                 'use_lifecycle_manager': 'True',
                 'autostart': 'True',
             }.items()
         )
     ])
 
-    # Start Navigation Stack.
-    # We push the namespace ourselves rather than relying on nav2_bringup's
-    # use_namespace handling, which differs across distro/package versions.
+
+
+
     navigation_group = GroupAction(scoped=True, condition=_if_true('nav2'), actions=[
         PushRosNamespace(namespace),
         SetRemap(src='/tf', dst='tf'),
         SetRemap(src='/tf_static', dst='tf_static'),
-        # Some packages publish/subscribe absolute /map topics even when
-        # started under a namespace. Force them back to relative names so
-        # they become /<robot>/map and /<robot>/map_updates.
+
+
+
         SetRemap(src='/map', dst='map'),
         SetRemap(src='/map_updates', dst='map_updates'),
 

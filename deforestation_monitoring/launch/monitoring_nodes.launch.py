@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# One place that starts every monitoring node with all the switches.
+
 """
 The monitoring node set, in one place. demo_full.launch.py (with the
 simulation) and monitoring_only.launch.py (against a running simulation)
@@ -49,9 +51,9 @@ def generate_launch_description():
         'world', default_value='dense_forest',
         description='Gazebo world name. Must match the world launched by the simulation.'
     )
-    # Tree removal is a change test. The no-change gates on sparse_trees /
-    # cluster_test must never remove anything, so it defaults to on only for
-    # dense_forest. Override with remove_trees:=true/false.
+
+
+
     remove_trees = LaunchConfiguration('remove_trees')
     declare_remove_trees = DeclareLaunchArgument(
         'remove_trees',
@@ -59,19 +61,24 @@ def generate_launch_description():
             ["'true' if '", world_name, "' == 'dense_forest' else 'false'"]),
         description='Delete target trees after the tree baseline freezes'
     )
-    # camera:=false runs without the drone camera's processing (species
-    # colours, depth-to-terrain cloud, dashboard feed): lighter, but the
-    # tracker then uses the height map only.
+
+
+
     camera = LaunchConfiguration('camera')
     declare_camera = DeclareLaunchArgument(
         'camera', default_value='true',
         description='Process the drone camera (false = lighter, height map only)'
     )
+    waste = LaunchConfiguration('waste')
+    declare_waste = DeclareLaunchArgument(
+        'waste', default_value='false',
+        description='Land waste: the drone camera also maps red pixels (garbage bags)'
+    )
     drone_camera = IfCondition(PythonExpression(
         ["'", drone_enabled, "'.lower() == 'true' and '", camera, "'.lower() == 'true'"]))
-    # Drone camera cues for the tracker (option A). camera_lost turns on the
-    # camera LOST rules, which catch pines cut from under oak crowns.
-    # camera_pines stays off: it adds false trees at oak crown edges.
+
+
+
     camera_lost = LaunchConfiguration('camera_lost')
     declare_camera_lost = DeclareLaunchArgument(
         'camera_lost', default_value=camera,
@@ -83,8 +90,8 @@ def generate_launch_description():
         description='Tracker: add pine tips confirmed by camera colour as trees'
     )
 
-    # Coverage box: sparse_trees and cluster_test only have trees within
-    # about ±15 m and ±10 m; dense_forest uses ±30 m.
+
+
     coverage_x_min = PythonExpression([
         "'-15.0' if '", world_name, "' == 'sparse_trees' else "
         "('-10.0' if '", world_name, "' == 'cluster_test' else '-30.0')"
@@ -102,9 +109,9 @@ def generate_launch_description():
         "('10.0' if '", world_name, "' == 'cluster_test' else '30.0')"
     ])
 
-    # In the dense forest the tracker keeps trees out to ±37 m (80 of the 214
-    # trees stand beyond ±30 m). Camera pine patches stay within ±30 m
-    # (area_edge_margin): near the scan edge the camera sees only obliquely.
+
+
+
     tracker_half = PythonExpression([
         "'37.0' if '", world_name, "' == 'dense_forest' else "
         "('15.0' if '", world_name, "' == 'sparse_trees' else "
@@ -115,15 +122,15 @@ def generate_launch_description():
         "'7.0' if '", world_name, "' == 'dense_forest' else '0.0'"
     ])
 
-    # Dense forest: freeze both baselines (scan_mapper's change baseline and
-    # the tracker's trees) only after two full survey loops, so every cell
-    # has a second pass. Other worlds freeze after one.
+
+
+
     survey_loops = PythonExpression([
         "'2' if '", world_name, "' == 'dense_forest' else '0'"
     ])
 
-    # The drone patrol box shrinks for the small scenario worlds so test
-    # cases finish surveying quickly.
+
+
     patrol_bound = PythonExpression([
         "'16.6' if '", world_name, "' == 'cluster_test' else "
         "('21.6' if '", world_name, "' == 'sparse_trees' else '36.6')"
@@ -132,15 +139,15 @@ def generate_launch_description():
         "'-16.6' if '", world_name, "' == 'cluster_test' else "
         "('-21.6' if '", world_name, "' == 'sparse_trees' else '-36.6')"
     ])
-    # Dense forest: the lanes run along x; turn at ±39 m (past the edge trees,
-    # the ground ends at ±37.5 m) so the trees near the lane ends are flown
-    # over at full speed. The lanes' y positions are unchanged.
+
+
+
     patrol_x_bound = PythonExpression([
         "'39.0' if '", world_name, "' == 'dense_forest' else '", patrol_bound, "'"
     ])
     patrol_x_bound_neg = PythonExpression(["'-' + '", patrol_x_bound, "'"])
 
-    # --- Node: Tree Mapper (Husky lidar → tree trunk map) ---
+
     tree_mapper = Node(
         package='deforestation_monitoring',
         executable='tree_mapper',
@@ -160,7 +167,7 @@ def generate_launch_description():
         }],
     )
 
-    # --- Node: Canopy Scan Mapper (drone pitched LiDAR → 2.5D canopy map) ---
+
     scan_mapper = Node(
         package='deforestation_monitoring',
         executable='scan_mapper',
@@ -174,19 +181,19 @@ def generate_launch_description():
             'scan_topic': '/parrot1/scan',
             'odom_topic': '/parrot1/odometry',
             'map_frame': 'parrot1_odom',
-            'sensor_pitch': 1.5708,   # 90° down, as in parrot.gazebo.xacro
+            'sensor_pitch': 1.5708,
             'sensor_yaw': 0.0,
-            'altitude': 10.0,         # sim odometry reports z=0, so altitude is fixed
+            'altitude': 10.0,
             'canopy_threshold': 2.0,
-            'height_scale': 10.0,     # map value = 0-10 m canopy height → 0-100
+            'height_scale': 10.0,
             'baseline_threshold': 20,
             'baseline_loop_scans': 15,
             'coverage_required': 0.9,
-            # height-drop evidence for the tracker: a tree removed beside a
-            # taller neighbour falls onto its crown, not to ground
+
+
             'drop_evidence_m': 1.0,
-            # cells under-seen at the snapshot keep building their change
-            # baseline
+
+
             'baseline_fill': True,
             'baseline_min_loops': survey_loops,
             'coverage_x_min': coverage_x_min,
@@ -198,7 +205,7 @@ def generate_launch_description():
         }],
     )
 
-    # --- Node: Pattern Scanner (canopy change → /suspicious_areas flags) ---
+
     pattern_scanner = Node(
         package='deforestation_monitoring',
         executable='pattern_scanner',
@@ -206,24 +213,24 @@ def generate_launch_description():
         output='screen',
         condition=IfCondition(drone_enabled),
         parameters=[{
-            # Flag canopy loss from /canopy_change_map.
+
             'detection_mode': 'change',
             'lost_value_threshold': -50.0,
             'min_lost_cells': 8,
             'max_change_flags': 5,
-            # Height-mode heuristics, kept off: on the height map any
-            # positive gap threshold floods GAP flags.
+
+
             'gap_threshold': 0,
             'min_gap_area': 8,
             'anomaly_height_drop': 60.0,
             'line_min_cells': 1000,
             'scan_rate': 0.5,
-            'detection_frame': 'parrot1_odom',  # canopy map now comes from the drone's scan_mapper
+            'detection_frame': 'parrot1_odom',
             'use_sim_time': use_sim_time,
         }],
     )
 
-    # --- Node: Mission Coordinator (flags → priority queue → Nav2 dispatch) ---
+
     mission_coordinator = Node(
         package='deforestation_monitoring',
         executable='mission_coordinator',
@@ -238,12 +245,18 @@ def generate_launch_description():
             'priority_mode': 'composite',
             'dedup_window': 300.0,
             'max_retries': 3,
+
+            'area_search': PythonExpression(["'", waste, "'.lower() == 'true'"]),
+            'search_margin': LaunchConfiguration('search_margin'),
+            'search_spacing': LaunchConfiguration('search_spacing'),
+
+            'wait_for_drone_baseline': PythonExpression(["'", drone_enabled, "'.lower() == 'true'"]),
             'requeue_penalty': 50.0,
             'use_sim_time': use_sim_time,
         }],
     )
 
-    # --- Node: Drone Patrol (lawnmower survey + smart flag response) ---
+
     demo_patrol = Node(
         package='deforestation_monitoring',
         executable='demo_patrol',
@@ -262,7 +275,7 @@ def generate_launch_description():
         }],
     )
 
-    # --- Node: Drone Terrain Mapper (camera → terrain PointCloud2) ---
+
     drone_mapper = Node(
         package='deforestation_monitoring',
         executable='drone_mapper',
@@ -286,17 +299,18 @@ def generate_launch_description():
         }],
     )
 
-    # --- Node: camera species mapper (drone camera colour on the map grid) ---
+
     camera_species = Node(
         package='deforestation_monitoring',
         executable='camera_species_mapper',
         name='camera_species_mapper',
         output='screen',
         condition=drone_camera,
-        parameters=[{'altitude': 10.0, 'use_sim_time': use_sim_time}],
+        parameters=[{'altitude': 10.0, 'use_sim_time': use_sim_time,
+                     'red_map': PythonExpression(["'", waste, "'.lower() == 'true'"])}],
     )
 
-    # --- Node: Parrot Tree Tracker (fused CHM -> individual tree IDs) ---
+
     parrot_tree_tracker = Node(
         package='deforestation_monitoring',
         executable='parrot_tree_tracker',
@@ -317,12 +331,12 @@ def generate_launch_description():
                 'height_scale': 10.0,
                 'min_baseline_cells': 150,
                 'min_baseline_trees': 2,
-                'baseline_coverage': 0.9,   # tree baseline only after >=90% coverage
+                'baseline_coverage': 0.9,
                 'track_radius': 0.6,
                 'lost_streak_threshold': 3,
-                # LOST: for 3 ticks, >= 6 loss cells nearby and the tree's top
-                # gone (max within 1 m fell >= 0.3 m with >= 90 % of its top
-                # cells down >= 0.6 m, or the mean fell >= 2 m)
+
+
+
                 'lost_evidence_cells': 6,
                 'lost_drop_evidence': True,
                 'lost_top_drop': 0.3,
@@ -330,8 +344,8 @@ def generate_launch_description():
                 'lost_mean_drop': 2.0,
                 'terrain_fill': False,
                 'seen_lost': PythonExpression(["'", camera_lost, "' == 'true'"]),
-                # Area alerts and patch sites need the camera, so they follow
-                # camera_lost.
+
+
                 'baseline_mean_chm': True,
                 'merge_lost_crowns': True,
                 'freeze_min_loops': survey_loops,
@@ -354,7 +368,53 @@ def generate_launch_description():
         ],
     )
 
-    # --- Node: Tree Fusion (lidar + camera → combined confidence map) ---
+
+    waste_detector = Node(
+        package='deforestation_monitoring',
+        executable='waste_detector',
+        name='waste_detector',
+        output='screen',
+        condition=IfCondition(PythonExpression(["'", waste, "'.lower() == 'true'"])),
+        remappings=[
+            ('/tf', '/husky1/tf'),
+            ('/tf_static', '/husky1/tf_static'),
+        ],
+        parameters=[{
+            'drone_red': PythonExpression(["'", camera, "'.lower() == 'true'"]),
+            'use_sim_time': use_sim_time,
+        }],
+    )
+
+
+
+    depth_obstacles = Node(
+        package='deforestation_monitoring',
+        executable='depth_obstacles',
+        name='depth_obstacles',
+        output='screen',
+        condition=IfCondition(husky_enabled),
+        parameters=[{'use_sim_time': use_sim_time}],
+    )
+
+
+    tree_refiner = Node(
+        package='deforestation_monitoring',
+        executable='tree_refiner',
+        name='tree_refiner',
+        output='screen',
+        condition=IfCondition(PythonExpression(
+            ["'", drone_enabled, "'.lower() == 'true' and '", husky_enabled, "'.lower() == 'true'"])),
+        remappings=[
+            ('/tf', '/husky1/tf'),
+            ('/tf_static', '/husky1/tf_static'),
+        ],
+        parameters=[{
+            'mode': LaunchConfiguration('refine_mode'),
+            'use_sim_time': use_sim_time,
+        }],
+    )
+
+
     tree_fusion = Node(
         package='deforestation_monitoring',
         executable='tree_fusion',
@@ -370,20 +430,24 @@ def generate_launch_description():
         }],
     )
 
-    # --- Node: Husky Survey Patrol (Nav2 lawnmower grid) ---
+
     husky_patrol = Node(
         package='deforestation_monitoring',
         executable='husky_patrol',
         name='husky_patrol',
         output='screen',
-        condition=IfCondition(husky_enabled),
+
+
+        condition=IfCondition(PythonExpression(
+            ["'", husky_enabled, "'.lower() == 'true' and '",
+             LaunchConfiguration('husky_patrol'), "'.lower() == 'true'"])),
         remappings=[
             ('/tf', '/husky1/tf'),
             ('/tf_static', '/husky1/tf_static'),
         ],
-        # The grid starts inside the initial SLAM map (about 28 x 30 m around
-        # the spawn): Nav2 rejects goals off the global costmap. SLAM grows
-        # the map as the Husky patrols.
+
+
+
         parameters=[{
             'grid_x_min': -10.0,
             'grid_x_max': 10.0,
@@ -394,7 +458,7 @@ def generate_launch_description():
         }],
     )
 
-    # --- Node: Tree Removal (deletes a tree cluster in Gazebo + ground truth) ---
+
     tree_removal = Node(
         package='deforestation_monitoring',
         executable='simulate_tree_removal',
@@ -403,10 +467,10 @@ def generate_launch_description():
         condition=IfCondition(PythonExpression(
             ["'", drone_enabled, "' == 'true' and '", remove_trees, "' == 'true'"])),
         parameters=[{
-            'world': world_name,       # must match the world the sim launched
+            'world': world_name,
             'use_center_radius': False,
-            # dense_forest trees inside ±30 m, each >= 4.8 m from its nearest
-            # neighbour, so each loss is one clean crown
+
+
             'tree_names': ['oak_78', 'pine_93', 'oak_64', 'pine_75'],
             'frame_id': 'parrot1_odom',
             'require_both_baselines': False,
@@ -414,7 +478,7 @@ def generate_launch_description():
         }],
     )
 
-    # --- Node: Mission Evaluation (scores detections against ground truth) ---
+
     evaluate_mission = Node(
         package='deforestation_monitoring',
         executable='evaluate_mission',
@@ -428,16 +492,18 @@ def generate_launch_description():
         }],
     )
 
-    # --- Rosbridge WebSocket (for live dashboard) ---
+
     rosbridge = Node(
         package='rosbridge_server',
         executable='rosbridge_websocket',
         name='rosbridge_websocket',
         output='screen',
-        parameters=[{'port': 9090}],
+
+
+        parameters=[{'port': 9090, 'max_message_size': 20000000}],
     )
 
-    # --- Data Server (stores history, serves dashboard) ---
+
     data_server = Node(
         package='deforestation_monitoring',
         executable='data_server',
@@ -445,7 +511,7 @@ def generate_launch_description():
         output='screen',
     )
 
-    # --- Clock watchdog (detects Gazebo /clock stalls) ---
+
     clock_watchdog = Node(
         package='deforestation_monitoring',
         executable='clock_watchdog',
@@ -454,9 +520,9 @@ def generate_launch_description():
         parameters=[{'stall_timeout': 10.0}],
     )
 
-    # --- Compressed image republishers (for dashboard camera feeds) ---
-    # Our own camera_republisher: image_transport's republish ignores the
-    # `out` remap in Humble, so its topic names cannot be set.
+
+
+
     drone_cam_compressed = Node(
         package='deforestation_monitoring',
         executable='camera_republisher',
@@ -486,7 +552,7 @@ def generate_launch_description():
         condition=IfCondition(husky_enabled),
     )
 
-    # --- Staggered start: let the simulation initialise first ---
+
     delayed_drone_mapper = TimerAction(period=15.0, actions=[drone_mapper])
     delayed_camera_species = TimerAction(period=15.0, actions=[camera_species])
     delayed_parrot_tree_tracker = TimerAction(period=20.0, actions=[parrot_tree_tracker])
@@ -496,6 +562,8 @@ def generate_launch_description():
     delayed_coordinator = TimerAction(period=15.0, actions=[mission_coordinator])
     delayed_patrol = TimerAction(period=25.0, actions=[demo_patrol])
     delayed_husky = TimerAction(period=35.0, actions=[husky_patrol])
+    delayed_waste = TimerAction(period=20.0, actions=[waste_detector])
+    delayed_refiner = TimerAction(period=20.0, actions=[tree_refiner])
     delayed_fusion = TimerAction(period=20.0, actions=[tree_fusion])
     delayed_tree_removal = TimerAction(period=30.0, actions=[tree_removal])
     delayed_eval = TimerAction(period=15.0, actions=[evaluate_mission])
@@ -507,6 +575,18 @@ def generate_launch_description():
         declare_world,
         declare_remove_trees,
         declare_camera,
+        declare_waste,
+        DeclareLaunchArgument(
+            'husky_patrol',
+            default_value=PythonExpression(["'false' if '", drone_enabled, "'.lower() == 'true' else 'true'"]),
+            description='Husky lawnmower patrol (default: only without the drone)'),
+        DeclareLaunchArgument('search_margin', default_value='2.0',
+                              description='How far past a suspected area the Husky sweeps (m)'),
+        DeclareLaunchArgument('search_spacing', default_value='3.0',
+                              description='Distance between the Husky sweep lanes (m)'),
+        DeclareLaunchArgument(
+            'refine_mode', default_value='annotate',
+            description="Husky ground check: 'annotate' (second layer) or 'correct'"),
         declare_camera_lost,
         declare_camera_pines,
         rosbridge,
@@ -514,6 +594,7 @@ def generate_launch_description():
         clock_watchdog,
         drone_cam_compressed,
         husky_cam_compressed,
+        depth_obstacles,
         delayed_drone_mapper,
         delayed_camera_species,
         delayed_parrot_tree_tracker,
@@ -523,6 +604,8 @@ def generate_launch_description():
         delayed_coordinator,
         delayed_patrol,
         delayed_husky,
+        delayed_waste,
+        delayed_refiner,
         delayed_fusion,
         delayed_tree_removal,
         delayed_eval,

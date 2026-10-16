@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Renders client-demo visuals from a recorded removal test.
+
 """Client-demo visuals from a removal-test recording.
 
 Reads the rosbag and the removal_test JSON report of one run and renders
@@ -115,7 +117,7 @@ def main(argv=None) -> int:
     standing = np.array([t[0] not in removed for t in truth])
     cmap = LinearSegmentedColormap.from_list(
         'canopy', ['#cdb994', '#a8c686', '#4f9a4a', '#1f5f2a', '#0c3317'])
-    cmap.set_bad('#2b2b2b')                   # not yet scanned
+    cmap.set_bad('#2b2b2b')
     outline = [pe.withStroke(linewidth=3, foreground='white')]
     pine_c, oak_c = '#12b5a6', '#d98b1f'
     tier_name = {'canopy': 'canopy', 'crown_shared': 'crown-shared',
@@ -160,7 +162,7 @@ def main(argv=None) -> int:
                    zorder=5, label='tree cut in simulator' if after else None)
         handles = []
         if state['info'] is not None:
-            # Baseline trees coloured by the species the camera saw.
+
             for tr in state['info']['trees']:
                 col = pine_c if tr.get('species') == 'pine' else oak_c \
                     if tr.get('species') == 'oak' else '#e0e0e0'
@@ -312,7 +314,7 @@ def main(argv=None) -> int:
     t_final = t
     render(t, final=True)
     last = grab()
-    for _ in range(int(args.fps * 5)):          # hold the result for 5 s
+    for _ in range(int(args.fps * 5)):
         video.write(last)
     video.release()
     cv2.imwrite(os.path.join(out_dir, 'comparison.png'), last)

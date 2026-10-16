@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Injects fake suspicious flags at known clearings.
+
 """
 Deforestation Simulator: Waits for baseline tree map to be established, then
 injects suspicious area flags at known clearing sites to test the pipeline.
@@ -46,7 +48,7 @@ class SimulateDeforestation(Node):
         self.baseline_ready = False
         self.trees_mapped = 0
 
-        # -- QoS profiles --
+
         alert_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.VOLATILE,
@@ -82,8 +84,8 @@ class SimulateDeforestation(Node):
             f'Baseline received: {self.trees_mapped} trees mapped. '
             'Starting monitoring phase in 30s...'
         )
-        # Humble note: rclpy create_timer has no one_shot kwarg (Iron+ only),
-        # so a periodic 30 s timer drives the flag cadence.
+
+
         self.create_timer(30.0, self.publish_next_flag)
 
     def publish_next_flag(self):

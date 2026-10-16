@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Scores the detection pipeline against ground truth.
+
 """
 Mission Evaluation Node: scores the detection pipeline against ground truth
 (detection accuracy, false positives, decision outcomes, end-to-end mission
@@ -55,14 +57,14 @@ class EvaluateMission(Node):
         self.csv_path = os.path.join(self.eval_dir, 'evaluation.csv')
         self._csv_header_written = os.path.exists(self.csv_path)
 
-        # Ground-truth events waiting for a matching detection
-        self.events = []          # [{'x', 'y', 'stamp_ns', 'matched'}]
-        self.flags = []           # [{'x', 'y', 'is_tp'}]
-        self.outcomes = {'inspected': 0, 'cancelled': 0, 'unreachable': 0, 'other': 0}
-        self.latencies = []       # flag → report seconds (sim clock)
-        self._pending_flags = deque(maxlen=100)  # (x, y, stamp_ns) awaiting reports
 
-        # -- QoS --
+        self.events = []
+        self.flags = []
+        self.outcomes = {'inspected': 0, 'cancelled': 0, 'unreachable': 0, 'other': 0}
+        self.latencies = []
+        self._pending_flags = deque(maxlen=100)
+
+
         alert_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.VOLATILE,
@@ -89,7 +91,7 @@ class EvaluateMission(Node):
             f'CSV: {self.csv_path}'
         )
 
-    # ── Ground truth / detection matching ─────────────────────────────
+
 
     def truth_callback(self, msg: SuspiciousArea):
         """Record a known clearing event from the simulator."""
@@ -155,7 +157,7 @@ class EvaluateMission(Node):
         _, _, flag_ns = self._pending_flags[best_idx]
         del self._pending_flags[best_idx]
         return flag_ns
-    # ── Decision outcomes ─────────────────────────────────────────────
+
 
     def report_callback(self, msg: String):
         """Parse an inspection report for outcome + end-to-end mission time."""
@@ -171,8 +173,8 @@ class EvaluateMission(Node):
             outcome = 'other'
         self.outcomes[outcome] += 1
 
-        # End-to-end mission time: flag stamp → report arrival (sim clock),
-        # matched back to the flag by its coordinates.
+
+
         flag_ns = self._pop_pending_for_report(data)
         if flag_ns is not None:
             now = self.get_clock().now()
@@ -186,7 +188,7 @@ class EvaluateMission(Node):
                 self.get_logger().debug(f'Negative latency {latency:.1f}s ignored '
                                         '(clock/order artefact)')
 
-    # ── Summary ───────────────────────────────────────────────────────
+
 
     def _metrics(self):
         n_events = len(self.events)

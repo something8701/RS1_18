@@ -1,3 +1,5 @@
+# Gate tests for parrot_tree_tracker.
+
 """Node-level gate tests for parrot_tree_tracker."""
 
 import math
@@ -64,7 +66,7 @@ def test_baseline_freeze_after_plateau_does_not_crash(ros_ctx, monkeypatch):
                          np.zeros(chm.shape, dtype=np.int32),
                          np.ones(chm.shape, dtype=bool)))
 
-    # Coverage already on its plateau.
+
     node.coverage_pct = 0.998
     node._last_cov = 0.998
     node._cov_stable_ticks = 30
@@ -104,11 +106,11 @@ def test_crown_observed_fraction(ros_ctx):
     assert node._neighborhood_observed_fraction(tree, full) == 1.0
 
     stripe = full.copy()
-    stripe[ix, :] = False  # one missing scan line through the crown
+    stripe[ix, :] = False
     assert node._neighborhood_observed_fraction(tree, stripe) == 1.0
 
     half = full.copy()
-    half[:ix, :] = False   # drone never flew over the lower half
+    half[:ix, :] = False
     assert node._neighborhood_observed_fraction(tree, half) < 0.8
     node.destroy_node()
 
@@ -130,11 +132,11 @@ def test_plateau_needs_coverage_to_stop_growing(ros_ctx, monkeypatch):
                          np.zeros(chm.shape, dtype=np.int32),
                          np.ones(chm.shape, dtype=bool)))
     for tick in range(40):
-        node.coverage_pct = 0.60 + 0.01 * tick   # 60% -> 99%, still growing
+        node.coverage_pct = 0.60 + 0.01 * tick
         node.publish_status()
     assert node.baseline_frozen is False
     assert node._cov_stable_ticks < node.plateau_ticks
-    # Coverage stops growing -> plateau -> freeze.
+
     for _ in range(node.plateau_ticks + node.baseline_stable_ticks + 1):
         node.publish_status()
     assert node.baseline_frozen is True
@@ -172,8 +174,8 @@ def test_fused_chm_fills_grid_from_coarser_map(ros_ctx):
     Forward mapping filled only 64% (an empty row/col every 5 cells), which
     showed up live as 'scan stripes' and was patched with offset terrain."""
     node = ParrotTreeTracker()
-    data = np.zeros((320, 320), dtype=np.int16)   # [y, x], 0 m everywhere
-    # One tall cell (5.0 m) at world x=10.1, y=-5.1.
+    data = np.zeros((320, 320), dtype=np.int16)
+
     col = int((10.1 + 40.0) / 0.25)
     row = int((-5.1 + 40.0) / 0.25)
     data[row, col] = 50
@@ -247,7 +249,7 @@ def test_new_tree_outside_crowns_is_still_gained(ros_ctx, monkeypatch):
 def _set_change(node, gained_at=None, lost_at=None, half=0.5):
     """Fake /canopy_change_map cells (0.25 m grid, origin -40)."""
     res, origin, dim = 0.25, -40.0, 320
-    gained = np.zeros((dim, dim), dtype=bool)   # [row=y, col=x]
+    gained = np.zeros((dim, dim), dtype=bool)
     lost = np.zeros((dim, dim), dtype=bool)
     for grid, at in ((gained, gained_at), (lost, lost_at)):
         if at is None:
@@ -273,7 +275,7 @@ def test_flickering_detection_without_new_canopy_is_not_a_gain(
     flicker = DetectedTree(id=3, x=-10.0, y=-10.0, height=5.0, area_m2=20.0,
                            radius_m=4.0)
     node = _frozen_node(monkeypatch, [OAK, PINE], [oak, pine, flicker])
-    _set_change(node)            # change map: no new canopy anywhere
+    _set_change(node)
     for _ in range(node.gain_stable_ticks + 2):
         node.publish_status()
     assert node.total_trees_gained == 0
@@ -289,7 +291,7 @@ def test_lost_evidence_radius_is_capped(ros_ctx, monkeypatch):
     node = _frozen_node(monkeypatch, [big, PINE], [
         DetectedTree(id=2, x=8.0, y=-8.0, height=3.1, area_m2=1.5,
                      radius_m=0.9)])
-    _set_change(node, lost_at=(9.0, 9.0))     # 12.7 m away
+    _set_change(node, lost_at=(9.0, 9.0))
     for _ in range(node.lost_streak_threshold + 2):
         node.publish_status()
     assert node.total_trees_lost == 0
@@ -313,7 +315,7 @@ def _five_tree_node(monkeypatch):
                          np.ones(chm.shape, dtype=bool)))
     node.coverage_pct = 0.99
     node._last_cov = 0.99
-    node._cov_stable_ticks = node.plateau_ticks - 1   # plateau next tick
+    node._cov_stable_ticks = node.plateau_ticks - 1
     return node, frames, five
 
 
@@ -323,7 +325,7 @@ def test_one_tick_dropout_at_freeze_is_not_left_out(ros_ctx, monkeypatch):
     and 6 s later reported GAINED. It must wait and enter the baseline."""
     node, frames, five = _five_tree_node(monkeypatch)
     without_pine = [d for d in five if (d.x, d.y) != (8, -8)]
-    for dets in (five, five, without_pine, five):   # P, P+1, P+2, P+3
+    for dets in (five, five, without_pine, five):
         frames['dets'] = dets
         node.publish_status()
     assert node.baseline_frozen is True
@@ -342,7 +344,7 @@ def test_freeze_does_not_wait_forever_for_a_flickering_candidate(
     node, frames, five = _five_tree_node(monkeypatch)
     without_pine = [d for d in five if (d.x, d.y) != (8, -8)]
     for tick in range(node.freeze_max_wait_ticks + 2):
-        # pine_2 seen every other tick: never 3 of the last 4
+
         frames['dets'] = five if tick % 2 == 0 else without_pine
         node.publish_status()
         if node.baseline_frozen:
@@ -389,13 +391,13 @@ def test_lost_needs_the_trees_own_top_to_drop(ros_ctx, monkeypatch):
     before = np.full(shape, 3.0, dtype=np.float32)
     before[top] = 6.2
     node.baseline_chm = before.copy()
-    now = before.copy()                     # own top still there
+    now = before.copy()
     monkeypatch.setattr(node, "_fused_chm", lambda: (now, np.ones(shape, bool)))
-    _set_change(node, lost_at=(0.0, 0.0))  # plenty of cell evidence nearby
+    _set_change(node, lost_at=(0.0, 0.0))
     for _ in range(node.lost_streak_threshold + 2):
         node.publish_status()
     assert node.total_trees_lost == 0
-    now[top] = 5.1                          # top gone (6.2 -> 5.1 m)
+    now[top] = 5.1
     for _ in range(node.lost_streak_threshold + 2):
         node.publish_status()
     assert node.total_trees_lost == 1
@@ -415,17 +417,17 @@ def test_lost_top_frac_needs_most_of_the_top_gone(ros_ctx, monkeypatch):
     shape = (node.dim_x, node.dim_y)
     ix = int((0.0 - node.origin_x) / node.res)
     before = np.full(shape, 3.0, dtype=np.float32)
-    before[ix - 2:ix + 3, ix - 2:ix + 3] = 6.2          # 25 top cells
+    before[ix - 2:ix + 3, ix - 2:ix + 3] = 6.2
     node.baseline_chm = before.copy()
     now = before.copy()
-    now[ix - 2:ix + 3, ix - 2:ix + 1] = 4.0             # 15/25 fell: 60 %
+    now[ix - 2:ix + 3, ix - 2:ix + 1] = 4.0
     monkeypatch.setattr(node, "_fused_chm", lambda: (now, np.ones(shape, bool)))
     _set_change(node, lost_at=(0.0, 0.0))
     for _ in range(node.lost_streak_threshold + 2):
         node.publish_status()
     assert node.total_trees_lost == 0
-    now[ix - 2:ix + 3, ix - 2:ix + 3] = 4.0             # whole top gone ...
-    now[ix + 2, ix + 2] = 5.9                           # ... bar one high cell
+    now[ix - 2:ix + 3, ix - 2:ix + 3] = 4.0
+    now[ix + 2, ix + 2] = 5.9
     for _ in range(node.lost_streak_threshold + 2):
         node.publish_status()
     assert node.total_trees_lost == 1
@@ -439,7 +441,7 @@ def _flicker_run(monkeypatch, **params):
     node, frames, five = _five_tree_node(monkeypatch)
     for k, v in params.items():
         setattr(node, k, v)
-    node._cov_stable_ticks = node.plateau_ticks - 7    # plateau on tick 7
+    node._cov_stable_ticks = node.plateau_ticks - 7
     without_pine = [d for d in five if (d.x, d.y) != (8, -8)]
     for tick in range(12):
         if tick < 5:
@@ -464,7 +466,7 @@ def test_majority_admission_keeps_a_flickering_pine(ros_ctx, monkeypatch):
     assert node.baseline_frozen and node.baseline_tree_count == 5
     pine = min(node.baseline_trees,
                key=lambda t: math.hypot(t['x'] - 8.0, t['y'] + 8.0))
-    # averaged over the window: 8.06, not the last detection's 8.3
+
     assert abs(pine['x'] - 8.06) < 0.01 and abs(pine['y'] + 8.0) < 1e-6
     node.destroy_node()
 
@@ -500,7 +502,7 @@ class _Clock:
 def _colour_msg(spots, half=0.5):
     """A camera_species_mapper grid: {(x, y): value} squares, -1 elsewhere."""
     res, origin, dim = 0.25, -40.0, 320
-    data = np.full((dim, dim), -1, dtype=np.int16)   # [row=y, col=x]
+    data = np.full((dim, dim), -1, dtype=np.int16)
     for (x, y), value in spots.items():
         c0, c1 = int((x - half - origin) / res), int((x + half - origin) / res)
         r0, r1 = int((y - half - origin) / res), int((y + half - origin) / res)
@@ -515,7 +517,7 @@ def _seen_node(monkeypatch, canopy=True, enabled=True):
     node.seen_lost = enabled
     clock = _Clock()
     monkeypatch.setattr(node, 'get_clock', lambda: clock)
-    _set_change(node)                       # no loss cells anywhere
+    _set_change(node)
     return node, clock
 
 
@@ -553,7 +555,7 @@ def test_camera_lost_when_the_camera_sees_through_the_spot(ros_ctx, monkeypatch)
     the spot (canopy fraction 0.89 -> 0.00)."""
     node, clock = _seen_node(monkeypatch)
     _visits(node, clock, [0.0])
-    assert node.total_trees_lost == 0       # one see-through visit is not enough
+    assert node.total_trees_lost == 0
     _visits(node, clock, [0.0], t=1200.0)
     assert node.total_trees_lost == 1
     node.destroy_node()
@@ -564,7 +566,7 @@ def test_camera_judges_whole_visits_not_single_readings(ros_ctx, monkeypatch):
     the crown edge dip to ~0.3 inside passes that average ~0.65."""
     node, clock = _seen_node(monkeypatch)
     t = 1000.0
-    for _ in range(3):                      # three passes: low, high, low readings
+    for _ in range(3):
         for f in (0.1, 0.9, 0.9, 0.1):
             _ticks(node, clock, t, f, n=2)
             t += 5.0
@@ -577,7 +579,7 @@ def test_camera_judges_whole_visits_not_single_readings(ros_ctx, monkeypatch):
 def test_canopy_visit_resets_the_camera_evidence(ros_ctx, monkeypatch):
     node, clock = _seen_node(monkeypatch)
     _visits(node, clock, [0.0, 0.9, 0.0])
-    assert node.total_trees_lost == 0       # last two visits: 0.9 and 0.0
+    assert node.total_trees_lost == 0
     _visits(node, clock, [0.0], t=1400.0)
     assert node.total_trees_lost == 1
     node.destroy_node()
@@ -604,11 +606,11 @@ def test_camera_lost_also_needs_the_top_to_drop(ros_ctx, monkeypatch):
     before = np.full(shape, 3.0, dtype=np.float32)
     before[top] = 4.7
     node.baseline_chm = before.copy()
-    now = before.copy()                     # nothing dropped
+    now = before.copy()
     monkeypatch.setattr(node, "_fused_chm", lambda: (now, np.ones(shape, bool)))
     t = _visits(node, clock, [0.0, 0.0])
     assert node.total_trees_lost == 0
-    now[top] = 4.2                          # pine_111: 4.7 -> 4.2 m
+    now[top] = 4.2
     _ticks(node, clock, t + 10.0)
     assert node.total_trees_lost == 1
     node.destroy_node()
@@ -629,7 +631,7 @@ def test_freeze_marks_pine_coloured_canopy_trees_for_the_camera(ros_ctx, monkeyp
         "deforestation_monitoring.parrot_tree_tracker.detect_trees",
         lambda *a, **k: (list(trees), np.zeros(chm.shape, dtype=np.int32),
                          np.ones(chm.shape, dtype=bool)))
-    # oak canopy / pine canopy / pine colour but hardly any canopy seen
+
     node.seen_map_cb(_colour_msg({(0.0, 0.0): 0.95, (8.0, -8.0): 0.95, (-8.0, 8.0): 0.2}))
     node.species_map_cb(_colour_msg({(0.0, 0.0): 0.39, (8.0, -8.0): 0.72, (-8.0, 8.0): 0.72}))
     node.coverage_pct = 0.998
@@ -682,10 +684,10 @@ def test_colour_spire_adds_a_pine_the_height_detector_missed(ros_ctx):
 
 def test_colour_spire_needs_pine_colour_and_no_detection_nearby(ros_ctx):
     node = ParrotTreeTracker()
-    chm, scanned = _spire_scene(node, 0.40)           # oak-coloured tip: a clump
+    chm, scanned = _spire_scene(node, 0.40)
     oak = DetectedTree(id=1, x=0.0, y=0.0, height=6.0, area_m2=60.0, radius_m=4.5)
     assert node._colour_spires(chm, scanned, [oak]) == []
-    chm, scanned = _spire_scene(node, 0.70)           # already detected nearby
+    chm, scanned = _spire_scene(node, 0.70)
     near = DetectedTree(id=2, x=3.2, y=0.4, height=4.6, area_m2=3.0, radius_m=1.0)
     assert node._colour_spires(chm, scanned, [oak, near]) == []
     node.destroy_node()
@@ -712,7 +714,7 @@ def test_baseline_detects_on_the_time_averaged_chm_until_the_freeze(ros_ctx, mon
         tick['i'] += 1
     assert seen == [4.0, 5.0, pytest.approx(14.0 / 3)]
     node.baseline_frozen = True
-    node.publish_status()                   # tick 3: latest map is 6 m
+    node.publish_status()
     assert seen[-1] == 6.0
     node.destroy_node()
 
@@ -736,7 +738,7 @@ def test_clump_lost_with_its_oak_is_merged_either_order(ros_ctx, monkeypatch):
     for first, second in ((CLUMP, OAK_153), (OAK_153, CLUMP)):
         node, events = _merge_node(monkeypatch)
         node._pending_lost = [(100.0, first), (112.0, second)]
-        node._flush_pending_lost(125.0)          # only the first is due
+        node._flush_pending_lost(125.0)
         node._flush_pending_lost(150.0)
         assert events == [27]
         assert node.total_trees_lost == 1
@@ -750,7 +752,7 @@ def test_clump_lost_well_after_its_oak_is_still_merged(ros_ctx, monkeypatch):
     for gap, merged in ((38.0, True), (373.0, True), (700.0, False)):
         node, events = _merge_node(monkeypatch)
         node._pending_lost = [(100.0, OAK_153)]
-        node._flush_pending_lost(130.0)          # oak_153 reported
+        node._flush_pending_lost(130.0)
         node._pending_lost.append((100.0 + gap, CLUMP))
         node._flush_pending_lost(100.0 + gap + 30.0)
         assert events == ([27] if merged else [27, 57])
@@ -769,17 +771,17 @@ def test_later_half_of_a_split_crown_merges_into_a_smaller_host(ros_ctx, monkeyp
         node, events = _merge_node(monkeypatch)
         node.merge_after_ratio = ratio
         node._pending_lost = [(100.0, dict(host, area_m2=host_area))]
-        node._flush_pending_lost(130.0)          # #28 reported
+        node._flush_pending_lost(130.0)
         node._pending_lost.append((660.0, half))
         node._flush_pending_lost(690.0)
         assert events == ([28] if merged else [28, 75])
         node.destroy_node()
-    # both held at once: the smaller one is not a host for the larger one
+
     node, events = _merge_node(monkeypatch)
     node.merge_after_ratio = 0.8
     node._pending_lost = [(100.0, host), (110.0, half)]
     node._flush_pending_lost(150.0)
-    assert sorted(events) == [75]                # #28 merged into the larger #75
+    assert sorted(events) == [75]
     node.destroy_node()
 
 
@@ -789,10 +791,10 @@ def test_pines_and_lone_crowns_are_never_merged(ros_ctx, monkeypatch):
     node, events = _merge_node(monkeypatch)
     node._pending_lost = [(100.0, OAK_153), (105.0, pine)]
     node._flush_pending_lost(140.0)
-    assert sorted(events) == [27, 60]          # a pine cut under the oak still counts
+    assert sorted(events) == [27, 60]
     node.destroy_node()
     node, events = _merge_node(monkeypatch)
-    node._pending_lost = [(100.0, CLUMP)]      # its oak is still standing
+    node._pending_lost = [(100.0, CLUMP)]
     node._flush_pending_lost(140.0)
     assert events == [57]
     node.destroy_node()
@@ -804,12 +806,12 @@ def test_without_the_camera_merging_uses_the_top_height(ros_ctx, monkeypatch):
     node, events = _merge_node(monkeypatch)
     node._pending_lost = [(100.0, dict(oak, top=6.1)), (105.0, dict(clump, top=5.8))]
     node._flush_pending_lost(140.0)
-    assert events == [27]                      # both oak-tall on the latest map
+    assert events == [27]
     node.destroy_node()
     node, events = _merge_node(monkeypatch)
     node._pending_lost = [(100.0, dict(oak, top=6.1)), (105.0, dict(clump, top=4.6))]
     node._flush_pending_lost(140.0)
-    assert sorted(events) == [27, 57]          # pine-tall: kept
+    assert sorted(events) == [27, 57]
     node.destroy_node()
 
 
@@ -844,7 +846,7 @@ def test_pine_patch_alert_is_a_canopy_lost_event(ros_ctx, monkeypatch):
         t += 60.0
     assert len(sent) == 1
     assert parse_canopy_events(sent[0]) == [('LOST', 4.3, -20.0)]
-    assert node.total_trees_lost == 0        # an area alert, not a tree
+    assert node.total_trees_lost == 0
     node.destroy_node()
 
 
@@ -866,7 +868,7 @@ def test_pine_patch_next_to_an_off_crown_tree_becomes_its_camera_site(ros_ctx):
         if attach and not pine_near:
             assert math.hypot(site['x'] - 20.8, site['y'] + 3.7) < 0.2
             assert site['r'] == node.area_radius
-            assert off['colour'] is None       # merging falls back to its top height
+            assert off['colour'] is None
         else:
             assert site is None
         node.destroy_node()
@@ -874,7 +876,7 @@ def test_pine_patch_next_to_an_off_crown_tree_becomes_its_camera_site(ros_ctx):
 
 def test_tree_with_a_camera_site_goes_lost_when_the_camera_sees_through_it(ros_ctx, monkeypatch):
     node, clock = _seen_node(monkeypatch, canopy=False)
-    node.area_mean_drop = 0.0                # the height guard has its own test
+    node.area_mean_drop = 0.0
     tree = node.baseline_trees[0]
     patch = {'x': PINE['x'], 'y': PINE['y'] - 1.0, 'r': 0.5}
     tree['site'] = dict(patch, id='P7', cells=25)
@@ -916,11 +918,11 @@ def test_patch_loss_is_judged_on_the_disc_mean(ros_ctx, monkeypatch):
 
     for i, fraction in enumerate((0.0, 0.0, None)):
         visit(1000.0 + 60.0 * i, fraction)
-    assert sent == []                         # seen through, but no height loss
+    assert sent == []
     ix = int((4.3 - node.origin_x) / node.res)
     iy = int((-20.0 - node.origin_y) / node.res)
-    now[ix - 3:ix + 4, iy - 3:iy + 4] = 1.5   # the crown is gone ...
-    now[ix + 1, iy] = 4.4                     # ... but for one branch tip
+    now[ix - 3:ix + 4, iy - 3:iy + 4] = 1.5
+    now[ix + 1, iy] = 4.4
     visit(1200.0, None)
     assert len(sent) == 1
     node.destroy_node()
@@ -953,12 +955,12 @@ def test_large_pine_patch_clear_of_every_tree_joins_as_camera_only(ros_ctx):
     tree (2 m = the removal test's identity radius) join as camera-only."""
     node = ParrotTreeTracker()
     node.camera_area_alerts = True
-    node.area_admit_cells = 0                 # the LiDAR-hit path is tested elsewhere
+    node.area_admit_cells = 0
     node.camera_grid = (0.25, -40.0, -40.0)
     node.baseline_trees = [dict(PINE, id=1, x=10.0, y=10.0)]
     clear = {'id': 'P1', 'x': -0.4, 'y': 19.5, 'cells': 26, 'r': 0.5}
-    near = {'id': 'P2', 'x': 11.8, 'y': 10.0, 'cells': 26, 'r': 0.5}     # 1.8 m from #1
-    small = {'id': 'P3', 'x': -2.9, 'y': 10.5, 'cells': 8, 'r': 0.5}      # sparse oak edge
+    near = {'id': 'P2', 'x': 11.8, 'y': 10.0, 'cells': 26, 'r': 0.5}
+    small = {'id': 'P3', 'x': -2.9, 'y': 10.5, 'cells': 8, 'r': 0.5}
     node._pine_patches = [clear, near, small]
     admitted = node._admit_pine_patches()
     assert [(t['id'], t['camera_only'], t['site'] is clear) for t in admitted] == [(2, True, True)]
@@ -975,7 +977,7 @@ def test_camera_only_trees_are_left_out_of_matching(ros_ctx):
     node.baseline_trees = [lidar, cam]
     det = DetectedTree(id=0, x=1.2, y=0.0, height=4.5, area_m2=3.0, radius_m=1.0)
     ids, unmatched = node._match_baseline([det])
-    assert ids == [None] and unmatched == [0, 1]      # 1.2 m > the lone tree's track radius
+    assert ids == [None] and unmatched == [0, 1]
     det = DetectedTree(id=0, x=0.3, y=0.0, height=4.5, area_m2=3.0, radius_m=1.0)
     ids, unmatched = node._match_baseline([det])
     assert ids == [1] and unmatched == [1]
@@ -985,7 +987,7 @@ def test_camera_only_trees_are_left_out_of_matching(ros_ctx):
 def test_camera_only_tree_goes_lost_only_on_the_camera(ros_ctx, monkeypatch):
     node, clock = _seen_node(monkeypatch, canopy=True)
     node.baseline_trees[0]['camera_only'] = True
-    _set_change(node, lost_at=(PINE['x'], PINE['y']))   # loss cells at it: no height LOST
+    _set_change(node, lost_at=(PINE['x'], PINE['y']))
     for _ in range(node.lost_streak_threshold + 2):
         node.publish_status()
     assert node.total_trees_lost == 0
@@ -1008,8 +1010,8 @@ def test_baseline_pine_loss_counts_on_the_disc_mean_too(ros_ctx, monkeypatch):
     before[ix - 3:ix + 4, iy - 3:iy + 4] = 4.4
     node.baseline_chm = before.copy()
     now = before.copy()
-    now[ix - 3:ix + 4, iy - 3:iy + 4] = 1.0           # the pine is gone ...
-    now[ix + 2, iy] = 4.5                             # ... a branch tip holds the max
+    now[ix - 3:ix + 4, iy - 3:iy + 4] = 1.0
+    now[ix + 2, iy] = 4.5
     monkeypatch.setattr(node, "_fused_chm", lambda: (now, np.ones(shape, bool)))
     _visits(node, clock, [0.0, 0.0])
     assert node.total_trees_lost == 1
@@ -1027,7 +1029,7 @@ def test_baseline_tree_enters_at_its_median_recent_position(ros_ctx):
         node._recent_dets.append([det(x), far])
     assert node._median_position({'x': 2.1, 'y': 0.0}) == (0.8, 0.0)
     assert node._median_position({'x': 9.0, 'y': 0.0}) == (9.0, 0.0)
-    assert node._median_position({'x': 20.0, 'y': 0.0}) == (20.0, 0.0)   # never seen: unchanged
+    assert node._median_position({'x': 20.0, 'y': 0.0}) == (20.0, 0.0)
     node.destroy_node()
 
 
@@ -1051,7 +1053,7 @@ def test_median_skips_a_past_crown_shared_by_two_freeze_trees(ros_ctx):
     node.freeze_median_exclusive = True
     assert node._median_position({'x': 17.0, 'y': 21.0}, final) == (17.0, 21.0)
     assert node._median_position({'x': 19.4, 'y': 22.8}, final) == (19.4, 22.8)
-    # a single tree whose last ticks jumped is still pulled back
+
     node._recent_dets.clear()
     for x in [0.8] * 27 + [1.8, 2.1, 2.1]:
         node._recent_dets.append([det(x, 0.0)])
@@ -1065,9 +1067,9 @@ def test_clump_with_its_oak_still_standing_is_held_for_it(ros_ctx, monkeypatch):
     merge_hold_s; if the larger one goes LOST meanwhile, they merge."""
     node, _ = _merge_node(monkeypatch)
     node.merge_hold_s = 240.0
-    target = dict(CLUMP, area_m2=18.0)        # oak_137, run 28: 18 m2 next to 45 m2
+    target = dict(CLUMP, area_m2=18.0)
     node.baseline_trees = [dict(OAK_153), target]
-    assert not node._has_standing_host(target)   # a real oak is not held
+    assert not node._has_standing_host(target)
     node.destroy_node()
     for oak_goes, expected in ((True, [27]), (False, [57])):
         node, events = _merge_node(monkeypatch)
@@ -1079,7 +1081,7 @@ def test_clump_with_its_oak_still_standing_is_held_for_it(ros_ctx, monkeypatch):
         assert clump['hold'] == 240.0
         node._pending_lost = [(100.0, clump)]
         node._flush_pending_lost(130.0)
-        assert events == []                       # still held
+        assert events == []
         if oak_goes:
             node._alerted_lost_ids.add(27)
             oak['hold'] = 240.0 if node._has_standing_host(oak) else node.merge_window_s
@@ -1141,12 +1143,12 @@ def test_lost_height_rule_also_passes_on_the_disc_mean(ros_ctx, monkeypatch):
     before[ix, iy] = 6.2
     node.baseline_chm = before
     now = before.copy()
-    now[ix - 5:ix + 6, iy - 5:iy + 6] = 2.5          # the crown is gone ...
-    now[ix + 1, iy] = 6.1                            # ... but for one branch tip
+    now[ix - 5:ix + 6, iy - 5:iy + 6] = 2.5
+    now[ix + 1, iy] = 6.1
     node._current_chm = now
-    assert not node._top_fell(tree)                  # max fell 0.1 m only
+    assert not node._top_fell(tree)
     node.lost_mean_drop = 2.0
     assert node._top_fell(tree)
-    node._current_chm = before.copy()                # standing: nothing fell
+    node._current_chm = before.copy()
     assert not node._top_fell(tree)
     node.destroy_node()

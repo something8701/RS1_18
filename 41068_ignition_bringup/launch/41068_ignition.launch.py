@@ -1,3 +1,5 @@
+# Starts Gazebo first, then drops the robot entities in a predictable order.
+
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
@@ -130,7 +132,7 @@ def add_robot(
         ],
     )
 
-    # Start Gazebo first, then insert robot entities in a predictable order.
+
     ld.add_action(TimerAction(
         period=spawn_delay,
         actions=[robot_spawner],
@@ -177,8 +179,8 @@ def add_navigation_instance(
         }.items(),
     )
 
-    # Scope is important: without it, repeated IncludeLaunchDescription calls can
-    # leak/overwrite launch configurations such as namespace and config suffix.
+
+
     ld.add_action(TimerAction(
         period=start_delay,
         actions=[GroupAction(
@@ -199,9 +201,9 @@ def add_rviz_instance(
     rviz_config,
     start_delay,
 ):
-    # Each RViz process is itself placed in the robot namespace so the Nav2 RViz
-    # panel resolves relative action/service names such as navigate_to_pose and
-    # lifecycle_manager_navigation to the correct robot.
+
+
+
     ld.add_action(TimerAction(
         period=start_delay,
         actions=[Node(
@@ -294,9 +296,9 @@ def generate_launch_description():
     )
     ld.add_action(world_launch_arg)
 
-    # Load common Gazebo server systems from a shared config file. This keeps
-    # required systems such as Sensors out of individual robot and world files,
-    # so custom student worlds do not need to copy plugin blocks.
+
+
+
     server_config_file = PathJoinSubstitution([
         config_path,
         'ignition_server.config',
@@ -310,7 +312,7 @@ def generate_launch_description():
         value=server_config_file,
     ))
 
-    # Start Gazebo once.
+
     ld.add_action(IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
@@ -327,13 +329,13 @@ def generate_launch_description():
                     [LaunchConfiguration('world'), '.sdf'],
                 ]),
                 ' -r',
-                # server only (no Gazebo window) when gui is false
+
                 PythonExpression(["'' if "] + _is_true_expression('gui') + [" else ' -s'"]),
             ]
         }.items(),
     ))
 
-    # Bridge the global simulation clock once.
+
     ld.add_action(Node(
         package='ros_ign_bridge',
         executable='parameter_bridge',
@@ -379,7 +381,7 @@ def generate_launch_description():
         localization_config='robot_localization_parrot1.yaml',
         x='2.0',
         y='0.0',
-        z='10.0',  # Parrot high flight for RGB survey
+        z='10.0',
         spawn_delay=6.0,
     )
 
@@ -392,14 +394,14 @@ def generate_launch_description():
         start_delay=7.0,
     )
 
-### DISABLED:     add_navigation_instance(
-### DISABLED:         ld,
-### DISABLED:         pkg_path=pkg_path,
-### DISABLED:         use_sim_time=use_sim_time,
-### DISABLED:         robot_arg='parrot',
-### DISABLED:         robot_namespace='parrot1',
-### DISABLED:         start_delay=10.0,
-### DISABLED:     )
+
+
+
+
+
+
+
+
 
     add_rviz_instance(
         ld,

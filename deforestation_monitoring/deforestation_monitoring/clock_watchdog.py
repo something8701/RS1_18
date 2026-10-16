@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Watches the sim /clock and yells when Gazebo stops ticking.
+
 """Watch the simulation /clock and warn when it stalls.
 
 Gazebo Fortress sometimes stops publishing /clock (the whole simulation hangs).
@@ -16,7 +18,9 @@ from std_msgs.msg import String
 
 
 class ClockWatchdog(Node):
+    """Reports when the simulation clock stops (a hung Gazebo)."""
     def __init__(self):
+        """Subscribe to /clock and check it once a second (wall time)."""
         super().__init__('clock_watchdog')
         self.declare_parameter('stall_timeout', 10.0)
         self.stall_timeout = self.get_parameter('stall_timeout').value
@@ -24,6 +28,7 @@ class ClockWatchdog(Node):
         self._warned = False
         qos = QoSProfile(reliability=ReliabilityPolicy.RELIABLE,
                          history=HistoryPolicy.KEEP_LAST, depth=1)
+
         self.create_subscription(
             __import__('rosgraph_msgs.msg', fromlist=['Clock']).Clock,
             '/clock', self._clock_cb, qos)
@@ -33,12 +38,14 @@ class ClockWatchdog(Node):
             f'Clock watchdog ready (stall timeout {self.stall_timeout:.0f}s)')
 
     def _clock_cb(self, _msg):
+        """Any /clock message: the simulation is running."""
         self._last = time.time()
         if self._warned:
             self.get_logger().info('Simulation clock resumed.')
             self._warned = False
 
     def _check(self):
+        """Warn once per stall, when /clock has been silent too long."""
         if time.time() - self._last > self.stall_timeout and not self._warned:
             self._warned = True
             self.get_logger().warn(

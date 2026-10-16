@@ -1,3 +1,5 @@
+# Offline tests for the tree detector, no ROS or Gazebo.
+
 """Offline tests for the CHM-based individual tree detector.
 
 These run without ROS or Gazebo: the detector is exercised on synthetic
@@ -15,7 +17,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from deforestation_monitoring.tree_detection import (  # noqa: E402
+from deforestation_monitoring.tree_detection import (
     DetectionParams,
     calibrate,
     detect_trees,
@@ -56,8 +58,8 @@ def run(truth, params=None, **overrides):
 
 def test_otsu_separates_ground_from_canopy():
     heights = np.concatenate([
-        np.random.default_rng(0).uniform(0.0, 0.4, 4000),  # ground
-        np.random.default_rng(1).uniform(4.0, 9.0, 6000),  # canopy
+        np.random.default_rng(0).uniform(0.0, 0.4, 4000),
+        np.random.default_rng(1).uniform(4.0, 9.0, 6000),
     ])
     threshold = otsu_threshold(heights)
     assert 0.4 < threshold < 4.0
@@ -67,8 +69,8 @@ def test_mask_refinement_removes_rays_keeps_small_crowns():
     """Shape filtering must drop 1-cell-wide edge rays without a hit-count
     threshold, while a compact crown seen only once survives."""
     mask = np.zeros((30, 30), dtype=bool)
-    mask[14:17, 14:17] = True      # small compact crown
-    mask[20, 2:10] = True          # 1-cell-wide ray streak
+    mask[14:17, 14:17] = True
+    mask[20, 2:10] = True
     params = DetectionParams(mask_open_iterations=1,
                              mask_close_iterations=2,
                              min_crown_cells=3)
@@ -106,7 +108,7 @@ def test_lop_sided_crown_is_one_tree_with_its_full_shape():
         np.arange(DIM[0]) * RES,
         np.arange(DIM[1]) * RES,
         indexing="ij")
-    # Elliptical crown centred at (0, 0), stretched along x.
+
     crown = 7.0 * np.exp(
         -(((gx - 6.0) / 4.0) ** 2 + ((gy - 6.0) / 1.5) ** 2) / 2.0)
     chm = crown
@@ -114,7 +116,7 @@ def test_lop_sided_crown_is_one_tree_with_its_full_shape():
     cfg = DetectionParams(chm_resolution=RES)
     dets = detect_trees(chm, scanned, cfg, ORIGIN[0], ORIGIN[1])
     assert len(dets) == 1
-    assert dets[0].area_m2 > 15.0  # full ellipse, not a small circle
+    assert dets[0].area_m2 > 15.0
 
 
 def test_pit_inside_crown_does_not_split_tree():
@@ -125,7 +127,7 @@ def test_pit_inside_crown_does_not_split_tree():
         indexing="ij")
     chm = 7.0 * np.exp(
         -(((gx - 12.0) / 3.0) ** 2 + ((gy - 12.0) / 3.0) ** 2) / 2.0)
-    chm[60, 60] = 1.0  # pit at the crown top
+    chm[60, 60] = 1.0
     scanned = np.ones(DIM, dtype=bool)
     cfg = DetectionParams(chm_resolution=RES, pit_fill_size=3)
     dets = detect_trees(chm, scanned, cfg, ORIGIN[0], ORIGIN[1])
@@ -183,7 +185,7 @@ def test_sdf_ground_truth_parsing():
 
 def test_calibration_recovers_high_f1_on_dense_clusters():
     truth = parse_tree_truth(str(WORLDS_DIR / "dense_forest.sdf"))
-    # dense_forest spans roughly -37..37 m, so use the full 80 m grid.
+
     chm = synthetic_chm(truth, RES, -40.0, -40.0, 400, 400,
                         noise_sigma=0.04)
     scanned = np.ones(chm.shape, dtype=bool)
@@ -251,7 +253,7 @@ def _live_sparse_map():
     """A real /forest_canopy_map from live sparse RUN 4 (map 18 of the
     recorded bag): oak_3's crown has an off-centre lobe."""
     f = np.load(Path(__file__).parent / "data" / "sparse_live_canopy_map.npz")
-    g = f["data"].astype(np.float32)          # [ix, iy], -1 = unscanned
+    g = f["data"].astype(np.float32)
     scanned = g >= 0
     return np.where(scanned, g / 10.0, 0.0).astype(np.float32), scanned
 
@@ -311,8 +313,8 @@ def test_params_yaml_round_trip_with_strings():
 def test_touching_labels():
     from deforestation_monitoring.tree_detection import _touching_labels
     labels = np.zeros((10, 10), dtype=np.int32)
-    labels[1:4, 1:4] = 1          # isolated
-    labels[6:9, 1:4] = 2          # touches 3
+    labels[1:4, 1:4] = 1
+    labels[6:9, 1:4] = 2
     labels[6:9, 4:7] = 3
     assert _touching_labels(labels) == {2, 3}
 
@@ -412,7 +414,7 @@ def test_short_crowns_take_their_position_from_the_raw_spire():
     old = detect_trees(chm, sc, _shipped_params(band_surface="smoothed"),
                        -40.0, -40.0)
     assert _nearest(old, "pine_163")[1] > 1.5
-    # broad oak crowns keep the smoothed band (unchanged position)
+
     assert abs(_nearest(new, "oak_168")[1] - _nearest(old, "oak_168")[1]) < 1e-6
 
 

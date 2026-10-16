@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Classic forestry individual tree detection on a fused canopy model.
+
 """Individual tree detection (ITD) from a fused canopy height model (CHM).
 
 This module implements the classic forestry ITD pipeline, adapted for this
@@ -40,7 +42,7 @@ import numpy as np
 from scipy import ndimage
 
 
-# ── Small containers ────────────────────────────────────────────────
+
 
 @dataclass
 class DetectedTree:
@@ -51,8 +53,8 @@ class DetectedTree:
     height: float
     area_m2: float
     radius_m: float
-    label: int = 0      # crown label id in the segmentation grid
-    peak_ix: int = -1   # grid cell of the crown's highest point
+    label: int = 0
+    peak_ix: int = -1
     peak_iy: int = -1
 
     def to_dict(self) -> Dict:
@@ -86,59 +88,59 @@ class DetectionParams:
     mask_open_iterations: int = 1
     pit_fill_size: int = 3
     centroid_band: float = 0.5
-    # Tree position: "crown" = height-weighted centroid of the whole
-    # (merged) crown; "band" = the same over the top centroid_band metres;
-    # "auto" = crown for isolated crowns, band for crowns touching a
-    # neighbour. Big oaks have off-centre tops, so the whole crown sits
-    # closer to the trunk when its full footprint is known.
+
+
+
+
+
     position_mode: str = "crown"
-    # A suppressed crown is merged into its suppressor only while the merged
-    # extent (from the suppressor's peak) stays <= this; an oak with its
-    # lobes reaches ~7.4 m, neighbouring trees merged together much more.
-    # Pieces that would exceed it are dropped.
+
+
+
+
     merge_max_radius: float = 8.0
-    # Two-scale treetops: smooth_sigma blurs narrow pine spires away. If
-    # narrow_sigma > 0, local maxima of a lightly smoothed CHM (window
-    # narrow_window) are added as markers where no broad marker lies within
-    # min_sep; the raw-CHM saddle test still merges crown bumps back into
-    # their tree.
+
+
+
+
+
     narrow_sigma: float = 0.0
     narrow_window: float = 1.0
-    # A narrow peak must stand this far above the broad-smoothed surface:
-    # a spire loses metres to heavy smoothing, a bump on an oak crown almost
-    # nothing.
+
+
+
     narrow_prominence: float = 1.0
-    # It must also show a real valley (raw-CHM saddle below saddle_ratio of
-    # the lower peak) towards every broad marker within this range; oak
-    # crowns reach beyond the normal saddle range.
+
+
+
     narrow_saddle_range: float = 8.0
-    # ... and must not lie within narrow_exclusion_radius of a broad marker
-    # at least narrow_tall_height high (a big oak crown, whose branch clumps
-    # are as tall as its top). 0 = off.
+
+
+
     narrow_exclusion_radius: float = 0.0
     narrow_tall_height: float = 5.2
-    # Watershed seeds. Markers are maxima of the smoothed CHM but crowns
-    # flood the raw CHM, so a marker sitting in a gap between branch clumps
-    # can be flooded by a taller neighbour first and two oaks become one
-    # crown. seed_lock reserves each marker cell for its own crown;
-    # seed_snap moves the seed to the raw maximum within this radius (m).
+
+
+
+
+
     seed_lock: bool = False
     seed_snap: float = 0.0
-    # Overlap suppression treats a small crown inside a big crown's radius
-    # as a lobe of it. If > 0, the small crown is kept when the raw CHM dips
-    # below overlap_valley_ratio x the lower peak between the two peaks
-    # (a real valley means a separate tree, e.g. a pine beside an oak).
+
+
+
+
     overlap_valley_ratio: float = 0.0
-    # Surface for the "band" position: "smoothed" (the peak-finding surface)
-    # or "raw". Smoothing flattens a pine spire below its neighbours' crown
-    # edges, which moves a small crown's smoothed top band off its spire.
+
+
+
     band_surface: str = "smoothed"
-    # With band_surface "raw": only crowns whose (smoothed) top is below
-    # this height use the raw surface (spires); taller, broad crowns keep
-    # the smoothed band. 0 = all crowns.
+
+
+
     band_raw_below: float = 0.0
-    # Band width (m) on the raw surface; 0 = centroid_band. The raw top of a
-    # spire is a single noisy LiDAR return, so a wider band averages it.
+
+
     band_raw_width: float = 0.0
     merge_small_area: float = 0.0
     merge_radius: float = 4.0
@@ -153,7 +155,7 @@ class DetectionParams:
         return cls(**{k: v for k, v in data.items() if k in known})
 
 
-# ── CHM construction and fusion ─────────────────────────────────────
+
 
 def rasterize_points(
     points: np.ndarray,
@@ -182,7 +184,7 @@ def rasterize_points(
         return height, hits
     if reducer == "max":
         np.maximum.at(height, (ix, iy), zs)
-    else:  # average
+    else:
         np.add.at(height, (ix, iy), zs)
         np.add.at(hits, (ix, iy), 1)
         count = hits.astype(np.float32)
@@ -237,7 +239,7 @@ def smooth_chm(chm: np.ndarray, scanned: np.ndarray,
     return np.where(scanned, out, 0.0).astype(np.float32)
 
 
-# ── Ground / canopy separation ──────────────────────────────────────
+
 
 def otsu_threshold(values: np.ndarray, bins: int = 256,
                    include_zero: bool = False) -> float:
@@ -284,24 +286,24 @@ def canopy_mask_from_chm(
     slightly uneven ground (0.0-0.5 m relief plus sensor noise) from being
     labelled as trees.
     """
-    # Ground and Otsu statistics use every scanned cell, including the
-    # exact-0 m ground: without it, in dense forest the ground percentile
-    # lands in the canopy and the threshold cuts off short pines.
+
+
+
     observed = chm[scanned]
     ground_ref = 0.0
     if observed.size >= 16:
         ground_ref = float(np.percentile(
             observed, params.ground_percentile * 100.0))
-        # The ground mode must be *low*: if the percentile lands in canopy
-        # (canopy cover > 1 - ground_percentile), fall back to the floor.
+
+
         if ground_ref > params.ground_floor + params.ground_margin:
             ground_ref = params.ground_floor
     threshold = max(float(params.min_height), ground_ref + params.ground_margin)
     if params.use_auto_threshold:
         if observed.size >= 16:
-            # Otsu's valley can drift into the canopy tail on a smooth CHM,
-            # which would erase short trees. Cap it so auto-thresholding can
-            # only ever refine the ground boundary, never define "tree".
+
+
+
             otsu = float(otsu_threshold(observed, include_zero=True))
             threshold = max(threshold, min(otsu, params.auto_threshold_cap))
     mask = scanned & (chm >= threshold)
@@ -321,9 +323,9 @@ def refine_canopy_mask(
     connected region per tree instead of on speckles.
     """
     mask = canopy.copy()
-    # Opening first removes 1-cell-wide edge-ray streaks while keeping the
-    # compact body of a crown. The closing pass afterwards reconnects small
-    # gaps inside the crown.
+
+
+
     if params.mask_open_iterations > 0:
         mask = ndimage.binary_opening(
             mask,
@@ -344,7 +346,7 @@ def refine_canopy_mask(
     return mask
 
 
-# ── Treetop detection ───────────────────────────────────────────────
+
 
 def treetop_markers(
     chm: np.ndarray,
@@ -384,8 +386,8 @@ def treetop_markers(
     if not np.any(candidates):
         return np.zeros((0, 2), dtype=np.int32)
 
-    # Non-maximum suppression: keep the tallest peak when two candidate
-    # maxima sit closer than min_sep.
+
+
     idx = np.argwhere(candidates)
     order = np.argsort(-heights[idx[:, 0], idx[:, 1]])
     kept: List[np.ndarray] = []
@@ -438,7 +440,7 @@ def _add_narrow_markers(kept, narrow_chm, broad, canopy, params, min_sep_px,
                     for k in kept):
                 continue
             same_crown = False
-            for k in kept:              # broad markers only
+            for k in kept:
                 if math.hypot(i[0] - k[0], i[1] - k[1]) > range_px:
                     continue
                 hk = float(raw_chm[k[0], k[1]])
@@ -498,7 +500,7 @@ def _merge_markers_by_saddle(
     return np.asarray(kept, dtype=np.int32).reshape(-1, 2)
 
 
-# ── Crown segmentation ──────────────────────────────────────────────
+
 
 def segment_crowns(
     chm: np.ndarray,
@@ -529,7 +531,7 @@ def segment_crowns(
         return labels, treetop_cells
 
     if params.seed_snap > 0:
-        # Seed each crown at the raw top next to its (smoothed) marker.
+
         k = max(1, int(round(params.seed_snap / res)))
         snapped = []
         for mi, mj in markers:
@@ -551,9 +553,9 @@ def segment_crowns(
         peak_h = float(heights[mi, mj])
         crown_m = params.crown_scale * peak_h + params.crown_offset
         crown_px = max(1, int(math.ceil(crown_m / res)))
-        # No per-crown height drop: the watershed fronts themselves define
-        # the boundary at the saddle. Only the canopy threshold stops a
-        # crown from spreading onto ground.
+
+
+
         floor_h = params.min_height
         info[label_id] = (mi, mj, crown_px * crown_px, floor_h)
         heapq.heappush(heap, (-peak_h, mi, mj, label_id))
@@ -563,7 +565,7 @@ def segment_crowns(
         if labels[i, j] != 0:
             continue
         if reserved[i, j] not in (0, label_id):
-            continue      # another crown's seed cell
+            continue
         labels[i, j] = label_id
         mi, mj, crown_px2, floor_h = info[label_id]
         for ni in range(max(0, i - 1), min(chm.shape[0], i + 2)):
@@ -613,16 +615,16 @@ def trees_from_labels(
         height = float(np.max(heights))
         if height < params.min_tree_height:
             continue
-        # Grid is indexed [ix, iy] = [x, y], so rows carry x and columns y.
+
         rows, cols = np.nonzero(cells)
         mode = position_mode or params.position_mode
         if mode == "auto":
-            # An isolated crown's full footprint is known, so its centroid
-            # sits over the trunk; a crown cut by the watershed against a
-            # neighbour has a truncated footprint, so use its top band.
+
+
+
             mode = "band" if label_id in touching else "crown"
-        # "band" is stable from tick to tick but follows the highest lobe of
-        # a big crown; "crown" sits over the trunk for broad, lobed crowns.
+
+
         use_raw = band_chm is not None and (
             params.band_raw_below <= 0 or height < params.band_raw_below)
         bh = band_chm[cells] if use_raw else heights
@@ -641,10 +643,10 @@ def trees_from_labels(
             peak_flat = int(np.argmax(heights))
             wx = float(rows[peak_flat])
             wy = float(cols[peak_flat])
-        # Crown radius is the true distance to the furthest crown cell from
-        # the treetop, not the radius of a circle with the same area. A crown
-        # can be big and lop-sided (a branch sticking out one side).
-        peak_flat = int(np.argmax(heights))  # heights is the 1D crown values
+
+
+
+        peak_flat = int(np.argmax(heights))
         peak_row, peak_col = rows[peak_flat], cols[peak_flat]
         extent = np.hypot(rows - peak_row, cols - peak_col)
         radius_m = float(np.max(extent) * res)
@@ -660,7 +662,7 @@ def trees_from_labels(
             peak_ix=int(peak_row),
             peak_iy=int(peak_col),
         ))
-    # Stable sort by descending height (taller trees are the least ambiguous).
+
     out.sort(key=lambda t: -t.height)
     for i, tree in enumerate(out, start=1):
         tree.id = i
@@ -690,9 +692,9 @@ def merge_small_into_nearby(
     """
     if small_area_m2 <= 0 or not detections:
         return detections
-    # Tallest first. A candidate inside the merge radius of a taller crown
-    # that is very small, or much smaller than that crown, is a fringe
-    # fragment and is absorbed.
+
+
+
     ordered = sorted(detections, key=lambda t: -t.height)
     kept: List[DetectedTree] = []
     for candidate in ordered:
@@ -803,9 +805,9 @@ def detect_trees(
     smooth_px = params.smooth_sigma / params.chm_resolution
     chm_s = smooth_chm(chm, scanned, smooth_px)
     if params.pit_fill_size > 0:
-        # Fill pits inside crowns before treetop detection: a noisy dropout
-        # inside a crown must not become a false local minimum that splits
-        # one tree. Grey closing raises pits without touching the crown tops.
+
+
+
         size = max(1, int(params.pit_fill_size))
         chm_s = ndimage.grey_closing(chm_s, size=size)
         chm_s = np.where(scanned, chm_s, 0.0).astype(np.float32)
@@ -817,13 +819,13 @@ def detect_trees(
                             params.narrow_sigma / params.chm_resolution)
     markers = treetop_markers(chm_s, canopy, params, raw_chm=chm,
                               narrow_chm=narrow)
-    # Peaks are found on the smoothed surface, but crowns flood on the raw
-    # surface so a narrow valley between two trees is never filled in.
+
+
     labels, _ = segment_crowns(chm_s, canopy, markers, params, flood_chm=chm)
-    # Overlap suppression on treetop geometry ("band" positions). A crown
-    # suppressed as contained in a taller one is a lobe of the same tree:
-    # merge its cells into that crown instead of dropping them, so the
-    # tree's extent and position come from the whole crown.
+
+
+
+
     dets = trees_from_labels(labels, chm_s, params, origin_x, origin_y,
                              position_mode="band")
     owner: Dict[int, int] = {}
@@ -833,7 +835,7 @@ def detect_trees(
     if owner:
         labels = labels.copy()
         res = params.chm_resolution
-        for lobe, parent in owner.items():   # tallest suppressed first
+        for lobe, parent in owner.items():
             while parent in owner:
                 parent = owner[parent]
             union = (labels == parent) | (labels == lobe)
@@ -843,8 +845,8 @@ def detect_trees(
             peak = int(np.argmax(chm_s[union]))
             extent = float(np.max(np.hypot(
                 rows - rows[peak], cols - cols[peak]))) * res
-            # Merge a lobe of the same crown; drop a piece that would turn
-            # the crown into an implausible multi-tree blob.
+
+
             labels[labels == lobe] = (
                 parent if extent <= params.merge_max_radius else 0)
     dets = trees_from_labels(
@@ -857,7 +859,7 @@ def detect_trees(
     return dets
 
 
-# ── Ground truth from SDF ───────────────────────────────────────────
+
 
 def parse_tree_truth(world_sdf_path: str) -> List[Tuple[str, float, float]]:
     """Extract ``(name, x, y)`` for every fuel tree include in a world SDF."""
@@ -880,11 +882,11 @@ def parse_tree_truth(world_sdf_path: str) -> List[Tuple[str, float, float]]:
     return trees
 
 
-# ── Synthetic scenarios (offline calibration / tests) ───────────────
+
 
 def deterministic_height(name: str, rng_seed: int = 7) -> float:
     """Deterministic pseudo-height in [3.0, 11.0] m from a tree name."""
-    # zlib.crc32 is stable across processes, unlike Python's salted hash().
+
     h = zlib.crc32(name.encode("utf-8")) % 1000 / 1000.0
     return 3.0 + h * 8.0
 
@@ -915,10 +917,10 @@ def synthetic_chm(
     grid = np.zeros((dim_x, dim_y), dtype=np.float32)
     xs = origin_x + (np.arange(dim_x) + 0.5) * resolution
     ys = origin_y + (np.arange(dim_y) + 0.5) * resolution
-    # indexing="ij" makes grid[ix, iy] = (x, y), matching the detector.
+
     gx, gy = np.meshgrid(xs, ys, indexing="ij")
 
-    # Smooth low-frequency ground relief in [0, ground_relief].
+
     relief = ndimage.gaussian_filter(
         rng.standard_normal((dim_x, dim_y)), sigma=max(1.0, 2.0 / resolution))
     relief -= relief.min()
@@ -942,7 +944,7 @@ def synthetic_chm(
 def scenario_layouts() -> Dict[str, List[Tuple[str, float, float]]]:
     """Named cluster scenarios used to calibrate and test the detector."""
     def make(names: Iterable[str], pts: Iterable[Tuple[float, float]]):
-        return list(zip(names, *zip(*pts)))  # -> [(name, x, y), ...]
+        return list(zip(names, *zip(*pts)))
 
     return {
         "isolated_5": make(
@@ -966,7 +968,7 @@ def scenario_layouts() -> Dict[str, List[Tuple[str, float, float]]]:
     }
 
 
-# ── Matching and scoring ────────────────────────────────────────────
+
 
 def match_detections(
     detections: Sequence[DetectedTree],
@@ -1017,7 +1019,7 @@ def score_detections(
     }
 
 
-# ── Automatic calibration ───────────────────────────────────────────
+
 
 def _sample_param(rng: np.random.Generator, name: str, values: Sequence):
     return float(rng.choice(np.asarray(values, dtype=np.float64))) \
@@ -1104,7 +1106,7 @@ def params_to_ros_yaml(params: DetectionParams, node_name: str = "/**") -> str:
         elif isinstance(value, int):
             rendered = str(value)
         elif isinstance(value, str):
-            rendered = json.dumps(value)   # quoted YAML string
+            rendered = json.dumps(value)
         else:
             rendered = repr(float(value))
         lines.append(f"    {key}: {rendered}")

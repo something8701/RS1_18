@@ -1,3 +1,5 @@
+# GATE 1: a no-change run must emit nothing.
+
 """scan_mapper change gating (GATE 1: a no-change run must emit nothing)."""
 
 import numpy as np
@@ -15,7 +17,7 @@ def ros_ctx():
 
 
 def _mapper():
-    return ScanMapper()   # default 0.5 m grid (160x160) is enough here
+    return ScanMapper()
 
 
 def _with_baseline(node, heights, hits, frac=None):
@@ -38,9 +40,9 @@ def test_edge_cell_seen_once_at_baseline_is_not_new_canopy(ros_ctx):
     heights = np.zeros(shape, dtype=np.float32)
     hits = np.full(shape, 10.0, dtype=np.float32)
     edge = (slice(100, 104), slice(100, 104))
-    hits[edge] = 1.0            # grazing beam hit ground past the crown edge
+    hits[edge] = 1.0
     _with_baseline(node, heights, hits)
-    # Later lane sees the crown there, repeatedly.
+
     node.height_recent[:] = 0.0
     node.height_recent[edge] = 3.9
     node.high_streak[edge] = 5
@@ -58,7 +60,7 @@ def test_well_observed_clearing_is_still_lost(ros_ctx):
     hits = np.full(shape, 10.0, dtype=np.float32)
     _with_baseline(node, heights, hits)
     node.height_recent[:] = heights
-    node.height_recent[crown] = 0.2     # tree removed
+    node.height_recent[crown] = 0.2
     node.low_streak[crown] = 5
     _, lost, gained = node._compute_change()
     assert lost[crown].all()
@@ -76,10 +78,10 @@ def test_flickering_crown_edge_is_not_lost(ros_ctx):
     shape = (node.dim_x, node.dim_y)
     heights = np.zeros(shape, dtype=np.float32)
     edge = (slice(40, 44), slice(40, 44))
-    heights[edge] = 5.0                       # all-time max: canopy
+    heights[edge] = 5.0
     hits = np.full(shape, 10.0, dtype=np.float32)
     frac = np.zeros(shape, dtype=np.float32)
-    frac[edge] = 0.5                          # canopy on half the scans
+    frac[edge] = 0.5
     _with_baseline(node, heights, hits, frac)
     node.height_recent[:] = 0.0
     node.low_streak[edge] = 5
@@ -91,7 +93,7 @@ def test_flickering_crown_edge_is_not_lost(ros_ctx):
 def _scan_msg(range_m):
     from sensor_msgs.msg import LaserScan
     scan = LaserScan()
-    scan.angle_min = -0.05          # middle beam points straight down
+    scan.angle_min = -0.05
     scan.angle_increment = 0.01
     scan.range_max = 40.0
     scan.ranges = [float(range_m)] * 11
@@ -107,10 +109,10 @@ def test_ground_below_zero_overwrites_a_removed_tree(ros_ctx):
     node = ScanMapper()
     node._odom_received = True
     node._odom_q = Quaternion(w=1.0)
-    node.scan_callback(_scan_msg(4.0))      # tree top at 6.0 m
+    node.scan_callback(_scan_msg(4.0))
     ix = iy = int((0.0 - node.origin_x) / node.res)
     assert node.height_recent[ix, iy] == pytest.approx(6.0, abs=0.05)
-    node.scan_callback(_scan_msg(10.2))     # tree gone: ground at -0.2 m
+    node.scan_callback(_scan_msg(10.2))
     assert node.height_recent[ix, iy] == 0.0
     assert node.low_streak[ix, iy] == 1
     node.destroy_node()
@@ -131,16 +133,16 @@ def test_height_drop_onto_a_neighbour_crown_is_marked_not_lost(ros_ctx):
     _with_baseline(node, heights, hits)
     node.baseline_canopy_mean = heights.copy()
     node.height_recent[:] = heights
-    node.height_recent[crown] = 5.0            # neighbour crown underneath
+    node.height_recent[crown] = 5.0
     node.drop_streak[crown] = node.low_streak_threshold
-    node.drop_m = 0.0                          # off: nothing marked
+    node.drop_m = 0.0
     grid, lost, _ = node._compute_change()
     assert not (grid == DROP_VALUE).any() and not lost.any()
     node.drop_m = 1.0
     grid, lost, _ = node._compute_change()
     assert (grid[crown] == DROP_VALUE).all()
     assert not lost.any() and DROP_VALUE > -50
-    node.drop_streak[crown] = 1                # not persistent yet
+    node.drop_streak[crown] = 1
     grid, _, _ = node._compute_change()
     assert not (grid == DROP_VALUE).any()
     node.destroy_node()
@@ -161,21 +163,21 @@ def test_cell_first_seen_after_the_snapshot_gets_a_baseline(ros_ctx):
         node._odom_q = Quaternion(w=1.0)
         shape = (node.dim_x, node.dim_y)
         _with_baseline(node, np.zeros(shape, np.float32),
-                       np.zeros(shape, np.float32))      # nothing seen yet
+                       np.zeros(shape, np.float32))
         node.baseline_canopy_mean = np.zeros(shape, np.float32)
         for _ in range(node.change_min_baseline_hits):
-            node.scan_callback(_scan_msg(4.0))           # tree top at 6.0 m
+            node.scan_callback(_scan_msg(4.0))
         ix = iy = int((0.0 - node.origin_x) / node.res)
         hits_after = node.baseline_hit_counts[ix, iy]
         for _ in range(node.low_streak_threshold):
-            node.scan_callback(_scan_msg(10.2))          # tree cut: ground
-        node.scan_callback(_scan_msg(10.2))              # one more: stays sealed
+            node.scan_callback(_scan_msg(10.2))
+        node.scan_callback(_scan_msg(10.2))
         grid, lost, _ = node._compute_change()
         if fill:
             assert hits_after == node.change_min_baseline_hits
             assert node.baseline_hit_counts[ix, iy] == node.change_min_baseline_hits
             assert node.baseline_canopy_frac[ix, iy] == pytest.approx(1.0)
-            # tracker evidence, but no CANOPY LOST alert / pattern flag
+
             assert grid[ix, iy] == FILL_LOST_VALUE and -50 < FILL_LOST_VALUE < 0
             assert not lost.any()
         else:
@@ -196,7 +198,7 @@ def test_filled_cell_needs_canopy_on_every_scan(ros_ctx):
     shape = (node.dim_x, node.dim_y)
     _with_baseline(node, np.zeros(shape, np.float32), np.zeros(shape, np.float32))
     node.baseline_canopy_mean = np.zeros(shape, np.float32)
-    for r in (4.0, 10.2, 4.0):                       # canopy, ground, canopy
+    for r in (4.0, 10.2, 4.0):
         node.scan_callback(_scan_msg(r))
     ix = iy = int((0.0 - node.origin_x) / node.res)
     assert node.baseline_filled[ix, iy]
@@ -205,7 +207,7 @@ def test_filled_cell_needs_canopy_on_every_scan(ros_ctx):
         node.scan_callback(_scan_msg(10.2))
     grid, lost, _ = node._compute_change()
     assert not lost.any() and not grid.any()
-    node.fill_canopy_fraction = 0.6                  # the first version
+    node.fill_canopy_fraction = 0.6
     grid, lost, _ = node._compute_change()
     assert grid[ix, iy] == FILL_LOST_VALUE
     node.destroy_node()

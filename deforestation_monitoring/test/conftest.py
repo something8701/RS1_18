@@ -1,3 +1,5 @@
+# Keeps unit tests on their own ROS domain so they never collide with a live run.
+
 """Keep the unit tests off the live simulation's ROS network.
 
 The tests create real tracker / mapper nodes that publish on the live topic

@@ -1,5 +1,8 @@
+# Measures the noise floor over standing trees.
+
 """|top after - top before| over trunks of STANDING trees (the noise floor)."""
 import math, sys
+import os
 import numpy as np
 from rclpy.serialization import deserialize_message
 from rosbag2_py import ConverterOptions, SequentialReader, StorageOptions
@@ -7,7 +10,7 @@ from nav_msgs.msg import OccupancyGrid
 from deforestation_monitoring.tree_detection import parse_tree_truth
 from deforestation_monitoring.visibility import disc_max, classify_tree, removal_tier
 from deforestation_monitoring.removal_test import select_removal_targets
-W = '/home/alig/rs1_18_ws/src/RS1_18/41068_ignition_bringup/worlds/'
+W = os.path.expanduser('~/rs1_18_ws/src/RS1_18/41068_ignition_bringup/worlds/')
 def grid(data):
     m = deserialize_message(data, OccupancyGrid)
     g = np.array(m.data, np.float32).reshape(m.info.height, m.info.width).T

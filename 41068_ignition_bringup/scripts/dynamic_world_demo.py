@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Moves a small animated object around in Gazebo from a ROS node. Deliberately simple.
+
 """Small example of changing an Ignition Gazebo world from a ROS 2 node.
 
 This is deliberately simple: it moves a small animal marker around the forest
@@ -48,25 +50,25 @@ class DynamicWorldDemo(Node):
     def __init__(self):
         super().__init__('dynamic_world_demo')
 
-        # ------------------------------------------------------------------
-        # Parameters
-        # ------------------------------------------------------------------
-        # The models named below are defined directly inside worlds/large_demo.sdf.
-        # If students rename models in the world file, update these parameters too.
+
+
+
+
+
         self.declare_parameter('world_name', 'large_demo')
         self.declare_parameter('animal_name', 'demo_animal')
         self.declare_parameter('tree_healthy_name', 'demo_tree_healthy')
         self.declare_parameter('tree_fire_name', 'demo_tree_fire')
         self.declare_parameter('tree_burnt_name', 'demo_tree_burnt')
 
-        # Initial demo locations.
+
         self.declare_parameter('tree_x', 4.0)
         self.declare_parameter('tree_y', -4.0)
         self.declare_parameter('animal_x', -4.0)
         self.declare_parameter('animal_y', 4.0)
 
-        # update_period is intentionally left at 0.1 s. This gives a visibly
-        # smooth animal marker while still keeping the example simple.
+
+
         self.declare_parameter('update_period', 0.1)
         self.declare_parameter('tree_state_period', 3.0)
         self.declare_parameter('step_size', 0.2)
@@ -86,9 +88,9 @@ class DynamicWorldDemo(Node):
         self.step_size = float(self.get_parameter('step_size').value)
         self.wander_limit = float(self.get_parameter('wander_limit').value)
 
-        # The demo tree is implemented as three simple models. Only one is shown
-        # at the tree location at a time; the inactive states are moved below the
-        # world. This is crude but easy to understand and reliable.
+
+
+
         self.tree_states = ['healthy', 'fire', 'burnt']
         self.tree_state_index = 0
         self.seconds_since_tree_change = 0.0
@@ -101,8 +103,8 @@ class DynamicWorldDemo(Node):
             yaw=0.0,
         )
 
-        # Gazebo Fortress normally uses the ``ign`` command. Newer Gazebo
-        # versions use ``gz``. This keeps the example usable in either case.
+
+
         self.gz_command = 'ign' if shutil.which('ign') else 'gz'
         self.msg_prefix = 'ignition.msgs' if self.gz_command == 'ign' else 'gz.msgs'
 
@@ -114,9 +116,9 @@ class DynamicWorldDemo(Node):
             'Start the normal large_demo Gazebo simulation first, then this add-on node.'
         )
 
-    # ------------------------------------------------------------------
-    # Gazebo command helper
-    # ------------------------------------------------------------------
+
+
+
     def _run(
         self,
         command: Iterable[str],
@@ -157,9 +159,9 @@ class DynamicWorldDemo(Node):
     def set_model_pose(self, name: str, pose: Pose2D, *, warn_on_failure: bool = True) -> bool:
         """Move an existing Gazebo model by calling the set_pose service."""
 
-        # The request string is in Gazebo Transport protobuf text format. It is
-        # the same style of request that can be sent manually with:
-        #   ign service -s /world/large_demo/set_pose --req 'name: "..." ...'
+
+
+
         request = (
             f'name: "{name}" '
             f'position {{ x: {pose.x:.6f} y: {pose.y:.6f} z: {pose.z:.6f} }} '
@@ -175,9 +177,9 @@ class DynamicWorldDemo(Node):
             '--req', request,
         ], timeout=2.0, warn_on_failure=warn_on_failure)
 
-    # ------------------------------------------------------------------
-    # Demo logic
-    # ------------------------------------------------------------------
+
+
+
     def update(self):
         """Timer callback: initialise once, then move the demo objects."""
         if not self.initialised:
@@ -205,13 +207,13 @@ class DynamicWorldDemo(Node):
 
     def move_animal(self):
         """Move the animal marker with a small bounded random walk."""
-        # Change heading randomly, then step forward. This is intentionally not
-        # physically realistic; it just creates a moving target/obstacle idea.
+
+
         self.animal_pose.yaw += random.uniform(-0.7, 0.7)
         self.animal_pose.x += self.step_size * math.cos(self.animal_pose.yaw)
         self.animal_pose.y += self.step_size * math.sin(self.animal_pose.yaw)
 
-        # Keep the animal inside a square region by reflecting off the boundary.
+
         if abs(self.animal_pose.x) > self.wander_limit:
             self.animal_pose.x = max(min(self.animal_pose.x, self.wander_limit), -self.wander_limit)
             self.animal_pose.yaw = math.pi - self.animal_pose.yaw

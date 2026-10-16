@@ -1,9 +1,12 @@
+# Broad candidates before NMS.
+
 import math, sys, collections
+import os
 import numpy as np, yaml
 from scipy import ndimage
 import deforestation_monitoring.tree_detection as T
 from deforestation_monitoring.visibility import classify_tree, removal_tier
-ROOT = '/home/alig/rs1_18_ws/src/RS1_18'
+ROOT = os.path.expanduser('~/rs1_18_ws/src/RS1_18')
 g = np.load(sys.argv[1]); world = sys.argv[2]; half = float(sys.argv[3])
 RES, OX, OY = 0.25, -40.0, -40.0
 sc = g >= 0; chm = np.where(sc, g / 10.0, 0).astype(np.float32); grid = np.where(sc, g / 10.0, -1.0)
@@ -16,7 +19,7 @@ cs = T.smooth_chm(chm, sc, p.smooth_sigma / RES)
 cs = np.where(sc, ndimage.grey_closing(cs, size=p.pit_fill_size), 0).astype(np.float32)
 canopy, _ = T.canopy_mask_from_chm(cs, sc, p); canopy = T.refine_canopy_mask(canopy, p)
 narrow = T.smooth_chm(chm, sc, p.narrow_sigma / RES)
-# broad candidates before NMS
+
 heights = np.where(canopy, cs, 0.0)
 wm = np.clip(p.window_scale * heights + p.window_offset, p.min_window, p.max_window)
 rpx = np.clip(np.ceil(wm / RES).astype(int), 1, 32)

@@ -1,3 +1,5 @@
+# One figure showing how dense-forest results moved.
+
 """How the dense-forest results moved: one figure from the live removal-test reports.
 
 usage: model_progress.py --out model_progress.png [--extra REPORT.md LABEL]
@@ -16,10 +18,10 @@ import re
 
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.pyplot as plt
 
 EVIDENCE = os.path.join(os.path.dirname(__file__), '..', '..', 'test_evidence')
-RUNS = [   # report, x label (date, what changed)
+RUNS = [
     ('removal_test_8_dense.md', 'run 8\n27 Sep\nheight map'),
     ('removal_test_17_dense_mixed.md', 'run 17\n29 Sep\nC + D'),
     ('removal_test_20_dense_mixed_camera.md', 'run 20\n+ camera\npine rule'),
@@ -31,12 +33,12 @@ RUNS = [   # report, x label (date, what changed)
     ('removal_test_29_dense_mixed_PASS_camera_only.md', 'run 29\nsame'),
     ('removal_test_30_dense_mixed_PASS_final.md', 'run 30\n+ median\n+ clump hold'),
 ]
-REPLAY_START = (0, 13)      # dense recordings passing in replay, start of option A
-REPLAY_NOW = (10, 10)       # after the 2026-09-30 fixes
+REPLAY_START = (0, 13)
+REPLAY_NOW = (10, 10)
 
 SURFACE, INK, INK2, GRID = '#fcfcfb', '#0b0b0b', '#52514e', '#e4e3df'
-TREE_C, ALERT_C = '#2a78d6', '#eb6834'          # categorical slots 1 and 2
-GOOD, BAD = '#0ca30c', '#d03b3b'                # status: good / critical
+TREE_C, ALERT_C = '#2a78d6', '#eb6834'
+GOOD, BAD = '#0ca30c', '#d03b3b'
 
 
 def parse(path):

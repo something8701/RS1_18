@@ -183,10 +183,67 @@ local_costmap:
       width: 10
       height: 10
       resolution: 0.05
-      footprint: '[ [0.5, 0.5], [0.5, -0.5], [-0.5, -0.5], [-0.5, 0.5] ]'
+      # the Husky's size: 0.99 m long, 0.57 m track + wheels = 0.67 m wide (was a
+      # 1 x 1 m square, a third too wide for the gaps between pine branch rings)
+      footprint: '[ [0.5, 0.34], [0.5, -0.34], [-0.5, -0.34], [-0.5, 0.34] ]'
       plugins:
       - obstacle_layer
+      - hazard_layer
+      - low_obstacle_layer
       - inflation_layer
+      low_obstacle_layer:
+        # The depth camera (depth_obstacles node, thinned): marks what is
+        # 0.2-0.85 m up in TF z, ~0.13 m below the true height (the lowest pine
+        # branches start at 0.6 m, below the LiDAR's slice), and clears along
+        # the rays to every point, the ground included, so a voxel nothing hits
+        # any more is freed.
+        plugin: nav2_costmap_2d::VoxelLayer
+        enabled: true
+        footprint_clearing_enabled: true
+        publish_voxel_map: false
+        origin_z: 0.0
+        z_resolution: 0.1
+        z_voxels: 12
+        unknown_threshold: 15
+        mark_threshold: 0
+        combination_method: 1
+        observation_sources: depth_mark depth_clear
+        depth_mark:
+          topic: /husky1/camera/depth/obstacle_points
+          data_type: PointCloud2
+          marking: true
+          clearing: false
+          min_obstacle_height: 0.2
+          max_obstacle_height: 0.85   # the Husky's top (LiDAR housing) in TF z; higher is clear
+          obstacle_max_range: 4.5
+          obstacle_min_range: 0.0
+        depth_clear:
+          topic: /husky1/camera/depth/obstacle_points
+          data_type: PointCloud2
+          marking: false
+          clearing: true
+          min_obstacle_height: -0.5
+          max_obstacle_height: 1.1
+          raytrace_max_range: 5.0
+          raytrace_min_range: 0.0
+      hazard_layer:
+        # Spots where the Husky got caught (pine branches below the LiDAR's
+        # plane, invisible to the scan); the mission coordinator publishes
+        # them and they are never cleared.
+        plugin: nav2_costmap_2d::ObstacleLayer
+        enabled: true
+        footprint_clearing_enabled: false
+        observation_sources: hazards
+        hazards:
+          topic: /husky1/hazards
+          data_type: PointCloud2
+          marking: true
+          clearing: false
+          min_obstacle_height: 0.0
+          max_obstacle_height: 2.0
+          obstacle_max_range: 80.0
+          obstacle_min_range: 0.0
+          raytrace_max_range: 80.0
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
         cost_scaling_factor: 3.0
@@ -203,7 +260,9 @@ local_costmap:
           data_type: LaserScan
           raytrace_max_range: 20.0
           raytrace_min_range: 0.0
-          obstacle_max_range: 10.0
+          # 5 m, not 10: from 0.8 m up, a few degrees of tilt puts a beam on the
+          # ground 9-15 m out, which drew false obstacle streaks across open forest
+          obstacle_max_range: 5.0
           obstacle_min_range: 0.0
       static_layer:
         plugin: nav2_costmap_2d::StaticLayer
@@ -217,13 +276,70 @@ global_costmap:
       global_frame: husky1_map
       robot_base_frame: husky1_base_link
       use_sim_time: true
-      footprint: '[ [0.5, 0.5], [0.5, -0.5], [-0.5, -0.5], [-0.5, 0.5] ]'
+      # the Husky's size: 0.99 m long, 0.57 m track + wheels = 0.67 m wide (was a
+      # 1 x 1 m square, a third too wide for the gaps between pine branch rings)
+      footprint: '[ [0.5, 0.34], [0.5, -0.34], [-0.5, -0.34], [-0.5, 0.34] ]'
       resolution: 0.1
       track_unknown_space: true
       plugins:
       - static_layer
       - obstacle_layer
+      - hazard_layer
+      - low_obstacle_layer
       - inflation_layer
+      low_obstacle_layer:
+        # The depth camera (depth_obstacles node, thinned): marks what is
+        # 0.2-0.85 m up in TF z, ~0.13 m below the true height (the lowest pine
+        # branches start at 0.6 m, below the LiDAR's slice), and clears along
+        # the rays to every point, the ground included, so a voxel nothing hits
+        # any more is freed.
+        plugin: nav2_costmap_2d::VoxelLayer
+        enabled: true
+        footprint_clearing_enabled: true
+        publish_voxel_map: false
+        origin_z: 0.0
+        z_resolution: 0.1
+        z_voxels: 12
+        unknown_threshold: 15
+        mark_threshold: 0
+        combination_method: 1
+        observation_sources: depth_mark depth_clear
+        depth_mark:
+          topic: /husky1/camera/depth/obstacle_points
+          data_type: PointCloud2
+          marking: true
+          clearing: false
+          min_obstacle_height: 0.2
+          max_obstacle_height: 0.85   # the Husky's top (LiDAR housing) in TF z; higher is clear
+          obstacle_max_range: 4.5
+          obstacle_min_range: 0.0
+        depth_clear:
+          topic: /husky1/camera/depth/obstacle_points
+          data_type: PointCloud2
+          marking: false
+          clearing: true
+          min_obstacle_height: -0.5
+          max_obstacle_height: 1.1
+          raytrace_max_range: 5.0
+          raytrace_min_range: 0.0
+      hazard_layer:
+        # Spots where the Husky got caught (pine branches below the LiDAR's
+        # plane, invisible to the scan); the mission coordinator publishes
+        # them and they are never cleared.
+        plugin: nav2_costmap_2d::ObstacleLayer
+        enabled: true
+        footprint_clearing_enabled: false
+        observation_sources: hazards
+        hazards:
+          topic: /husky1/hazards
+          data_type: PointCloud2
+          marking: true
+          clearing: false
+          min_obstacle_height: 0.0
+          max_obstacle_height: 2.0
+          obstacle_max_range: 80.0
+          obstacle_min_range: 0.0
+          raytrace_max_range: 80.0
       obstacle_layer:
         plugin: nav2_costmap_2d::ObstacleLayer
         enabled: true
@@ -236,7 +352,9 @@ global_costmap:
           data_type: LaserScan
           raytrace_max_range: 20.0
           raytrace_min_range: 0.0
-          obstacle_max_range: 10.0
+          # 5 m, not 10: from 0.8 m up, a few degrees of tilt puts a beam on the
+          # ground 9-15 m out, which drew false obstacle streaks across open forest
+          obstacle_max_range: 5.0
           obstacle_min_range: 0.0
       static_layer:
         plugin: nav2_costmap_2d::StaticLayer

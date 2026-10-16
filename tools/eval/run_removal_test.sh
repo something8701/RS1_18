@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# run_removal_test.sh NAME [extra launch args]: run removal test + bag, print report, stop.
-# EXTRA_TOPICS="..." adds topics to the recording (e.g. the drone camera).
+# Runs a removal test with a bag and prints the report.
+
+
 S=${EVAL_DIR:-$HOME/rs1_18_ws/eval}; mkdir -p $S/logs
-# A previous run's stop_sim.sh may still be in its kill pass; it would take
-# this run's fresh processes with it (it matches every sim process).
+
+
 until ! ps -eo args | grep -q "^bash .*tools/eval/stop_sim.sh"; do sleep 1; done
 N=$1; shift; L=$S/logs/$N.log
 cd ~/rs1_18_ws && export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0} ROS_LOCALHOST_ONLY=1 ROS_LOG_DIR=$S/logs/ros DISPLAY=:1

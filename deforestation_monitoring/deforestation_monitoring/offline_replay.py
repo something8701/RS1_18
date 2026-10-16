@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Replays a recorded test through the real mapper and tracker, no sim needed.
+
 """Replay a recorded removal test through the real mapper + tracker offline.
 
 The bag's raw ``/parrot1/scan`` and ``/parrot1/odometry`` are fed to the
@@ -32,7 +34,7 @@ from typing import Dict, List, Optional
 import numpy as np
 import yaml
 
-# Parameters of monitoring_nodes.launch.py (keep in sync).
+
 MAPPER_PARAMS = {
     'resolution': 0.25, 'map_size_x': 80.0, 'map_size_y': 80.0,
     'scan_topic': '/parrot1/scan', 'odom_topic': '/parrot1/odometry',
@@ -50,10 +52,10 @@ TRACKER_PARAMS = {
     'publish_rate': 1.0, 'seen_lost': True, 'baseline_mean_chm': True,
     'merge_lost_crowns': True, 'camera_area_alerts': True, 'area_attach': True, 'freeze_median_ticks': 30, 'freeze_median_radius': 2.0, 'freeze_median_exclusive': True, 'merge_hold_s': 240.0, 'merge_after_ratio': 0.6,
 }
-# The tracker keeps trees out to ±37 m in the dense forest, its camera patches
-# 7 m inside that (monitoring_nodes.launch.py); the coverage gate stays BOX.
+
+
 TRACKER_BOX = {'dense_forest': (37.0, 7.0)}
-TRACKER_WORLD: Dict[str, Dict] = {}   # per-world tracker params (launch expressions)
+TRACKER_WORLD: Dict[str, Dict] = {}
 BOX = {'dense_forest': 30.0, 'sparse_trees': 15.0, 'cluster_test': 10.0,
        'showcase_forest': 30.0, 'simple_trees': 20.0}
 
@@ -172,7 +174,7 @@ def replay(bag: str, world: str, t_removed: Optional[float],
         for n in (mapper, tracker, camera):
             set_logger_level(n.get_logger().name, LoggingSeverity.WARN)
 
-    # Wire mapper outputs to tracker inputs; record what the test node saw.
+
     canopy_events: List = []
     sink_map = _Sink(tracker.canopy_cb)
     mapper.canopy_pub = sink_map
@@ -196,29 +198,29 @@ def replay(bag: str, world: str, t_removed: Optional[float],
                  'drone_baseline_pub'):
         setattr(tracker, name, _Sink())
     tracker.canopy_alert_pub = _Sink(lambda m: canopy_events.append((now_s[0], m.data)))
-    info_sink = _Sink()                 # latest /parrot_tree_baseline_info
-    notes: List[Dict] = []              # /parrot_tree_change_notes (LOST by, MERGED)
+    info_sink = _Sink()
+    notes: List[Dict] = []
     tracker.baseline_info_pub = info_sink
     tracker.change_note_pub = _Sink(lambda m: notes.append(
         dict(json.loads(m.data), t_epoch=now_s[0])))
     camera.species_pub = _Sink(tracker.species_map_cb)
     camera.seen_map_pub = _Sink(tracker.seen_map_cb)
     camera.seen_pub = _Sink(tracker.seen_recent_cb)
-    frames: Dict[tuple, Dict] = {}    # header stamp -> {'rgb': msg, 'depth': msg}
+    frames: Dict[tuple, Dict] = {}
 
-    # LOST-gate diagnostics: _lost_cells_near is only called for baseline
-    # trees that are unmatched this tick, so this records, per tree id,
-    # every unmatched tick and its lost-evidence cell count.
+
+
+
     gate_log: Dict[int, List] = {}
     freeze_map: List = [None]
-    freeze_ring: List = []      # tracker positions, last 60 ticks up to freeze+3
+    freeze_ring: List = []
     orig_near = tracker._lost_cells_near
 
     from scipy import ndimage
     cache: Dict = {}
 
     def features(name, mask):
-        # (#lost 8-neighbours, component labels) of a mask, once per tick
+
         key = (name, now_s[0])
         if cache.get(name, (None,))[0] != key:
             m = mask.astype(np.int16)
@@ -255,8 +257,8 @@ def replay(bag: str, world: str, t_removed: Optional[float],
             both = cache['bothmask'][1]
         g = metrics('ground', ground, tree, radius)
         b = metrics('both', both, tree, radius)
-        # Own-top drop: max canopy within 0.75 / 1.0 m of the baseline
-        # position, map at freeze vs latest map.
+
+
         tops = []
         if freeze_map[0] is not None and sink_map.last is not None:
             key = ('now', now_s[0])
@@ -277,7 +279,7 @@ def replay(bag: str, world: str, t_removed: Optional[float],
                 tree['x'], tree['y'], 1.0, 'frac'), 2))
         else:
             tops = [0.0, 0.0, 0.0, 0.0, 0.0]
-        # distance to the nearest detection of the previous tick
+
         near_det = 99.0
         if pos_sink.last is not None:
             key = ('pos', now_s[0])
@@ -314,8 +316,8 @@ def replay(bag: str, world: str, t_removed: Optional[float],
     while reader.has_next():
         topic, data, stamp = reader.read_next()
         if topic in camera_topics:
-            # Camera stamps are sim time; the camera node's clock follows the
-            # odometry stamps (below) so its recent-window test is consistent.
+
+
             msg = deserialize_message(data, Image)
             key = (msg.header.stamp.sec, msg.header.stamp.nanosec)
             pair = frames.setdefault(key, {})
@@ -325,7 +327,7 @@ def replay(bag: str, world: str, t_removed: Optional[float],
                 del frames[key]
             continue
         if topic == '/survey_status':
-            # loop counting for baseline_min_loops / freeze_min_loops
+
             from std_msgs.msg import String as _String
             status = deserialize_message(data, _String)
             if mapper.baseline_min_loops > 0:
@@ -393,8 +395,8 @@ def replay(bag: str, world: str, t_removed: Optional[float],
            'quality': baseline_quality(truth, baseline, box_t)}
     if t_removed is None:
         return out
-    # n_trees 0 = a no-change recording scored as a guard (nothing removed).
-    if names:      # an explicit cut list (removal_test trees:=a,b,c)
+
+    if names:
         removed = [t for t in truth if t[0] in names]
     else:
         removed = (select_removal_targets(truth, n_trees, box_t, balanced=balanced,
@@ -423,13 +425,13 @@ def replay(bag: str, world: str, t_removed: Optional[float],
              'why': 'event before any tree was removed'})
     result['false_events'] = len(result['false_event_list'])
     result['passed'] = result['passed'] and not before
-    # Gate margin: removed (paired) vs standing baseline trees, after removal.
+
     removed_ids = {t['baseline_id'] for t in result['trees']
                    if t.get('baseline_id') is not None}
     gate = {}
     for tid, rows in gate_log.items():
         post = [r for r in rows if r[0] >= t_removed]
-        mx = lambda i: max((r[i] for r in post), default=0)  # noqa: E731
+        mx = lambda i: max((r[i] for r in post), default=0)
         gate[tid] = {'unmatched_ticks': len(post),
                      'max_evidence': mx(1), 'max_ground': mx(2),
                      'max_drop': mx(3),
@@ -485,8 +487,8 @@ def main(argv=None) -> int:
     names = [n for n in a.trees.split(',') if n]
     if a.log:
         t_removed = removal_time_from_log(a.log)
-        # score what the recording really cut; target selection has changed
-        # since some recordings were made (showcase replays, 2026-10-05)
+
+
         names = names or removed_names_from_log(a.log)
     if a.report_json:
         t_removed = json.load(open(a.report_json)).get('t_removed_epoch')

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Rebuilds the canopy model from a raw scan bag.
+
 """Offline replay evaluation: rebuild the CHM from raw /parrot1/scan.
 
 Reads a rosbag of ``/parrot1/scan`` + ``/parrot1/odometry`` and rebuilds the
@@ -65,9 +67,9 @@ def accumulate(reader, altitude, res=0.25, origin=-40.0, dim=320,
     the rest to half 1 (pass B). ``split_ns=None`` falls back to
     alternating scans, which is NOT a pass-A/pass-B comparison."""
     height = np.zeros((dim, dim), dtype=np.float32)
-    # Latest reading per cell, exactly like scan_mapper.height_recent (the
-    # live /forest_canopy_map): each scan overwrites the cells it touched
-    # with that scan's max. The all-time max above is what the CHM uses.
+
+
+
     recent = np.zeros((dim, dim), dtype=np.float32)
     hits = np.zeros((dim, dim), dtype=np.int32)
     last_odom = None
@@ -98,7 +100,7 @@ def accumulate(reader, altitude, res=0.25, origin=-40.0, dim=320,
             np.maximum.at(height, (ix, iy), zs)
             scan_max = np.full((dim, dim), -np.inf, dtype=np.float32)
             np.maximum.at(scan_max, (ix, iy), zs)
-            touched = np.isfinite(scan_max)       # same rule as scan_mapper
+            touched = np.isfinite(scan_max)
             recent[touched] = np.maximum(scan_max[touched], 0.0)
             np.add.at(hits, (ix, iy), 1)
             np.maximum.at(halves[half], (ix, iy), zs)
@@ -177,16 +179,16 @@ def main(argv=None) -> int:
         open_reader(), args.altitude, res=0.25, split_ns=split_ns)
     print(f'scanned cells: {np.count_nonzero(hits)}')
 
-    # Parity check: our rebuilt CHM vs the live-recorded canopy map on the
-    # cells both observed. They should be near-identical because both use the
-    # same imported projection code.
+
+
+
     if last_map is not None:
-        # OccupancyGrid data is row-major [iy, ix]; our grids are [ix, iy].
+
         live = np.array(last_map.data, dtype=np.float32).reshape(
             last_map.info.height, last_map.info.width).T
         common = (hits > 0) & (live >= 0)
         if np.any(common):
-            # The live map is the latest reading per cell, not the max.
+
             diff = np.abs(live[common] / 10.0 - recent[common])
             print(f'parity vs live map: max={diff.max():.3f}m '
                   f'mean={diff.mean():.3f}m over {common.sum()} cells')
@@ -201,8 +203,8 @@ def main(argv=None) -> int:
     m = score_detections(dets, truth, args.match_radius)
     print('FULL BAG:', {k: round(v, 3) for k, v in m.items()})
 
-    # Position error comparison: height-weighted top-band centroid vs the
-    # single highest cell, measured only on true positives in tight groups.
+
+
     from .tree_detection import match_detections
     truth_pos = [(x, y) for _, x, y in truth]
     for band in (0.5, 0.0):
@@ -224,7 +226,7 @@ def main(argv=None) -> int:
         hm = score_detections(d, truth, args.match_radius)
         print(f'HALF {half}:', {k: round(v, 3) for k, v in hm.items()})
 
-    # The A-vs-B change gate only considers cells observed in BOTH passes.
+
     common = (half_hits[0] > 0) & (half_hits[1] > 0)
 
     def observed(dets):
@@ -236,9 +238,9 @@ def main(argv=None) -> int:
                 out.append((d.x, d.y))
         return out
 
-    # Same association rule as the live tracker: one-to-one, radius
-    # min(0.4 * nearest-neighbour distance, 1.5 m), so centroid jitter is
-    # not a LOST plus a GAINED.
+
+
+
     only_a, only_b, shifts = match_passes(
         observed(half_dets[0]), observed(half_dets[1]))
     flicker = only_a + only_b

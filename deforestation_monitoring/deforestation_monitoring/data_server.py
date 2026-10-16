@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# The dashboard's brain: talks to ROS over rosbridge and serves the web page.
+
 """
 Data Server: Connects to ROS via rosbridge websocket, stores all data,
 and serves a web dashboard. History survives a page refresh.
@@ -20,13 +22,12 @@ import threading
 import base64
 import os
 import struct
-import math
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
 import websocket
 
 
-# ── Data store ──
+
 store = {
     'flags': [],
     'reports': [],
@@ -46,16 +47,15 @@ store = {
         'gained_count': 0,
     },
     'parrot_tree_positions': [],
-    'baseline_info': None,     # frozen baseline: per tree source + species, pine patches
-    'change_notes': [],        # per LOST: what caught it; per merged crown
-    'species_map': None,       # camera blue/green per cell (x100), -1 unseen
-    'labels': [],
+    'baseline_info': None,
+    'change_notes': [],
+    'species_map': None,
     'change_events': [],
     'canopy_map': None,
     'canopy_change_map': None,
     'change_map': None,
     'drone_pos': {'x': 0, 'y': 0},
-    'husky_pos': {'x': 0, 'y': 0},
+    'husky_pos': None,
     'drone_points': 0,
     'change_markers': 0,
     'mission_status': '',
@@ -65,18 +65,10 @@ store = {
     'drone_baseline_status': '',
     'evaluation': '',
     'started': time.time(),
-    'drone_cam': None,   # latest compressed JPEG bytes
+    'drone_cam': None,
     'husky_cam': None,
 }
 store_lock = threading.Lock()
-
-# Load previously saved user labels so the dashboard can show them next to
-# the automatic tree detections after a restart.
-try:
-    with open('/tmp/deforestation_eval/tree_labels.json') as _labels_fh:
-        store['labels'] = json.load(_labels_fh)
-except (OSError, ValueError):
-    pass
 
 
 def _parse_count(text):
@@ -87,7 +79,7 @@ def _parse_count(text):
         return 0
 
 
-# ── Rosbridge connection ──
+
 def rosbridge_thread():
     """Connect to rosbridge websocket and subscribe to all relevant topics."""
     ws = None
@@ -95,20 +87,20 @@ def rosbridge_thread():
         try:
             ws = websocket.create_connection('ws://localhost:9090', timeout=30)
 
-            # Subscribe to all topics (type names are rosbridge notation:
-            # package/Message)
+
+
             subscriptions = {
-                # Decision & communication
+
                 '/suspicious_areas': 'deforestation_interfaces/SuspiciousArea',
                 '/inspection_reports': 'std_msgs/String',
                 '/mission_status': 'std_msgs/String',
                 '/survey_status': 'std_msgs/String',
-                # Baseline + evaluation
+
                 '/baseline_status': 'std_msgs/String',
                 '/drone_baseline_status': 'std_msgs/String',
                 '/scan_coverage': 'std_msgs/String',
                 '/evaluation_summary': 'std_msgs/String',
-                # Change events + markers
+
                 '/tree_change_events': 'deforestation_interfaces/TreeChangeEvent',
                 '/tree_status': 'deforestation_interfaces/TreeStatus',
                 '/parrot_tree_change_events': 'deforestation_interfaces/TreeChangeEvent',
@@ -122,11 +114,11 @@ def rosbridge_thread():
                 '/suspicious_markers': 'visualization_msgs/MarkerArray',
                 '/tree_change_markers': 'visualization_msgs/MarkerArray',
                 '/canopy_change_markers': 'visualization_msgs/MarkerArray',
-                # Maps
+
                 '/forest_canopy_map': 'nav_msgs/OccupancyGrid',
                 '/canopy_change_map': 'nav_msgs/OccupancyGrid',
                 '/forest_change_map': 'nav_msgs/OccupancyGrid',
-                # Robots
+
                 '/parrot1/odometry': 'nav_msgs/Odometry',
                 '/husky1/odometry': 'nav_msgs/Odometry',
                 '/drone_lidar_points': 'sensor_msgs/PointCloud2',
@@ -142,8 +134,8 @@ def rosbridge_thread():
                 try:
                     msg = json.loads(ws.recv())
                 except websocket.WebSocketTimeoutException:
-                    # Healthy idle link: the 30 s recv timeout is expected.
-                    # Reconnecting here would leak dead clients on rosbridge.
+
+
                     continue
                 if msg.get('op') != 'publish':
                     continue
@@ -152,7 +144,7 @@ def rosbridge_thread():
 
                 with store_lock:
                     if topic == '/suspicious_areas':
-                        # SuspiciousArea message: position is at top level
+
                         pos = data.get('position', {})
                         px = pos.get('x', 0)
                         py = pos.get('y', 0)
@@ -264,7 +256,7 @@ def rosbridge_thread():
                             info = None
                         if info is not None and info != store['baseline_info']:
                             store['baseline_info'] = info
-                            store['change_notes'] = []   # notes belong to one baseline
+                            store['change_notes'] = []
 
                     elif topic == '/parrot_tree_change_notes':
                         try:
@@ -291,12 +283,13 @@ def rosbridge_thread():
                             store['change_events'] = store['change_events'][-50:]
 
                     elif topic == '/forest_change_events':
-                        store['change_events'].append({
-                            'text': data.get('data', ''),
-                            'time': time.time(),
-                        })
-                        if len(store['change_events']) > 50:
-                            store['change_events'] = store['change_events'][-50:]
+
+
+
+                        ev = store.setdefault('husky_change_events', [])
+                        ev.append({'text': data.get('data', ''), 'time': time.time()})
+                        if len(ev) > 50:
+                            store['husky_change_events'] = ev[-50:]
 
                     elif topic in ('/suspicious_markers', '/tree_change_markers',
                                    '/canopy_change_markers'):
@@ -357,53 +350,15 @@ def _grid_summary(data):
     }
 
 
-def _compare_tree_labels(user_labels, auto_labels, match_radius=2.0):
-    """Compare user circles against automatic tree points."""
-    matched_users = set()
-    matched_autos = set()
-
-    for user_index, user in enumerate(user_labels):
-        user_x = user.get('cx', 0.0)
-        user_y = user.get('cy', 0.0)
-        user_radius = float(user.get('r', 0.0))
-        threshold = max(user_radius, match_radius)
-        for auto_index, auto in enumerate(auto_labels):
-            if auto_index in matched_autos:
-                continue
-            distance = math.hypot(
-                float(auto.get('x', 0.0)) - user_x,
-                float(auto.get('y', 0.0)) - user_y,
-            )
-            if distance <= threshold:
-                matched_users.add(user_index)
-                matched_autos.add(auto_index)
-                break
-
-    true_positives = len(matched_users)
-    false_positives = len(auto_labels) - len(matched_autos)
-    missed = len(user_labels) - true_positives
-    precision = true_positives / (true_positives + false_positives) \
-        if true_positives + false_positives else 0.0
-    recall = true_positives / (true_positives + missed) \
-        if true_positives + missed else 0.0
-
-    return {
-        'true_positives': true_positives,
-        'false_positives': false_positives,
-        'missed_trees': missed,
-        'precision': precision,
-        'recall': recall,
-    }
 
 
-# ── Resolve dashboard path ──
 def _find_dashboard():
     """Locate the dashboard HTML file relative to the script or in standard ROS paths."""
-    # First: check relative to this file (source tree layout)
+
     rel = os.path.join(os.path.dirname(__file__), '..', 'config', 'dashboard.html')
     if os.path.isfile(rel):
         return os.path.abspath(rel)
-    # Second: check the installed share directory
+
     try:
         from ament_index_python.packages import get_package_share_directory
         return os.path.join(
@@ -412,8 +367,8 @@ def _find_dashboard():
         )
     except ImportError:
         pass
-    # Fallback: check a known ROS workspace path
-    for base in ['/home/alig/41068_ws/src', os.path.expanduser('~/41068_ws/src')]:
+
+    for base in [os.path.expanduser('~/41068_ws/src')]:
         p = os.path.join(base, 'deforestation_monitoring', 'config', 'dashboard.html')
         if os.path.isfile(p):
             return p
@@ -422,48 +377,11 @@ def _find_dashboard():
 
 HTML_PATH = _find_dashboard()
 
+PHOTO_DIRS = ['/tmp/deforestation_eval/waste_photos', '/tmp/deforestation_inspections']
 
-# ── HTTP server ──
+
+
 class Handler(BaseHTTPRequestHandler):
-    def do_POST(self):
-        path = urlparse(self.path).path
-        if path == '/api/labels':
-            length = int(self.headers.get('Content-Length', '0'))
-            raw = self.rfile.read(length) if length else b'[]'
-            try:
-                labels = json.loads(raw.decode() or '[]')
-            except Exception:
-                labels = []
-
-            out_dir = '/tmp/deforestation_eval'
-            os.makedirs(out_dir, exist_ok=True)
-            out_path = os.path.join(out_dir, 'tree_labels.json')
-            try:
-                with open(out_path, 'w') as f:
-                    json.dump(labels, f, indent=2)
-            except OSError as exc:
-                self.send_response(500)
-                self.end_headers()
-                self.wfile.write(str(exc).encode())
-                return
-
-            with store_lock:
-                store['labels'] = labels
-                comparison = _compare_tree_labels(labels, store['parrot_tree_positions'])
-
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                'saved': len(labels),
-                'comparison': comparison,
-            }).encode())
-            return
-
-        self.send_response(404)
-        self.end_headers()
-
     def do_GET(self):
         path = urlparse(self.path).path
         if path == '/api/data':
@@ -472,8 +390,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             with store_lock:
-                # Camera frames are raw bytes served by /api/camera/*; they are not
-                # JSON-serialisable, so they stay out of /api/data.
+
+
                 payload = {k: v for k, v in store.items()
                            if not isinstance(v, bytes)}
                 payload['uptime'] = time.time() - store['started']
@@ -486,8 +404,12 @@ class Handler(BaseHTTPRequestHandler):
             self._serve_cached_camera('drone_cam')
         elif path == '/api/camera/husky':
             self._serve_cached_camera('husky_cam')
+        elif path.startswith('/api/photo/'):
+            self._serve_photo(os.path.basename(path))
+        elif path == '/api/photos':
+            self._serve_photo_list()
         else:
-            # Serve dashboard HTML
+
             if HTML_PATH and os.path.isfile(HTML_PATH):
                 try:
                     with open(HTML_PATH, 'rb') as f:
@@ -506,6 +428,45 @@ class Handler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(b'Dashboard not found. Check HTML_PATH in data_server.py')
 
+    def _serve_photo(self, name):
+        """A Husky photo (waste find or site inspection), by file name only."""
+        for folder in PHOTO_DIRS:
+            f = os.path.join(folder, name)
+            if name.lower().endswith(('.jpg', '.png')) and os.path.isfile(f):
+                with open(f, 'rb') as fh:
+                    body = fh.read()
+                self.send_response(200)
+                self.send_header('Content-Type',
+                                 'image/png' if name.lower().endswith('.png') else 'image/jpeg')
+                self.send_header('Cache-Control', 'no-cache')
+                self.end_headers()
+                self.wfile.write(body)
+                return
+        self.send_response(404)
+        self.end_headers()
+
+    def _serve_photo_list(self):
+        """Photos taken since this server started, newest first."""
+        photos = []
+        for folder in PHOTO_DIRS:
+            try:
+                names = os.listdir(folder)
+            except OSError:
+                continue
+            for name in names:
+                f = os.path.join(folder, name)
+                if not name.lower().endswith(('.jpg', '.png')):
+                    continue
+                mtime = os.path.getmtime(f)
+                if mtime >= store['started']:
+                    photos.append({'name': name, 'time': mtime,
+                                   'kind': 'waste' if 'waste' in folder else 'inspection'})
+        photos.sort(key=lambda p: -p['time'])
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps(photos[:200]).encode())
+
     def _serve_cached_camera(self, key):
         """Return the latest cached camera image."""
         with store_lock:
@@ -522,7 +483,7 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def log_message(self, *args):
-        pass  # quiet
+        pass
 
 
 def start_server():

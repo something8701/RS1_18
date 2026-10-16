@@ -1,3 +1,5 @@
+# Package manifest: entry points, data files, dependencies.
+
 import os
 from glob import glob
 from setuptools import setup
@@ -50,6 +52,9 @@ setup(
             'evaluate_mission = deforestation_monitoring.evaluate_mission:main',
             'camera_republisher = deforestation_monitoring.camera_republisher:main',
             'clock_watchdog = deforestation_monitoring.clock_watchdog:main',
+            'waste_detector = deforestation_monitoring.waste_detector:main',
+            'depth_obstacles = deforestation_monitoring.depth_obstacles:main',
+            'tree_refiner = deforestation_monitoring.tree_refiner:main',
         ],
     },
 )

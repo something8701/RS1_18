@@ -1,3 +1,5 @@
+# How well camera colour separates pines from oaks.
+
 """How well does camera colour separate pines from oaks? (option A feasibility)
 
 usage: camera_eval.py MAP.npz WORLD
@@ -61,7 +63,7 @@ def main():
              for t in truth}
     in_box = {t[0] for t in truth if abs(t[1]) <= 30 and abs(t[2]) <= 30}
 
-    # per tree
+
     per_tree = {}
     for name, x, y in truth:
         m = disc_mask(x, y, 0.75)
@@ -90,7 +92,7 @@ def main():
                 aucs.append(f'{k.split("(")[1][:-1]} {a:.2f}')
         print(f'{f:14s} ' + ' '.join(f'{r:>24s}' for r in row) + '   AUC vs oak: ' + ', '.join(aucs))
 
-    # per cell
+
     pine_cells = np.zeros((DIM, DIM), bool)
     near_pine = np.zeros((DIM, DIM), bool)
     oak_cells = np.zeros((DIM, DIM), bool)

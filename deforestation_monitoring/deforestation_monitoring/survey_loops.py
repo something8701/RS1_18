@@ -1,3 +1,5 @@
+# Counts the drone's full survey loops from /survey_status.
+
 """Counting the drone's full survey loops from ``/survey_status``.
 
 Shared by removal_test (how long to watch after the cut), scan_mapper and
@@ -5,6 +7,7 @@ parrot_tree_tracker (how many loops to fly before freezing the baseline).
 """
 import re
 from typing import Optional, Tuple
+
 
 _WP = re.compile(r'STATE=PATROL wp=(\d+)/(\d+)')
 
@@ -25,14 +28,18 @@ class LoopCounter:
     """
 
     def __init__(self):
+        """Start with no loops counted and no waypoint seen yet."""
         self.loops = 0
         self._last = None
         self._visited = set()
 
     def update(self, wp: int, total: int) -> bool:
+        """Feed one waypoint index; True if a full loop just completed."""
+
         wrapped = self._last is not None and wp < self._last
         counted = False
         if wrapped:
+
             counted = len(self._visited) >= total / 2
             self.loops += int(counted)
             self._visited = set()

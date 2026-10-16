@@ -1,3 +1,5 @@
+# Sweeps LOST-gate persistence rules over dumps and replays.
+
 """Sweep LOST-gate persistence rules over live dumps and replay measurements.
 
 Rule: top frac >= 0.9 & max drop >= 0.3 & ground+drop >= 6 [& nearest
@@ -11,8 +13,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
-from gate_sim import pairing, W  # noqa: E402
-from deforestation_monitoring.tree_detection import parse_tree_truth  # noqa: E402
+from gate_sim import pairing, W
+from deforestation_monitoring.tree_detection import parse_tree_truth
 
 EVAL = os.environ.get('EVAL_DIR', os.path.expanduser('~/rs1_18_ws/eval'))
 LIVE = ['removal9_canopy', 'removal10_mixed', 'removal11_canopy', 'removal12_canopy']

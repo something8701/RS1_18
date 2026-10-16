@@ -103,9 +103,13 @@ html.contrast .tab:not(.active),html.contrast .chip:not(.active):not(.primary){c
 #view-container{position:fixed;inset:0;z-index:1}
 .view{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .25s var(--ease)}
 .view.active{opacity:1;pointer-events:auto}
-#map-wrap,#label-wrap{position:absolute;inset:0}
-#map-canvas,#label-canvas{width:100%;height:100%;display:block}
+#map-wrap{position:absolute;inset:0}
+#map-canvas{width:100%;height:100%;display:block}
 #terrain-container{position:absolute;inset:0}
+#t3-panel{position:absolute;left:var(--safe-left);bottom:var(--safe-bottom);padding:8px;border-radius:20px;display:flex;flex-direction:column;gap:4px;max-width:calc(100% - var(--safe-left) - var(--gap))}
+#t3-panel .t3-row{display:flex;flex-wrap:wrap;gap:2px}
+#t3-panel .chip{padding:6px 11px;font-size:12px}
+.t3-hint{color:var(--label3);font-size:11px;padding:2px 8px}
 #terrain-container .fallback{position:absolute;left:var(--safe-left);top:var(--safe-top);padding:18px 22px;border-radius:20px;color:var(--label2)}
 .panel{position:absolute;left:var(--safe-left);top:var(--safe-top);right:var(--gap);bottom:var(--safe-bottom);
   border-radius:var(--r-panel);display:flex;flex-direction:column;overflow:hidden;transition:left .55s var(--spring)}
@@ -268,14 +272,11 @@ body:not([data-view="map"]) #toolbar .controls{display:none}
 #cameras-view .cam{flex:1;min-width:0;display:flex;flex-direction:column;border-radius:var(--r-panel);overflow:hidden;padding:8px}
 #cameras-view .cam .lbl{padding:6px 10px 10px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:9px}
 #cameras-view .cam img{width:100%;flex:1;min-height:0;object-fit:contain;background:#000;border-radius:20px}
-#data-content,#debug-content{position:absolute;left:var(--safe-left);top:var(--safe-top);right:var(--gap);bottom:var(--safe-bottom);
+#debug-content{position:absolute;left:var(--safe-left);top:var(--safe-top);right:var(--gap);bottom:var(--safe-bottom);
   border-radius:var(--r-panel);padding:20px 24px;overflow:auto;font:12px/1.75 var(--mono);color:var(--label2);white-space:pre-wrap;
   transition:left .55s var(--spring)}
 .kv{color:var(--label)} .k{color:var(--label2)} .ok{color:var(--green)} .warn{color:var(--orange)} .bad{color:var(--red)}
-#label-toolbar{position:absolute;left:var(--safe-left);bottom:var(--safe-bottom);max-width:calc(100% - var(--safe-left) - var(--gap));
   display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:5px;border-radius:24px;transition:left .55s var(--spring)}
-#label-note,#label-compare-result{font-size:12px;color:var(--label2);padding:0 10px;font-variant-numeric:tabular-nums}
-#label-note:empty,#label-compare-result:empty{display:none}
 #tooltip{position:fixed;z-index:30;padding:7px 11px;border-radius:12px;font-size:12px;color:var(--label);pointer-events:none;opacity:0;white-space:nowrap;
   background:rgba(var(--glass-rgb),.8);-webkit-backdrop-filter:blur(14px) saturate(1.6);backdrop-filter:blur(14px) saturate(1.6);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 8px 24px rgba(0,0,0,.45);transition:opacity .12s;font-variant-numeric:tabular-nums}
@@ -397,6 +398,79 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
   #report-sheet h1{font-size:26px}
   #r-map{max-height:130mm;width:auto;max-width:100%;margin:0 auto;object-fit:contain}
 }
+/* Debug maps */
+#debug-content{white-space:normal}
+.dbg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px;font:12px/1.45 var(--font)}
+.dbg-card{background:rgba(0,0,0,.28);border-radius:16px;padding:10px 10px 8px;min-width:0}
+.dbg-card h3{margin:0 0 6px;font:600 13px/1.3 var(--font);color:var(--label);display:flex;justify-content:space-between;gap:8px}
+.dbg-card h3 span{font:400 11px/1.3 var(--mono);color:var(--label3);white-space:nowrap}
+.dbg-card canvas{width:100%;aspect-ratio:1/1;display:block;border-radius:10px;background:#0b100d}
+.dbg-legend{display:flex;flex-wrap:wrap;gap:3px 10px;margin-top:6px;color:var(--label2);font-size:11px}
+.dbg-legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.dbg-note{margin-top:4px;color:var(--label2);font:11px/1.4 var(--mono);max-height:5.6em;overflow:auto;white-space:pre-wrap}
+.dbg-card canvas[data-panel]{cursor:zoom-in}
+.dbg-phase{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;font:12px/1.35 var(--font)}
+.dbg-pill{flex:1 1 150px;min-width:0;padding:8px 11px;border-radius:12px;background:rgba(255,255,255,.06);color:var(--label2);box-shadow:inset 3px 0 0 rgba(255,255,255,.18)}
+.dbg-pill b{display:block;color:var(--label);font-weight:600;margin-bottom:1px}
+.dbg-pill.ok{box-shadow:inset 3px 0 0 var(--green)}
+.dbg-pill.warn{box-shadow:inset 3px 0 0 var(--orange)}
+.dbg-pill.bad{box-shadow:inset 3px 0 0 var(--red)}
+.dbg-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:14px;font:12px/1.45 var(--font)}
+@media (max-width:1100px){.dbg-row{grid-template-columns:1fr}}
+.dbg-events,.dbg-queue,.dbg-gallery{max-height:330px;overflow:auto}
+.dbg-ev{display:grid;grid-template-columns:62px 9px 1fr;gap:7px;align-items:baseline;padding:4px 6px;border-radius:8px;color:var(--label2)}
+.dbg-ev.go{cursor:pointer}
+.dbg-ev.go:hover{background:rgba(255,255,255,.07);color:var(--label)}
+.dbg-ev time{font:11px var(--mono);color:var(--label3)}
+.dbg-ev i{width:8px;height:8px;border-radius:50%;align-self:center}
+.dbg-ev em{font:normal 11px var(--mono);color:var(--label3)}
+.dbg-empty{color:var(--label3);padding:6px 2px}
+.dbg-cur{padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.06);margin-bottom:8px;color:var(--label2)}
+.dbg-cur b{color:var(--label)}
+.dbg-cur .prog{margin:7px 0 3px}
+.dbg-queue table{width:100%;border-collapse:collapse;font:11px var(--mono);color:var(--label2)}
+.dbg-queue th{text-align:left;font:600 11px var(--font);color:var(--label3);padding:3px 4px}
+.dbg-queue td{padding:3px 4px;border-top:1px solid rgba(255,255,255,.06)}
+.dbg-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
+.dbg-gallery a{display:block;color:var(--label2);text-decoration:none;font-size:11px;min-width:0}
+.dbg-gallery img{width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:8px;display:block;background:#0b100d}
+.dbg-gallery span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
+.dbg-big{position:fixed;inset:var(--gap);z-index:30;border-radius:var(--r-panel);display:flex;flex-direction:column;padding:10px;overflow:hidden}
+.dbg-big-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:0 2px 8px}
+.dbg-chipset{display:flex;flex-wrap:wrap;gap:2px}
+.dbg-chipset .chip{padding:6px 11px;font-size:12px}
+.dbg-sep{width:1px;height:22px;background:rgba(255,255,255,.14);margin:0 4px}
+.dbg-grow{flex:1}
+#dbg-big-canvas{flex:1;min-height:0;width:100%;border-radius:18px;background:#0b100d;cursor:crosshair;touch-action:none}
+#dbg-big-canvas.drag{cursor:grabbing}
+.dbg-readout{position:absolute;right:22px;top:66px;max-width:min(440px,60%);padding:8px 11px;border-radius:10px;background:rgba(0,0,0,.62);color:var(--label);font:11px/1.5 var(--mono);white-space:pre-wrap;pointer-events:none}
+.dbg-readout:empty,.dbg-big-legend:empty{display:none}
+.dbg-big-legend{position:absolute;left:22px;bottom:22px;max-width:60%;display:flex;flex-wrap:wrap;gap:3px 12px;padding:8px 11px;border-radius:10px;background:rgba(0,0,0,.55);color:var(--label2);font-size:11px;pointer-events:none}
+.dbg-big-legend b{width:100%;color:var(--label);font-weight:600}
+.dbg-big-legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.dbg-folder{display:block;border:0;padding:0;background:transparent;color:var(--label2);text-align:left;cursor:pointer;font:11px var(--font);min-width:0}
+.dbg-folder img{width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:8px;display:block;background:#0b100d;box-shadow:3px -3px 0 rgba(255,255,255,.12),6px -6px 0 rgba(255,255,255,.06)}
+.dbg-folder span{display:block;margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dbg-folder b{color:var(--label);font-weight:600;margin-right:6px}
+.dbg-folder:hover img{outline:2px solid var(--accent)}
+/* Photo folder (an area's or a waste find's photos) */
+.folder-back{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.45);display:grid;place-items:center;padding:var(--gap)}
+.folder{width:min(980px,100%);max-height:100%;display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:var(--r-panel);overflow:hidden}
+.folder-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.folder-head b{display:block;font:600 16px var(--font-display);color:var(--label)}
+.folder-head small{display:block;margin-top:3px;color:var(--label2);font-size:12px;white-space:pre-wrap}
+.folder-view{position:relative;min-height:0;flex:1}
+.folder-view img{width:100%;max-height:58vh;object-fit:contain;border-radius:14px;background:#0b100d;display:block}
+#folder-cap{margin-top:6px;color:var(--label2);font-size:12px}
+.folder-nav{position:absolute;top:calc(50% - 22px);width:40px;height:40px;border-radius:50%;border:0;background:rgba(0,0,0,.5);color:#fff;font-size:24px;line-height:38px;cursor:pointer}
+.folder-nav.prev{left:10px}.folder-nav.next{right:10px}
+.folder-strip{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.folder-strip button{flex:none;width:118px;border:0;padding:0;background:transparent;color:var(--label2);font-size:11px;cursor:pointer;text-align:left}
+.folder-strip img{width:118px;height:78px;object-fit:cover;border-radius:8px;display:block;opacity:.7}
+.folder-strip button.on img{opacity:1;outline:2px solid var(--accent)}
+.folder-strip span{display:block;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dbg-status{margin-top:16px;white-space:pre-wrap}
+.dbg-status summary{cursor:pointer;color:var(--label);font:600 13px var(--font);margin-bottom:6px}
 </style>
 </head>
 <body data-view="map">
@@ -464,26 +538,12 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
     <div class="cam glass husky-only"><div class="lbl"><span class="robot-dot" style="--drone:var(--cyan)"></span>Husky camera</div><img id="husky-img" alt="Husky camera feed"></div>
   </div>
 
-  <div id="terrain-view" class="view" role="tabpanel" aria-label="3D terrain"><div id="terrain-container"></div></div>
+  <div id="terrain-view" class="view" role="tabpanel" aria-label="3D view"><div id="terrain-container"></div></div>
 
-  <div id="label-view" class="view" role="tabpanel" aria-label="Label trees">
-    <div id="label-wrap">
-      <canvas id="label-canvas"></canvas>
-      <div id="label-toolbar" class="glass">
-        <button id="label-undo" class="chip">Undo</button>
-        <button id="label-clear" class="chip">Clear</button>
-        <button id="label-erase" class="chip" aria-pressed="false">Erase</button>
-        <button id="label-calibrate" class="chip">Calibrate</button>
-        <button id="label-offmap" class="chip warn" hidden></button>
-        <button id="label-save" class="chip primary">Save labels</button>
-        <div id="label-note" role="status"></div>
-        <div id="label-compare-result"></div>
-      </div>
-    </div>
-  </div>
-
-  <div id="data-view" class="view" role="tabpanel" aria-label="Raw data"><div id="data-content" class="glass">Waiting for data…</div></div>
-  <div id="debug-view" class="view" role="tabpanel" aria-label="Debug"><div id="debug-content" class="glass">Waiting…</div></div>
+  <div id="debug-view" class="view" role="tabpanel" aria-label="Debug"><div id="debug-content" class="glass">
+    <div id="debug-maps"></div>
+    <details class="dbg-status"><summary>Topics and raw state</summary><div id="debug-status">Waiting…</div></details>
+  </div></div>
 </div>
 
 <aside id="sidebar" class="glass" aria-label="Mission status">
@@ -579,9 +639,7 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
     <button class="tab" data-view="changes" role="tab" aria-selected="false" tabindex="-1">Changes<span class="tab-badge" id="changes-badge" hidden></span></button>
     <button class="tab" data-view="report" role="tab" aria-selected="false" tabindex="-1">Report</button>
     <button class="tab" data-view="cameras" role="tab" aria-selected="false" tabindex="-1">Cameras</button>
-    <button class="tab" data-view="terrain" role="tab" aria-selected="false" tabindex="-1">3D terrain</button>
-    <button class="tab dev-only" data-view="label" role="tab" aria-selected="false" tabindex="-1">Label trees</button>
-    <button class="tab dev-only" data-view="data" role="tab" aria-selected="false" tabindex="-1">Raw data</button>
+    <button class="tab" data-view="terrain" role="tab" aria-selected="false" tabindex="-1">3D view</button>
     <button class="tab dev-only" data-view="debug" role="tab" aria-selected="false" tabindex="-1">Debug</button>
   </div>
   <div class="spacer"></div>
@@ -590,7 +648,6 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
     <button id="toggle-fusion" class="chip active" aria-pressed="true"><span class="dot"></span>Fusion</button>
     <button id="toggle-trees" class="chip active" aria-pressed="true" title="Baseline trees, coloured by the species the camera saw"><span class="dot"></span>Trees</button>
     <button id="toggle-pine" class="chip" aria-pressed="false" title="Canopy the drone camera sees as pine-coloured"><span class="dot"></span>Pine canopy</button>
-    <button id="map-calibrate" class="chip dev-only">Calibrate labels</button>
   </div>
   <button id="settings-btn" class="icon-btn glass" aria-label="Settings" aria-expanded="false" aria-controls="settings">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/></svg>
@@ -660,10 +717,11 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
 <script>
 // ── Config ──
 const ROS_URL='ws://'+location.hostname+':9090';
-const SHOW_HUSKY=false;   // Husky is disabled (use_husky:=false). Set true to bring its UI back.
+// The Husky's UI (sidebar line, camera, map marker) appears once it is running.
+let SHOW_HUSKY=false;
+function huskySeen(){ if(SHOW_HUSKY)return; SHOW_HUSKY=true; document.body.classList.add('show-husky'); }
 const TRACKER_RESET_SERVICE='/parrot_tree_tracker/reset_baseline';
 const REF_LAT=-16.1714, REF_LON=145.4183, MPD=111320;
-if(SHOW_HUSKY)document.body.classList.add('show-husky');
 const root=document.documentElement;
 const bootTime=Date.now();
 
@@ -737,12 +795,17 @@ function rgb(c,a){return a==null?`rgb(${c[0]},${c[1]},${c[2]})`:`rgba(${c[0]},${
 
 // ── State ──
 const S={baselineInfo:null,notes:[],flags:[],reports:[],events:[],treeEvents:[],treeStatus:{baseline_count:0,current_count:0,lost_count:0,gained_count:0},parrotTreeEvents:[],parrotTreeStatus:{baseline_count:0,current_count:0,lost_count:0,gained_count:0},trees:0,drone:{x:0,y:0},husky:{x:0,y:0},
-         survey:'',scanCoverage:'',mission:'',baseline:'',droneBaseline:'',eval:'',connected:false};
+         survey:'',scanCoverage:'',mission:'',baseline:'',droneBaseline:'',eval:'',connected:false,mq:null};
 const lastMsg={};  // topic -> wall-clock ms of last message
 let dc=0, hc=0, lastSnapshotOk=0, hydratedAt=0;
 function mark(topic){ lastMsg[topic]=Date.now(); }
-function treeEventList(){ return S.parrotTreeEvents.length?S.parrotTreeEvents:S.treeEvents; }
-function treeStatus(){ const p=S.parrotTreeStatus,t=S.treeStatus; return {baseline:p.baseline_count||t.baseline_count||0,current:p.current_count||t.current_count||0,lost:p.lost_count||t.lost_count||0,gained:p.gained_count||t.gained_count||0}; }
+// The drone's tracker owns tree changes. The Husky's trunk mapper only counts
+// when no drone is running: its trunks drop in and out of its LiDAR view,
+// so its own lost/new events are noise next to the drone (they refine the
+// map instead, see the Debug trunk panel).
+function droneOn(){ return !!lastMsg['/parrot1/odometry']; }
+function treeEventList(){ return S.parrotTreeEvents.length||droneOn()?S.parrotTreeEvents:S.treeEvents; }
+function treeStatus(){ const p=S.parrotTreeStatus,t=droneOn()?{}:S.treeStatus; return {baseline:p.baseline_count||t.baseline_count||0,current:p.current_count||t.current_count||0,lost:p.lost_count||t.lost_count||0,gained:p.gained_count||t.gained_count||0}; }
 
 // ── Layout: the part of the screen not covered by floating glass ──
 const SAFE={left:14,top:80,right:14,bottom:14};
@@ -824,8 +887,10 @@ function gridFrom(m){return {w:m.info.width,h:m.info.height,data:new Int8Array(m
 sub('/forest_canopy_map','nav_msgs/OccupancyGrid',m=>{grid=gridFrom(m);if(mapActive())drawMap();});
 sub('/canopy_change_map','nav_msgs/OccupancyGrid',m=>{change=gridFrom(m);if(mapActive())drawMap();});
 sub('/fused_tree_map','nav_msgs/OccupancyGrid',m=>{fused=gridFrom(m);if(mapActive())drawMap();});
-sub('/parrot1/odometry','nav_msgs/Odometry',m=>{dx=m.pose.pose.position.x;dy=m.pose.pose.position.y;S.drone={x:dx,y:dy};if(mapActive())drawMap();});
-if(SHOW_HUSKY)sub('/husky1/odometry','nav_msgs/Odometry',m=>{hx=m.pose.pose.position.x;hy=m.pose.pose.position.y;S.husky={x:hx,y:hy};if(mapActive())drawMap();});
+sub('/parrot1/odometry','nav_msgs/Odometry',m=>{const q=m.pose.pose.orientation;dx=m.pose.pose.position.x;dy=m.pose.pose.position.y;
+  S.drone={x:dx,y:dy,z:m.pose.pose.position.z,yaw:Math.atan2(2*(q.w*q.z+q.x*q.y),1-2*(q.y*q.y+q.z*q.z))};if(mapActive())drawMap();});
+sub('/husky1/odometry','nav_msgs/Odometry',m=>{huskySeen();const q=m.pose.pose.orientation;
+  hx=m.pose.pose.position.x;hy=m.pose.pose.position.y;S.husky={x:hx,y:hy,yaw:Math.atan2(2*(q.w*q.z+q.x*q.y),1-2*(q.y*q.y+q.z*q.z))};if(mapActive())drawMap();});
 sub('/suspicious_areas','deforestation_interfaces/SuspiciousArea',m=>{
   const p=m.position; flags.push({x:p.x,y:p.y,type:m.type,sev:m.severity,conf:m.confidence,area:m.area_m2});
   if(flags.length>40)flags.shift();
@@ -837,7 +902,7 @@ sub('/inspection_reports','std_msgs/String',m=>{S.reports.push({text:m.data});if
 sub('/mission_status','std_msgs/String',m=>{S.mission=m.data;updateUI()});
 sub('/survey_status','std_msgs/String',m=>{S.survey=m.data;updateUI()});
 sub('/scan_coverage','std_msgs/String',m=>{S.scanCoverage=m.data;updateUI()});
-sub('/baseline_status','std_msgs/String',m=>{S.baseline=m.data;const n=parseInt((m.data.split(':')[1]||'0').trim());if(!isNaN(n))S.trees=n;updateUI()});
+sub('/baseline_status','std_msgs/String',m=>{S.baseline=m.data;const n=parseInt((m.data.split(':')[1]||'0').trim());if(!isNaN(n)&&!droneOn())S.trees=n;updateUI()});
 sub('/drone_baseline_status','std_msgs/String',m=>{S.droneBaseline=m.data;updateUI()});
 sub('/evaluation_summary','std_msgs/String',m=>{S.eval=m.data;updateUI()});
 sub('/canopy_change_events','std_msgs/String',m=>{S.events.push({text:m.data});if(S.events.length>50)S.events=S.events.slice(-50);updateUI()});
@@ -848,7 +913,7 @@ sub('/tree_change_events','deforestation_interfaces/TreeChangeEvent',m=>{
 });
 sub('/tree_status','deforestation_interfaces/TreeStatus',m=>{
   S.treeStatus={baseline_count:m.baseline_count,current_count:m.current_count,lost_count:m.lost_count,gained_count:m.gained_count};
-  S.trees=m.current_count;
+  if(!droneOn())S.trees=m.current_count;
   updateUI();
 });
 sub('/parrot_tree_change_events','deforestation_interfaces/TreeChangeEvent',m=>{
@@ -993,24 +1058,11 @@ function updateUI(){
 
   // Flags + reports
   const fl=document.getElementById('flags-list');
-  fl.innerHTML=S.flags.slice(-6).reverse().map(f=>'<div class="flag-item'+(f.ok?' inspected':'')+'">'+
-    '<div class="coords">'+esc(fmtPos(f.x,f.y))+'</div>'+
+  fl.innerHTML=S.flags.map((f,i)=>({f,n:i+1})).slice(-6).reverse().map(({f,n})=>'<div class="flag-item'+(f.ok?' inspected':'')+'">'+
+    '<div class="coords">Area '+n+' · '+esc(fmtPos(f.x,f.y))+'</div>'+
     '<div class="meta">'+esc(prettyState(f.type||'Flag'))+' · severity '+(f.sev!=null?f.sev.toFixed(0):'?')+' · confidence '+(f.conf!=null?f.conf.toFixed(0):'?')+'% · '+Math.round(f.area||0)+' m²</div></div>').join('')||'<div class="empty">No suspicious areas yet.</div>';
   const rl=document.getElementById('reports-list');
   rl.innerHTML=S.reports.slice(-4).reverse().map(r=>'<div class="report-item">'+esc(r.text)+'</div>').join('')||'<div class="empty">No inspection reports yet.</div>';
-
-  // Raw data
-  const lines=[];
-  if(S.survey)lines.push('Survey   '+S.survey);
-  if(S.scanCoverage)lines.push('Scan map '+S.scanCoverage);
-  if(S.baseline)lines.push('Baseline(H) '+S.baseline);
-  if(S.droneBaseline)lines.push('Baseline(D) '+S.droneBaseline);
-  if(S.mission)lines.push('Mission  '+S.mission);
-  S.flags.slice(-20).forEach(f=>lines.push('Flag  ('+f.x.toFixed(1)+', '+f.y.toFixed(1)+')  '+(f.type||'')+' S='+(f.sev!=null?f.sev.toFixed(0):'?')+(f.ok?' ✓':' …')));
-  S.reports.slice(-10).forEach(r=>lines.push('Done  '+r.text));
-  S.events.slice(-10).forEach(e=>lines.push('Event '+e.text));
-  if(S.eval)lines.push('Eval   '+S.eval);
-  document.getElementById('data-content').textContent=lines.join('\n')||'No data yet. Survey in progress…';
 
   updateChangesBadge();
   if(viewActive('changes'))renderChanges(false);
@@ -1032,10 +1084,151 @@ function scanCov(){
   return {cov:parseFloat((sc.coverage||'0').replace('%',''))||0,req:parseFloat((sc.required||'0').replace('%',''))||0};
 }
 
+// ── Suspected areas: a box per drone flag, and the Husky's missions ──
+// The box is the canopy loss around the flag on the drone's change map, by
+// the same rule the Husky uses to plan its sweep (area_search.loss_box):
+// loss cells (< 0) connected to the flag's 1.5 m, clipped to 8 m, sides ≥ 4 m.
+const areaBoxCache=new Map();
+function areaBox(x,y){
+  const key=x.toFixed(2)+','+y.toFixed(2), hit=areaBoxCache.get(key);
+  if(hit&&hit.src===change)return hit.box;
+  let box=[x,y,x,y]; const g=change;
+  if(g){
+    const r=Math.ceil(8/g.res), cx=Math.floor((x-g.ox)/g.res), cy=Math.floor((y-g.oy)/g.res);
+    const x0=Math.max(0,cx-r), x1=Math.min(g.w-1,cx+r), y0=Math.max(0,cy-r), y1=Math.min(g.h-1,cy+r);
+    const seen=new Set(), stack=[]; let mx0=1e9,my0=1e9,mx1=-1e9,my1=-1e9;
+    for(let iy=y0;iy<=y1;iy++)for(let ix=x0;ix<=x1;ix++)
+      if(g.data[iy*g.w+ix]<0&&Math.hypot(g.ox+(ix+.5)*g.res-x,g.oy+(iy+.5)*g.res-y)<=1.5){seen.add(iy*g.w+ix);stack.push([ix,iy]);}
+    while(stack.length){
+      const [ix,iy]=stack.pop(); mx0=Math.min(mx0,ix);mx1=Math.max(mx1,ix);my0=Math.min(my0,iy);my1=Math.max(my1,iy);
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+        const nx=ix+dx, ny=iy+dy, k=ny*g.w+nx;
+        if(nx<x0||nx>x1||ny<y0||ny>y1||seen.has(k)||!(g.data[k]<0))continue;
+        seen.add(k); stack.push([nx,ny]);
+      }
+    }
+    if(mx1>=mx0)box=[g.ox+mx0*g.res,g.oy+my0*g.res,g.ox+(mx1+1)*g.res,g.oy+(my1+1)*g.res];
+  }
+  for(const [a,b] of [[0,2],[1,3]])if(box[b]-box[a]<4){const c=(box[a]+box[b])/2;box[a]=c-2;box[b]=c+2;}
+  areaBoxCache.set(key,{src:change,box});
+  return box;
+}
+// /mission_queue: what the Husky is doing, its queue and finished missions
+const MSTATUS=['queued','active','inspected','unreachable','cancelled'];
+function parseMission(i){
+  return {label:i.label,type:i.type,x:i.position.x,y:i.position.y,pri:i.priority,att:i.attempts,status:MSTATUS[i.status]||'queued',
+    box:[i.area_min.x,i.area_min.y,i.area_max.x,i.area_max.y],path:(i.path||[]).map(p=>({x:p.x,y:p.y})),reached:i.reached,
+    photos:(i.photos||[]).map(photoUrl),result:i.result||''};
+}
+function parseQueue(m){
+  return {state:m.state,ready:m.drone_ready,current:m.current.label?parseMission(m.current):null,
+    queue:m.queue.map(parseMission),done:(m.done||[]).map(parseMission),inspected:m.inspected,total:m.total};
+}
+sub('/mission_queue','deforestation_interfaces/MissionQueue',m=>{S.mq=parseQueue(m);if(mapActive())drawMap();});
+sub('/waste_sites','deforestation_interfaces/WasteSiteArray',m=>{S.waste=m.sites.map(w=>({id:w.id,x:w.position.x,y:w.position.y,status:w.status,photo:w.photo}));});
+function allMissions(){const q=S.mq;return q?[...q.done,...(q.current?[q.current]:[]),...q.queue]:[];}
+function missionAt(x,y){return allMissions().find(m=>Math.hypot(m.x-x,m.y-y)<0.3)||null;}
+const photoUrl=p=>'/api/photo/'+encodeURIComponent(String(p).split('/').pop());
+// The drone's flags as areas, numbered in flag order; a flag whose box is the
+// same as an earlier one (the same clearing flagged twice) is not repeated.
+// Missions without a flag (a tree the drone reported LOST) follow, numbered
+// in the order they first appear.
+function areaList(){
+  const out=[], same=(a,box)=>Math.abs(a.box[0]-box[0])<0.5&&Math.abs(a.box[1]-box[1])<0.5&&Math.abs(a.box[2]-box[2])<0.5&&Math.abs(a.box[3]-box[3])<0.5;
+  const missions=allMissions(), inBox=(m,x,y)=>x>=m.box[0]-2&&x<=m.box[2]+2&&y>=m.box[1]-2&&y<=m.box[3]+2;
+  (S.flags||[]).forEach((f,i)=>{
+    const ms=missionAt(f.x,f.y), box=ms&&ms.status!=='queued'?ms.box:areaBox(f.x,f.y);
+    if(out.some(a=>same(a,box)))return;
+    if(!ms&&missions.some(m=>inBox(m,f.x,f.y)))return;   // the Husky took it as part of that area
+    out.push({n:i+1,name:`Area ${i+1}`,tag:String(i+1),x:f.x,y:f.y,type:f.type||'CLEARING',sev:f.sev||0,conf:f.conf,area:f.area,box,mission:ms,
+      status:ms?ms.status:'flagged'});
+  });
+  missions.forEach(m=>{
+    if(out.some(a=>a.mission===m||same(a,m.box)))return;
+    const id=(/#(\d+)/.exec(m.label)||[])[1]||'?';
+    out.push({n:null,name:`Lost tree #${id}`,tag:'#'+id,x:m.x,y:m.y,type:m.type,sev:50,conf:null,area:null,box:m.box,mission:m,status:m.status});
+  });
+  return out;
+}
+function areaNameAt(x,y){const a=areaList().find(a=>Math.hypot(a.x-x,a.y-y)<0.3||(a.mission&&Math.hypot(a.mission.x-x,a.mission.y-y)<0.3));return a?a.name:null;}
+const AREA_STATUS={flagged:'flagged by the drone',queued:'waiting for the Husky',active:'Husky searching now',
+  inspected:'searched by the Husky',unreachable:'Husky could not reach it',cancelled:'cancelled'};
+function areaText(a){
+  const b=a.box, m=a.mission;
+  return `${a.name}${a.type==='TREE_LOST'?'':' · '+prettyState(a.type)} · ${(b[2]-b[0]).toFixed(0)} × ${(b[3]-b[1]).toFixed(0)} m · ${AREA_STATUS[a.status]}`+
+    (m&&m.path.length?` · ${m.reached}/${m.path.length} waypoints`:'')+(m&&m.photos.length?` · ${m.photos.length} photos`:'');
+}
+
+// ── Photo folders: the photos of one area or one waste find ──
+function openFolder(f){
+  let el=document.getElementById('folder');
+  if(!el){
+    el=document.createElement('div'); el.id='folder'; el.className='folder-back'; el.hidden=true;
+    el.innerHTML=`<div class="folder glass" role="dialog" aria-modal="true" aria-labelledby="folder-title">
+      <div class="folder-head"><div><b id="folder-title"></b><small id="folder-sub"></small></div>
+      <button class="chip" id="folder-close" aria-label="Close photos">✕ Close</button></div>
+      <div class="folder-view"><img id="folder-img" alt=""><div id="folder-cap"></div>
+        <button class="folder-nav prev" aria-label="Previous photo">‹</button><button class="folder-nav next" aria-label="Next photo">›</button></div>
+      <div class="folder-strip" id="folder-strip"></div></div>`;
+    document.body.appendChild(el);
+    el.addEventListener('click',e=>{if(e.target===el)closeFolder();});
+    el.querySelector('#folder-close').addEventListener('click',closeFolder);
+    el.querySelector('.prev').addEventListener('click',()=>folderShow(FOLDER.i-1));
+    el.querySelector('.next').addEventListener('click',()=>folderShow(FOLDER.i+1));
+    document.addEventListener('keydown',e=>{if(el.hidden)return;
+      if(e.key==='Escape'){closeFolder();e.stopImmediatePropagation();}
+      if(e.key==='ArrowLeft')folderShow(FOLDER.i-1); if(e.key==='ArrowRight')folderShow(FOLDER.i+1);},true);
+  }
+  FOLDER.f=f; el.hidden=false;
+  document.getElementById('folder-title').textContent=f.title;
+  document.getElementById('folder-sub').textContent=f.sub||'';
+  document.getElementById('folder-strip').innerHTML=f.photos.map((p,i)=>
+    `<button data-i="${i}" aria-label="${esc(p.caption)}"><img src="${p.src}" loading="lazy" alt=""><span>${esc(p.caption)}</span></button>`).join('')||
+    '<div class="dbg-empty">No photos yet.</div>';
+  el.querySelectorAll('#folder-strip button').forEach(b=>b.addEventListener('click',()=>folderShow(+b.dataset.i)));
+  folderShow(0);
+}
+const FOLDER={f:null,i:0};
+function folderShow(i){
+  const ps=FOLDER.f.photos, v=document.querySelector('#folder .folder-view');
+  v.hidden=!ps.length; if(!ps.length)return;
+  FOLDER.i=(i+ps.length)%ps.length; const p=ps[FOLDER.i];
+  document.getElementById('folder-img').src=p.src;
+  document.getElementById('folder-cap').textContent=`${p.caption} · ${FOLDER.i+1} of ${ps.length}`;
+  document.querySelectorAll('#folder-strip button').forEach(b=>b.classList.toggle('on',+b.dataset.i===FOLDER.i));
+}
+function closeFolder(){const el=document.getElementById('folder');if(el)el.hidden=true;}
+function wasteNear(box,margin){return (DBG.wasteSites||[]).filter(s=>s.photo&&s.x>=box[0]-margin&&s.x<=box[2]+margin&&s.y>=box[1]-margin&&s.y<=box[3]+margin);}
+function areaFolder(a){
+  const m=a.mission, ps=[];
+  if(m)m.photos.forEach((src,k)=>ps.push({src,caption:k===0?'Start of the sweep':k===m.photos.length-1&&m.status==='inspected'?'Report photo':`Waypoint ${k+1}`}));
+  wasteNear(a.box,2.5).forEach(s=>ps.push({src:photoUrl(s.photo),caption:`Waste #${s.id} found by the Husky`}));
+  return {title:a.name+(a.type==='TREE_LOST'?'':' · '+prettyState(a.type)),sub:areaText(a)+(m&&m.result?'\n'+m.result.replace(/ \[image: [^\]]+\]/,''):''),photos:ps};
+}
+function wasteFolder(s){
+  return {title:`Waste #${s.id}`,sub:`${['Seen from the air','Found by the Husky','Not found'][s.status]||''} at ${fmtPos(s.x,s.y)}`,
+    photos:s.photo?[{src:photoUrl(s.photo),caption:`Waste #${s.id}`}]:[]};
+}
+// Box outline shared by the maps: dashed until the Husky has searched it.
+function drawAreaBox(c,a,L,T,W,H,k,pulse){
+  const P=pal(), col=a.status==='inspected'?'#30d158':a.status==='unreachable'?'#8e8e93':(a.sev>=70?P.sev[0]:a.sev>=40?P.sev[1]:P.sev[2]);
+  c.save();
+  roundRectPath(c,L,T,W,H,Math.min(6*k,W/4,H/4));
+  c.fillStyle=col+(a.status==='active'?'38':'22'); c.fill();
+  c.setLineDash(a.status==='inspected'||a.status==='active'?[]:[6*k,4*k]);
+  c.lineWidth=(a.status==='active'?2.6:1.8)*k*(pulse&&a.status==='active'?1+.3*Math.sin(Date.now()/300):1);
+  c.strokeStyle=col; c.stroke(); c.setLineDash([]);
+  const tag=a.tag+(a.status==='inspected'?' ✓':a.status==='unreachable'?' ✕':'');
+  c.font=`600 ${11*k}px -apple-system,BlinkMacSystemFont,system-ui,sans-serif`;
+  const tw=c.measureText(tag).width+10*k, th=16*k;
+  roundRectPath(c,L,T-th-3*k,tw,th,th/2); c.fillStyle=col; c.fill();
+  c.fillStyle='#0b0f0c'; c.fillText(tag,L+5*k,T-3*k-4.5*k);
+  c.restore();
+}
+
 // ── Map drawing ──
 function viewActive(v){return document.getElementById(v+'-view').classList.contains('active')}
 function mapActive(){return viewActive('map')}
-function labelActive(){return viewActive('label')}
 function terrainActive(){return viewActive('terrain')}
 function lerp(a,b,t){return a+(b-a)*t}
 function canopyRGB(v){
@@ -1109,12 +1302,10 @@ function drawPlatter(c,img,f,w,h,gridAlpha){
 // Markers shared by the live map and the report image.
 function drawMarkers(c,toScreen,opts){
   const P=pal();
-  if(opts.flags)flags.forEach(fl=>{
-    const [px,py]=toScreen(fl.x,fl.y);
-    const r=Math.max(5,3+(fl.sev||40)/18)*(opts.pulse?(1+0.25*Math.sin(Date.now()/400)):1);
-    c.beginPath(); c.arc(px,py,r,0,Math.PI*2);
-    c.fillStyle=fl.sev>=70?P.sev[0]:(fl.sev>=40?P.sev[1]:P.sev[2]); c.fill();
-    c.strokeStyle='#fff'; c.lineWidth=1.2; c.stroke();
+  // Suspected areas as boxes sized to the canopy loss (dashed until searched).
+  if(opts.flags)areaList().forEach(a=>{
+    const [x0,y0]=toScreen(a.box[0],a.box[1]), [x1,y1]=toScreen(a.box[2],a.box[3]);
+    drawAreaBox(c,a,Math.min(x0,x1),Math.min(y0,y1),Math.abs(x1-x0),Math.abs(y1-y0),opts.k,opts.pulse);
   });
   // Baseline trees: a ring in the species colour the camera saw (dashed =
   // a pine only the camera found). Lost ones fade; their LOST dot sits on top.
@@ -1149,6 +1340,24 @@ function drawMarkers(c,toScreen,opts){
     c.strokeStyle='#fff'; c.lineWidth=2*opts.k; c.stroke();
   });
 }
+// The Husky and the sweep it is driving (done part solid, the rest dashed).
+function drawHusky(c,toScreen){
+  const cur=S.mq&&S.mq.current, col='#64d2ff';
+  if(cur&&cur.path.length>1){
+    const pts=cur.path.map(p=>toScreen(p.x,p.y)), k=Math.max(1,Math.min(cur.reached,pts.length));
+    c.save(); c.lineWidth=2; c.strokeStyle=col; c.lineJoin='round';
+    c.beginPath(); pts.slice(0,k).forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y)); c.stroke();
+    c.setLineDash([5,5]); c.globalAlpha=.7;
+    c.beginPath(); pts.slice(k-1).forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y)); c.stroke();
+    c.restore();
+  }
+  const [px,py]=toScreen(hx,hy);
+  c.beginPath(); c.arc(px,py,6.5,0,Math.PI*2); c.fillStyle='#fff'; c.fill();
+  c.lineWidth=3; c.strokeStyle=col; c.stroke();
+  c.font='600 12px -apple-system,BlinkMacSystemFont,system-ui,sans-serif';
+  c.lineWidth=3; c.strokeStyle='rgba(0,0,0,.55)'; c.strokeText('H',px+11,py+4);
+  c.fillStyle='#fff'; c.fillText('H',px+11,py+4);
+}
 // Coalesce redraws: odometry can arrive many times per second.
 let mapRaf=0, focusPt=null;
 function drawMap(){ if(mapRaf)return; mapRaf=requestAnimationFrame(()=>{mapRaf=0;renderMap();}); }
@@ -1161,6 +1370,7 @@ function renderMap(){
   drawPlatter(ctx,mapComposite(),f,w,h,.05);
   const toScreen=(x,y)=>[f.mx+(x-ox)/res*f.scale,f.my+(y-oy)/res*f.scale];
   drawMarkers(ctx,toScreen,{flags:true,pulse:true,k:1,trees:treesEnabled,alerts:changeEnabled});
+  if(SHOW_HUSKY)drawHusky(ctx,toScreen);
   // Drone last, so it is never hidden under a marker.
   const [px,py]=toScreen(dx,dy);
   ctx.beginPath(); ctx.arc(px,py,6.5,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
@@ -1371,8 +1581,12 @@ function buildReport(){
     return [`#${e.tree_id}`,e.event_type==='LOST'?'Lost':'New',t?speciesName(t):'—',fmtPos(e.x,e.y),`${Number(e.area_m2||0).toFixed(0)} m²`,
       n?(n.by==='camera'?'Camera':'Height map'):'—'];});
   document.getElementById('r-trees').innerHTML=rTable(['Tree','Change','Species','Position','Crown area','Detected by'],treeRows)||'<p class="r-empty">No tree changes since the baseline.</p>';
-  const flagRows=S.flags.map(f=>[fmtPos(f.x,f.y),prettyState(f.type||'flag'),f.sev!=null?f.sev.toFixed(0):'?',f.conf!=null?f.conf.toFixed(0)+'%':'?',`${Math.round(f.area||0)} m²`,f.ok?'Inspected':'Open']);
-  document.getElementById('r-flags').innerHTML=rTable(['Position','Type','Severity','Confidence','Area','Status'],flagRows)||'<p class="r-empty">No suspicious areas found.</p>';
+  // one row per area (the same clearing flagged twice is one area), sized by its box
+  const flagRows=areaList().map(a=>{const m=a.mission, b=a.box;
+    return [a.name,fmtPos(a.x,a.y),prettyState(a.type||'flag'),a.sev!=null?Number(a.sev).toFixed(0):'?',a.conf!=null?Number(a.conf).toFixed(0)+'%':'?',
+      `${(b[2]-b[0]).toFixed(0)} × ${(b[3]-b[1]).toFixed(0)} m`,
+      AREA_STATUS[a.status].replace(/^./,c=>c.toUpperCase())+(m&&m.path.length?` (${m.reached}/${m.path.length} waypoints, ${m.photos.length} photos)`:'')];});
+  document.getElementById('r-flags').innerHTML=rTable(['Area','Position','Type','Severity','Confidence','Size','Status'],flagRows)||'<p class="r-empty">No suspicious areas found.</p>';
   document.getElementById('r-reports').innerHTML=S.reports.length?'<ul class="r-list">'+S.reports.map(r=>`<li>${esc(r.text)}</li>`).join('')+'</ul>':'<p class="r-empty">No inspections yet.</p>';
   document.getElementById('r-notes-section').classList.toggle('is-empty',!notesEl.textContent.trim());
   document.getElementById('r-foot-coords').textContent=settings.units==='local'?'Positions in local metres from the survey origin.':'Positions in WGS84 latitude and longitude.';
@@ -1402,8 +1616,418 @@ function drawDebug(){
   if(S.droneBaseline)L.push('<div>Baseline(D) '+esc(S.droneBaseline)+'</div>');
   if(S.mission)L.push('<div>Mission '+esc(S.mission)+'</div>');
   if(S.eval)L.push('<div>Eval '+esc(S.eval)+'</div>');
-  document.getElementById('debug-content').innerHTML=L.join('');
+  document.getElementById('debug-status').innerHTML=L.join('');
+  initDebugMaps(); dbgDraw();
 }
+
+// ── Debug: maps of everything the robots know, the run's phase, a timeline ──
+// Panels show the world from -40 to 40 m; click one to open it full size
+// (zoom with the wheel, drag to pan, Esc to close). Grids come throttled and
+// as binary (cbor); the launch raises rosbridge's max_message_size so the
+// Husky's multi-MB SLAM map and costmap arrive in one piece.
+const DBG={wasteTruth:[],wasteSites:[],plan:[],huskyTrail:[],droneTrail:[],trunks:[],husky:null,goal:null,drone:null,
+  refined:null,queue:null,events:[],photos:[],
+  layers:{trees:true,detections:true,flags:true,lost:true,robots:true,paths:true,waste:true,ground:true}};
+const LAYER_NAMES={trees:'Drone trees',detections:'Detections',flags:'Suspected areas',lost:'LOST',robots:'Robots',paths:'Paths',waste:'Waste',ground:'Ground check'};
+const dbgLast={}; let dbgInit=false, dbgRaf=0, dbgBig=null;
+const DW=40;
+function dbgSub(name,type,cb,throttle,cbor){
+  if(!ros)return;
+  try{ new ROSLIB.Topic({ros,name,messageType:type,throttle_rate:throttle||0,queue_length:1,
+         compression:cbor?'cbor':'none'})
+       .subscribe(m=>{mark(name);dbgLast[name]=Date.now();cb(m);dbgDraw();}); }
+  catch(e){console.warn('debug sub',name,e);}
+}
+function yawOf(q){return Math.atan2(2*(q.w*q.z+q.x*q.y),1-2*(q.y*q.y+q.z*q.z));}
+function cloudPoints(msg,max){
+  const data=bytesFromRos(msg.data), dv=new DataView(data.buffer,data.byteOffset,data.byteLength), out=[];
+  const n=msg.width*msg.height, step=Math.max(1,Math.floor(n/(max||4000)));
+  for(let i=0;i<n;i+=step){const o=i*msg.point_step;if(o+8>data.length)break;out.push({x:dv.getFloat32(o,true),y:dv.getFloat32(o+4,true)});}
+  return out;
+}
+const EV_COL={drone:'#64d2ff',flag:'#ff9f0a',lost:'#ff453a',husky:'#ffd60a',waste:'#ff453a',ground:'#30d158',info:'#8e8e93'};
+const EV_PANEL={drone:'canopy',flag:'change',lost:'change',husky:'slam',waste:'waste',ground:'trunk',info:'missions'};
+function dbgEvent(kind,text,x,y,photo){
+  DBG.events.push({t:Date.now()-dbgT0<8000?0:Date.now(),kind,text,x,y});   // 0: before the page opened
+  if(DBG.events.length>300)DBG.events.shift();
+  if(photo&&!DBG.photos.some(p=>p.src===photo))DBG.photos.push({src:photo,caption:text,t:Date.now()});
+  if(dbgInit)dbgSide();
+}
+const dPos=(x,y)=>`(${Number(x).toFixed(1)}, ${Number(y).toFixed(1)})`;
+// Baseline, flags, LOST trees and inspection reports come from the page's own
+// state (live topics plus /api/data), so the timeline also has what happened
+// before the page was opened; those show as "earlier".
+const dbgSeen=new Set(), dbgT0=Date.now();
+function dbgSync(){
+  const add=(key,kind,text,x,y,photo)=>{if(dbgSeen.has(key))return;dbgSeen.add(key);
+    dbgEvent(kind,text,x,y,photo);};
+  if(String(S.droneBaseline).startsWith('frozen'))add('B','drone','Drone baseline '+S.droneBaseline);
+  (S.flags||[]).forEach((f,i)=>add(`F${f.type}${Number(f.x).toFixed(1)},${Number(f.y).toFixed(1)}`,'flag',
+    `Area ${i+1} flagged by the drone: ${prettyState(f.type)}${f.conf!=null?`, confidence ${Number(f.conf).toFixed(0)}%`:''}`,f.x,f.y));
+  (S.parrotTreeEvents||[]).forEach(e=>add(`T${e.event_type}${e.tree_id}`,e.event_type==='LOST'?'lost':'drone',`Drone: tree #${e.tree_id} ${e.event_type}`,e.x,e.y));
+  (S.reports||[]).forEach(r=>{const im=/\[image: ([^\]]+)\]/.exec(r.text), pos=/@ \((-?[\d.]+),(-?[\d.]+)\)/.exec(r.text);
+    add('R'+r.text,'husky',r.text.replace(/ \[image: [^\]]+\]/,''),pos?+pos[1]:undefined,pos?+pos[2]:undefined,im?photoUrl(im[1]):null);});
+}
+function initDebugMaps(){
+  if(dbgInit)return; dbgInit=true;
+  document.getElementById('debug-maps').innerHTML=
+    `<div id="dbg-phase" class="dbg-phase"></div>`+
+    `<div class="dbg-grid">`+DBG_PANELS.map(p=>
+    `<section class="dbg-card"><h3>${p.title}<span id="dbg-age-${p.id}">no data</span></h3>`+
+    `<canvas id="dbg-${p.id}" width="620" height="620" data-panel="${p.id}" title="Click to open full size" aria-label="${esc(p.title)}"></canvas>`+
+    `<div class="dbg-legend">${p.legend.map(([c,l])=>`<span><i style="background:${c}"></i>${l}</span>`).join('')}</div>`+
+    (p.note?`<div class="dbg-note" id="dbg-note-${p.id}"></div>`:'')+`</section>`).join('')+`</div>`+
+    `<div class="dbg-row">`+
+    `<section class="dbg-card"><h3>Event timeline<span id="dbg-ev-n"></span></h3><div id="dbg-events" class="dbg-events"></div></section>`+
+    `<section class="dbg-card"><h3>Husky missions<span id="dbg-q-state"></span></h3><div id="dbg-queue" class="dbg-queue"></div></section>`+
+    `<section class="dbg-card"><h3>Photos<span id="dbg-ph-n"></span></h3><div id="dbg-gallery" class="dbg-gallery"></div></section>`+
+    `</div>`;
+  const big=document.createElement('div'); big.id='dbg-big'; big.className='dbg-big glass'; big.hidden=true;
+  big.innerHTML=`<div class="dbg-big-bar"><div class="dbg-chipset" id="dbg-picker">`+
+    DBG_PANELS.map(p=>`<button class="chip" data-panel="${p.id}">${p.short}</button>`).join('')+
+    `</div><span class="dbg-sep"></span><div class="dbg-chipset" id="dbg-layers">`+
+    Object.keys(LAYER_NAMES).map(k=>`<button class="chip active" data-layer="${k}">${LAYER_NAMES[k]}</button>`).join('')+
+    `</div><span class="dbg-grow"></span><button class="chip" id="dbg-reset">Reset view</button>`+
+    `<button class="chip" id="dbg-close" aria-label="Close full-size map">✕ Close</button></div>`+
+    `<canvas id="dbg-big-canvas"></canvas><div class="dbg-readout" id="dbg-readout"></div><div class="dbg-big-legend" id="dbg-big-legend"></div>`;
+  document.body.appendChild(big);
+  new MutationObserver(()=>{if(document.body.dataset.view!=='debug'&&dbgBig)closeBig();})
+    .observe(document.body,{attributes:true,attributeFilter:['data-view']});
+  document.querySelectorAll('.dbg-card canvas[data-panel]').forEach(c=>{
+    c.addEventListener('click',e=>{const ic=iconAt(c,e);if(ic)openFolder(ic.folder());else openBig(c.dataset.panel);});
+    c.addEventListener('pointermove',e=>{c.style.cursor=iconAt(c,e)?'pointer':'';});});
+  big.querySelectorAll('#dbg-picker .chip').forEach(b=>b.addEventListener('click',()=>openBig(b.dataset.panel,dbgBig)));
+  big.querySelectorAll('#dbg-layers .chip').forEach(b=>b.addEventListener('click',()=>{
+    const k=b.dataset.layer; DBG.layers[k]=!DBG.layers[k]; b.classList.toggle('active',DBG.layers[k]); dbgDraw();}));
+  document.getElementById('dbg-reset').addEventListener('click',()=>{if(dbgBig){Object.assign(dbgBig,bigFit());dbgDraw();}});
+  document.getElementById('dbg-close').addEventListener('click',closeBig);
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&dbgBig)closeBig();});
+  bigInteractions(document.getElementById('dbg-big-canvas'));
+  window.addEventListener('resize',()=>{if(dbgBig)dbgDraw();});
+
+  dbgSub('/husky1/map','nav_msgs/OccupancyGrid',m=>{DBG.slam=gridFrom(m);},5000,true);
+  dbgSub('/husky1/global_costmap/costmap','nav_msgs/OccupancyGrid',m=>{DBG.cost=gridFrom(m);},5000,true);
+  dbgSub('/forest_trunk_map','nav_msgs/OccupancyGrid',m=>{DBG.trunk=gridFrom(m);},2000,true);
+  dbgSub('/forest_red_map','nav_msgs/OccupancyGrid',m=>{DBG.red=gridFrom(m);},2000,true);
+  // The Husky's SLAM map drifts from the world (its odometry does not, in the
+  // sim): layers in husky1_map are drawn through map->odom so they line up.
+  dbgSub('/husky1/tf','tf2_msgs/TFMessage',m=>{m.transforms.forEach(t=>{
+    if(t.header.frame_id!=='husky1_map'||t.child_frame_id!=='husky1_odom')return;
+    const q=t.transform.rotation, yaw=yawOf(q);
+    DBG.m2w={tx:t.transform.translation.x,ty:t.transform.translation.y,yaw,c:Math.cos(yaw),s:Math.sin(yaw)};});},500);
+  dbgSub('/husky1/plan','nav_msgs/Path',m=>{DBG.plan=m.poses.map(p=>({x:p.pose.position.x,y:p.pose.position.y}));DBG.planFrame=m.header.frame_id;},1000);
+  dbgSub('/husky1/odometry','nav_msgs/Odometry',m=>{const p=m.pose.pose.position;
+    DBG.husky={x:p.x,y:p.y,yaw:yawOf(m.pose.pose.orientation)};
+    const t=DBG.huskyTrail, l=t[t.length-1]; if(!l||Math.hypot(l.x-p.x,l.y-p.y)>0.3){t.push({x:p.x,y:p.y});if(t.length>3000)t.shift();}},300);
+  dbgSub('/parrot1/odometry','nav_msgs/Odometry',m=>{const p=m.pose.pose.position;DBG.drone={x:p.x,y:p.y,yaw:yawOf(m.pose.pose.orientation)};
+    const t=DBG.droneTrail, l=t[t.length-1]; if(!l||Math.hypot(l.x-p.x,l.y-p.y)>0.5){t.push({x:p.x,y:p.y});if(t.length>4000)t.shift();}},300);
+  dbgSub('/all_tree_positions','sensor_msgs/PointCloud2',m=>{DBG.trunks=cloudPoints(m,3000);},2000);
+  // spots where the Husky got caught (the coordinator's hazards, ~80 points each)
+  dbgSub('/husky1/hazards','sensor_msgs/PointCloud2',m=>{const pts=cloudPoints(m,4000), spots=[];
+    pts.forEach(p=>{if(!spots.some(q=>Math.hypot(q.x-p.x,q.y-p.y)<1.1))spots.push(p);});
+    const centres=spots.map(q=>{const near=pts.filter(p=>Math.hypot(p.x-q.x,p.y-q.y)<1.1);
+      return {x:near.reduce((a,p)=>a+p.x,0)/near.length,y:near.reduce((a,p)=>a+p.y,0)/near.length};});
+    centres.slice((DBG.hazards||[]).length).forEach(h=>dbgEvent('husky',`Husky stuck: hazard marked`,h.x,h.y));
+    DBG.hazards=centres;},1000);
+  dbgSub('/waste_ground_truth','geometry_msgs/PoseArray',m=>{
+    if(!DBG.wasteTruth.length&&m.poses.length)dbgEvent('info',`${m.poses.length} waste bags dumped next to the cut trees`);
+    DBG.wasteTruth=m.poses.map(p=>({x:p.position.x,y:p.position.y}));});
+  dbgSub('/waste_sites','deforestation_interfaces/WasteSiteArray',m=>{
+    const before=new Map(DBG.wasteSites.map(s=>[s.id,s.status]));
+    DBG.wasteSites=m.sites.map(s=>({id:s.id,x:s.position.x,y:s.position.y,status:s.status,photo:s.photo||''}));
+    DBG.wasteSites.forEach(s=>{ if(before.get(s.id)!==s.status)
+      dbgEvent('waste',`Waste #${s.id} ${['seen from the air','found by the Husky','not found'][s.status]||'?'}`,s.x,s.y,s.photo?photoUrl(s.photo):null); });});
+  dbgSub('/refined_trees','deforestation_interfaces/RefinedTreeArray',m=>{
+    const prev=new Map(((DBG.refined&&DBG.refined.trees)||[]).map(t=>[t.id?'#'+t.id:'h'+t.gx.toFixed(0)+','+t.gy.toFixed(0),t.status]));
+    DBG.refined={mode:m.mode,trees:m.trees.map(t=>({id:t.id,dx:t.drone_position.x,dy:t.drone_position.y,
+      gx:t.ground_position.x,gy:t.ground_position.y,status:t.status,hits:t.trunk_hits,views:t.views}))};
+    DBG.refined.trees.forEach(t=>{const k=t.id?'#'+t.id:'h'+t.gx.toFixed(0)+','+t.gy.toFixed(0);
+      if(t.status>=3&&prev.get(k)!==t.status){
+        const x=t.status===5?t.gx:t.dx, y=t.status===5?t.gy:t.dy;
+        dbgEvent('ground',`Ground check: ${t.id?'tree #'+t.id:'trunk'} ${['','','','cut confirmed','false LOST (trunk still there)','hidden tree found'][t.status]}`,x,y);}});});
+  let lastQ='';
+  dbgSub('/mission_queue','deforestation_interfaces/MissionQueue',m=>{
+    const q=parseQueue(m), c=q.current, n=c?areaNameAt(c.x,c.y):null, at=n?' '+n:c?' '+c.label:'';
+    const key=q.state+'|'+(c?c.label+'|'+c.reached:'');
+    if(key!==lastQ){ lastQ=key;
+      const txt={WAITING_FOR_DRONE:"Husky waiting for the drone's baseline",IDLE:'Husky idle',DISPATCHING:'Husky dispatching to'+at,
+        ENROUTE:'Husky driving to'+at,SEARCHING:`Husky searching${at}: waypoint ${c&&c.reached}/${c&&c.path.length}`}[q.state]||q.state;
+      dbgEvent('husky',txt,c?c.x:undefined,c?c.y:undefined);
+    }});
+  dbgPhotos();
+  setInterval(()=>{dbgSync();if(document.body.dataset.view==='debug'){dbgAges();dbgSide();}},1000);
+  setInterval(()=>{if(document.body.dataset.view==='debug')dbgPhotos();},5000);
+}
+// every photo the Husky took this run (sites, loop stops, waste), from the data server
+function dbgPhotos(){
+  fetch('/api/photos').then(r=>r.ok?r.json():[]).then(list=>{
+    list.forEach(p=>{const src='/api/photo/'+encodeURIComponent(p.name);
+      if(!DBG.photos.some(q=>q.src===src))DBG.photos.push({src,caption:(p.kind==='waste'?'Waste ':'')+p.name.replace(/\.(jpg|png)$/i,''),t:p.time*1000});});
+    DBG.photos.sort((a,b)=>a.t-b.t); dbgSide();
+  }).catch(()=>{});
+}
+function dbgAges(){
+  DBG_PANELS.forEach(p=>{
+    const ts=p.topics.map(t=>lastMsg[t]||dbgLast[t]).filter(Boolean), el=document.getElementById('dbg-age-'+p.id);
+    if(!el)return; if(!ts.length){el.textContent='no data';return;}
+    const a=(Date.now()-Math.max(...ts))/1000; el.textContent=a<1.5?'live':a.toFixed(0)+' s ago';
+  });
+}
+// phase strip, timeline, mission queue, photos
+function dbgSide(){
+  const pill=(tone,title,sub)=>`<div class="dbg-pill ${tone}"><b>${title}</b>${sub||''}</div>`;
+  const db=S.droneBaseline||'', frozen=db.startsWith('frozen');
+  const cov=/([\d.]+)%/.exec(S.scanCoverage||'');
+  const lost=(S.parrotTreeEvents||[]).filter(e=>e.event_type==='LOST').length;
+  const q=S.mq, ws=DBG.wasteSites, found=ws.filter(s=>s.status===1).length, cur=q&&q.current, cn=cur?areaNameAt(cur.x,cur.y)||'?':null;
+  const ref=DBG.refined, rc=[0,0,0,0,0,0]; if(ref)ref.trees.forEach(t=>rc[t.status]++);
+  const huskyTxt=!q?['','Husky off','no mission data']:
+    q.state==='WAITING_FOR_DRONE'?['warn','Husky waiting','for the drone baseline']:
+    q.state==='SEARCHING'&&cur?['ok','Husky searching',`${esc(cn)} · waypoint ${cur.reached}/${cur.path.length}`]:
+    (q.state==='ENROUTE'||q.state==='DISPATCHING')&&cur?['ok','Husky driving',`to ${esc(cn)}`]:['','Husky idle',`${q.queue.length} queued`];
+  document.getElementById('dbg-phase').innerHTML=
+    pill(frozen?'ok':'warn','1 · Drone '+(frozen?'baseline frozen':'surveying'),frozen?esc(db.replace('frozen: ','')):(cov?cov[1]+'% covered':''))+
+    pill(lost?'bad':'','2 · Tree loss',`${lost} LOST by the drone${DBG.wasteTruth.length?' · '+DBG.wasteTruth.length+' bags dumped':''}`)+
+    pill(huskyTxt[0],'3 · '+huskyTxt[1],huskyTxt[2])+
+    pill(q&&q.total?'ok':'','4 · Missions',q?`${q.inspected} done of ${q.total} · ${q.queue.length} queued`:'')+
+    pill(found?'ok':'','5 · Waste',`${found} found of ${DBG.wasteTruth.length||'?'} dumped`)+
+    pill(ref&&(rc[1]+rc[3])?'ok':'','6 · Ground check',ref?`${rc[1]} trunks · ${rc[3]} cuts confirmed · ${rc[4]} false LOST · ${rc[5]} hidden`:'no data');
+  const ev=DBG.events.slice().reverse();
+  document.getElementById('dbg-ev-n').textContent=ev.length?ev.length+' events':'';
+  document.getElementById('dbg-events').innerHTML=ev.length?ev.map((e,i)=>{
+    const go=e.x!=null&&!isNaN(e.x);
+    return `<div class="dbg-ev${go?' go':''}" data-i="${DBG.events.length-1-i}"><time>${e.t?new Date(e.t).toLocaleTimeString():'earlier'}</time>`+
+      `<i style="background:${EV_COL[e.kind]||'#8e8e93'}"></i><span>${esc(e.text)}${go?` <em>${dPos(e.x,e.y)}</em>`:''}</span></div>`;}).join('')
+    :'<div class="dbg-empty">Nothing yet. Events appear as the run goes: baseline, flags, LOST trees, the Husky, waste, ground check.</div>';
+  document.querySelectorAll('#dbg-events .dbg-ev.go').forEach(el=>el.onclick=()=>{
+    const e=DBG.events[+el.dataset.i]; openBig(EV_PANEL[e.kind]||'canopy',{cx:e.x,cy:e.y,sc:null,zoom:4});});
+  document.getElementById('dbg-q-state').textContent=q?q.state.replace(/_/g,' ').toLowerCase():'';
+  const areas=areaList(), aOf=m=>areas.find(a=>a.mission===m)||{name:areaNameAt(m.x,m.y)||'?',type:m.type,box:m.box,mission:m,status:m.status};
+  const row=m=>{const a=aOf(m);return `<tr><td>${esc(a.name)}</td><td>${esc(prettyState(m.type))}</td><td>${(m.box[2]-m.box[0]).toFixed(0)}×${(m.box[3]-m.box[1]).toFixed(0)} m</td>`+
+    `<td>${m.status==='queued'?'priority '+m.pri.toFixed(1)+(m.att?' · try '+(m.att+1):''):esc(AREA_STATUS[m.status]||m.status)}</td>`+
+    `<td>${m.photos.length?`<button class="link-btn" data-area="${esc(a.name)}">${m.photos.length} photos</button>`:''}</td></tr>`;};
+  document.getElementById('dbg-queue').innerHTML=!q?'<div class="dbg-empty">No mission data. Start with use_husky:=true.</div>':
+    (cur?`<div class="dbg-cur"><b>${esc(cn)}</b> · ${esc(prettyState(cur.type))} · ${(cur.box[2]-cur.box[0]).toFixed(0)}×${(cur.box[3]-cur.box[1]).toFixed(0)} m`+
+      (cur.path.length?`<div class="prog"><div style="width:${(100*cur.reached/cur.path.length).toFixed(0)}%"></div></div><small>${q.state==='SEARCHING'?'sweeping':'driving to the start'}: waypoint ${cur.reached} of ${cur.path.length}, ${cur.photos.length} photos</small>`:'')+`</div>`:'')+
+    (q.queue.length||q.done.length?`<table><tr><th>Area</th><th>Type</th><th>Box</th><th>Status</th><th></th></tr>`+
+      q.queue.map(row).join('')+q.done.slice().reverse().map(row).join('')+`</table>`:cur?'':'<div class="dbg-empty">No areas yet.</div>')+
+    `<div class="dbg-empty">${q.inspected} searched of ${q.total} flagged${q.ready?'':' · holding until the drone baseline is frozen'}</div>`;
+  document.querySelectorAll('#dbg-queue [data-area]').forEach(b=>b.onclick=()=>{const a=areas.find(x=>x.name===b.dataset.area);if(a)openFolder(areaFolder(a));});
+  // photos as folders: one per area, one per waste find, the rest together
+  const folders=[];
+  areas.forEach(a=>{const f=areaFolder(a);if(f.photos.length)folders.push(f);});
+  DBG.wasteSites.filter(w=>w.photo&&!areas.some(a=>wasteNear(a.box,2.5).includes(w))).forEach(w=>folders.push(wasteFolder(w)));
+  const used=new Set(folders.flatMap(f=>f.photos.map(p=>p.src)));
+  const rest=DBG.photos.filter(p=>!used.has(p.src)).map(p=>({src:p.src,caption:p.caption}));
+  if(rest.length)folders.push({title:'Other photos',sub:'Photos not tied to an area',photos:rest});
+  document.getElementById('dbg-ph-n').textContent=folders.length?folders.length+' folders':'';
+  const g=document.getElementById('dbg-gallery'), sig=folders.map(f=>f.title+f.photos.length).join('|');
+  if(g.dataset.sig!==sig){g.dataset.sig=sig;
+    g.innerHTML=folders.length?folders.map((f,i)=>`<button class="dbg-folder" data-i="${i}"><img src="${f.photos[f.photos.length-1].src}" loading="lazy" alt="">`+
+      `<span><b>${esc(f.title)}</b>${f.photos.length} photo${f.photos.length>1?'s':''}</span></button>`).join('')
+      :'<div class="dbg-empty">Photos the Husky takes in each area and of waste appear here, one folder per area.</div>';
+    g.querySelectorAll('.dbg-folder').forEach(b=>b.onclick=()=>openFolder(folders[+b.dataset.i]));
+  } else g.querySelectorAll('.dbg-folder').forEach(b=>b.onclick=()=>openFolder(folders[+b.dataset.i]));
+}
+// ── drawing ──
+function dbgDraw(){ if(!dbgInit||document.body.dataset.view!=='debug'||dbgRaf)return;
+  dbgRaf=requestAnimationFrame(()=>{dbgRaf=0;
+    if(dbgBig){const c=document.getElementById('dbg-big-canvas');bigSize(c);dbgPanel(c,DBG_PANELS.find(p=>p.id===dbgBig.id),dbgBig);}
+    else DBG_PANELS.forEach(p=>{const c=document.getElementById('dbg-'+p.id);if(c)dbgPanel(c,p,null);});
+    dbgAges();}); }
+function dbgView(c,view){
+  const W=c.width,H=c.height, v=view||{cx:0,cy:0,sc:W/(2*DW)}, cw=c.getBoundingClientRect().width;
+  return {W,H,sc:v.sc,k:cw>0?W/cw:1,icons:[],X:x=>(x-v.cx)*v.sc+W/2,Y:y=>H/2-(y-v.cy)*v.sc,wx:px=>(px-W/2)/v.sc+v.cx,wy:py=>v.cy-(py-H/2)/v.sc};
+}
+function dbgPanel(c,p,view){
+  const g=c.getContext('2d'), V=dbgView(c,view); V.g=g;
+  g.clearRect(0,0,V.W,V.H);
+  const step=[1,2,5,10,20].find(s=>s*V.sc>=40)||20;
+  g.strokeStyle='rgba(255,255,255,.06)';g.lineWidth=1;g.beginPath();
+  for(let m=Math.ceil(V.wx(0)/step)*step;m<=V.wx(V.W);m+=step){g.moveTo(V.X(m),0);g.lineTo(V.X(m),V.H);}
+  for(let m=Math.ceil(V.wy(V.H)/step)*step;m<=V.wy(0);m+=step){g.moveTo(0,V.Y(m));g.lineTo(V.W,V.Y(m));}
+  g.stroke();
+  g.strokeStyle='rgba(255,255,255,.18)';g.strokeRect(V.X(-30),V.Y(30),60*V.sc,60*V.sc);   // survey box
+  p.draw(V);
+  c._icons=V.icons;
+  if(view){const d=window.devicePixelRatio||1;g.font=(12*d)+'px '+getComputedStyle(document.body).fontFamily;
+    g.fillStyle='rgba(0,0,0,.55)';g.fillRect(8*d,8*d,g.measureText(step+' m grid').width+12*d,20*d);
+    g.fillStyle='rgba(255,255,255,.75)';g.fillText(step+' m grid',14*d,22*d);}
+  if(p.note&&!view){const el=document.getElementById('dbg-note-'+p.id);if(el){const t=p.note()||'';if(p.noteHtml)el.innerHTML=t;else el.textContent=t;}}
+}
+// ── full-size view ──
+function bigSize(c){const r=c.getBoundingClientRect(),d=window.devicePixelRatio||1,w=Math.max(10,Math.round(r.width*d)),h=Math.max(10,Math.round(r.height*d));
+  if(c.width!==w||c.height!==h){c.width=w;c.height=h;}}
+function bigFit(){const c=document.getElementById('dbg-big-canvas');bigSize(c);return {cx:0,cy:0,sc:Math.min(c.width,c.height)/(2*DW)};}
+function openBig(id,keep){
+  const big=document.getElementById('dbg-big'); big.hidden=false;
+  const fit=bigFit();
+  if(keep&&keep.sc&&keep.id)dbgBig={...keep,id};
+  else if(keep&&keep.cx!=null)dbgBig={id,cx:keep.cx,cy:keep.cy,sc:fit.sc*(keep.zoom||1)};
+  else dbgBig={id,...fit};
+  big.querySelectorAll('#dbg-picker .chip').forEach(b=>b.classList.toggle('active',b.dataset.panel===id));
+  const p=DBG_PANELS.find(x=>x.id===id);
+  document.getElementById('dbg-big-legend').innerHTML=`<b>${p.title}</b>`+p.legend.map(([c,l])=>`<span><i style="background:${c}"></i>${l}</span>`).join('');
+  document.getElementById('dbg-readout').textContent='';
+  dbgDraw();
+}
+function closeBig(){dbgBig=null;document.getElementById('dbg-big').hidden=true;dbgDraw();}
+function bigInteractions(c){
+  let drag=null;
+  c.addEventListener('wheel',e=>{if(!dbgBig)return;e.preventDefault();
+    const d=window.devicePixelRatio||1, r=c.getBoundingClientRect(), V=dbgView(c,dbgBig);
+    const px=(e.clientX-r.left)*d, py=(e.clientY-r.top)*d, wx=V.wx(px), wy=V.wy(py);
+    const f=Math.exp(-e.deltaY*0.0015), sc=Math.min(400,Math.max(c.width/160,dbgBig.sc*f));
+    dbgBig.sc=sc; dbgBig.cx=wx-(px-c.width/2)/sc; dbgBig.cy=wy+(py-c.height/2)/sc; dbgDraw();},{passive:false});
+  let down=null;
+  c.addEventListener('pointerdown',e=>{if(!dbgBig)return;down={x:e.clientX,y:e.clientY};drag={x:e.clientX,y:e.clientY};c.setPointerCapture(e.pointerId);c.classList.add('drag');});
+  c.addEventListener('pointermove',e=>{if(!dbgBig)return;const d=window.devicePixelRatio||1;
+    if(drag){dbgBig.cx-=(e.clientX-drag.x)*d/dbgBig.sc;dbgBig.cy+=(e.clientY-drag.y)*d/dbgBig.sc;drag={x:e.clientX,y:e.clientY};dbgDraw();}
+    else c.style.cursor=iconAt(c,e)?'pointer':'';
+    const r=c.getBoundingClientRect(), V=dbgView(c,dbgBig);
+    bigReadout(V.wx((e.clientX-r.left)*d),V.wy((e.clientY-r.top)*d));});
+  const end=e=>{drag=null;c.classList.remove('drag');
+    if(down&&e.type==='pointerup'&&Math.hypot(e.clientX-down.x,e.clientY-down.y)<4){const ic=iconAt(c,e);if(ic)openFolder(ic.folder());}
+    down=null;};
+  c.addEventListener('pointerup',end);c.addEventListener('pointercancel',end);
+  c.addEventListener('pointerleave',()=>{document.getElementById('dbg-readout').textContent='';});
+  c.addEventListener('dblclick',()=>{if(dbgBig){Object.assign(dbgBig,bigFit());dbgDraw();}});
+}
+function iconAt(c,e){
+  const r=c.getBoundingClientRect(), sx=c.width/Math.max(1,r.width), px=(e.clientX-r.left)*sx, py=(e.clientY-r.top)*sx;
+  return (c._icons||[]).find(i=>Math.hypot(i.x-px,i.y-py)<=i.r)||null;
+}
+function gridAt(gr,x,y){if(!gr)return null;const ix=Math.floor((x-gr.ox)/gr.res),iy=Math.floor((y-gr.oy)/gr.res);
+  if(ix<0||iy<0||ix>=gr.w||iy>=gr.h)return null;return gr.data[iy*gr.w+ix];}
+function bigReadout(x,y){
+  const p=DBG_PANELS.find(q=>q.id===dbgBig.id), L=[`x ${x.toFixed(2)} m   y ${y.toFixed(2)} m`];
+  if(p.grid){const q=p.mapFrame?w2m(x,y):{x,y}, v=gridAt(p.grid(),q.x,q.y);L.push(p.value?p.value(v):String(v));}
+  const near=(arr,fx,fy,r)=>{let b=null,bd=r;arr.forEach(o=>{const d=Math.hypot(fx(o)-x,fy(o)-y);if(d<bd){bd=d;b=o;}});return b;};
+  const t=near(baselineTrees(),o=>o.x,o=>o.y,1.5);
+  if(t){let s=`drone tree #${t.id} (${t.species||'?'}, ${t.source||'lidar'})`;
+    const r=DBG.refined&&DBG.refined.trees.find(q=>q.id===t.id); if(r)s+=` · ground: ${['not checked','trunk there','no trunk','cut confirmed','false LOST','hidden'][r.status]} (${r.hits} hits, ${r.views} views)`;
+    L.push(s);}
+  const w=near(DBG.wasteSites,o=>o.x,o=>o.y,1.5); if(w)L.push(`waste #${w.id}: ${['seen from the air','found by the Husky','not found'][w.status]}`);
+  areaList().filter(a=>x>=a.box[0]&&x<=a.box[2]&&y>=a.box[1]&&y<=a.box[3]).forEach(a=>L.push(areaText(a)));
+  document.getElementById('dbg-readout').textContent=L.join('\n');
+}
+// a grid as an image, coloured once per message
+// husky1_map -> world (= the Husky's odom frame)
+function m2w(x,y){const t=DBG.m2w;if(!t)return {x,y};const dx=x-t.tx,dy=y-t.ty;return {x:t.c*dx+t.s*dy,y:-t.s*dx+t.c*dy};}
+const inMap=pts=>(pts||[]).map(p=>m2w(p.x,p.y));
+function w2m(x,y){const t=DBG.m2w;if(!t)return {x,y};return {x:t.tx+t.c*x-t.s*y,y:t.ty+t.s*x+t.c*y};}
+function dbgGrid(V,gr,colour,alpha,mapFrame){
+  if(!gr)return;
+  if(!gr._img||gr._colour!==colour){
+    const cv=document.createElement('canvas');cv.width=gr.w;cv.height=gr.h;
+    const cx=cv.getContext('2d'), im=cx.createImageData(gr.w,gr.h), d=im.data;
+    for(let iy=0;iy<gr.h;iy++)for(let ix=0;ix<gr.w;ix++){
+      const c=colour(gr.data[iy*gr.w+ix]); if(!c)continue;
+      const o=((gr.h-1-iy)*gr.w+ix)*4; d[o]=c[0];d[o+1]=c[1];d[o+2]=c[2];d[o+3]=c[3]==null?255:c[3];
+    }
+    cx.putImageData(im,0,0); gr._img=cv; gr._colour=colour;
+  }
+  const g=V.g; g.save(); g.globalAlpha=alpha==null?1:alpha; g.imageSmoothingEnabled=false;
+  if(mapFrame&&DBG.m2w){     // place the map's origin in the world, turn by its yaw
+    const o=m2w(0,0); g.translate(V.X(o.x),V.Y(o.y)); g.rotate(DBG.m2w.yaw);
+    g.drawImage(gr._img,gr.ox*V.sc,-(gr.oy+gr.h*gr.res)*V.sc,gr.w*gr.res*V.sc,gr.h*gr.res*V.sc);
+  } else g.drawImage(gr._img,V.X(gr.ox),V.Y(gr.oy+gr.h*gr.res),gr.w*gr.res*V.sc,gr.h*gr.res*V.sc);
+  g.restore();
+}
+const dLerp=(a,b,t)=>a.map((v,i)=>Math.round(v+(b[i]-v)*t));
+const C_HEIGHT=v=>v<0?null:v===0?[28,40,31]:dLerp([40,80,45],[190,240,110],Math.min(1,v/80));
+const C_CHANGE=v=>v<=-100?[255,69,58]:v===-40?[255,159,10]:v<0?[255,214,10]:v>=100?[100,210,255]:null;
+const C_SPECIES=v=>v<0?null:v>=65?[93,202,165]:v<=50?[200,200,70]:[120,130,120];
+const C_RED=v=>v<=0?null:[255,40,40,Math.min(255,80+v*20)];
+const C_SLAM=v=>v<0?[20,26,22]:v>=65?[235,235,235]:dLerp([70,84,75],[160,160,160],v/65);
+const C_COST=v=>v<=0?null:v>=99?[255,69,58]:dLerp([40,90,200],[255,200,40],v/98);
+const C_TRUNK=v=>v<=0?null:[205,140,70,Math.min(255,90+v*2)];
+const C_FAINT=v=>v<0?null:v===0?[22,30,25]:[45,62,48];
+const LY=DBG.layers;
+function dDot(V,x,y,r,fill,stroke){const g=V.g;g.beginPath();g.arc(V.X(x),V.Y(y),r,0,7);if(fill){g.fillStyle=fill;g.fill();}if(stroke){g.strokeStyle=stroke;g.lineWidth=1.5;g.stroke();}}
+function dLine(V,pts,col,w){if(!LY.paths||!pts||pts.length<2)return;const g=V.g;g.beginPath();pts.forEach((p,i)=>i?g.lineTo(V.X(p.x),V.Y(p.y)):g.moveTo(V.X(p.x),V.Y(p.y)));g.strokeStyle=col;g.lineWidth=w||1.5;g.stroke();}
+function dRobot(V,r,col){if(!LY.robots||!r)return;const g=V.g,x=V.X(r.x),y=V.Y(r.y),a=-(r.yaw||0);g.save();g.translate(x,y);g.rotate(a);
+  g.beginPath();g.moveTo(9,0);g.lineTo(-6,5.5);g.lineTo(-3,0);g.lineTo(-6,-5.5);g.closePath();g.fillStyle=col;g.fill();g.strokeStyle='#000';g.lineWidth=1;g.stroke();g.restore();}
+function dCross(V,x,y,col){const g=V.g,X=V.X(x),Y=V.Y(y);g.strokeStyle=col;g.lineWidth=2.2;g.beginPath();g.moveTo(X-5,Y-5);g.lineTo(X+5,Y+5);g.moveTo(X+5,Y-5);g.lineTo(X-5,Y+5);g.stroke();}
+function dTrees(V,faint){if(!LY.trees)return;baselineTrees().forEach(t=>{const pine=t.species==='pine';
+  dDot(V,t.x,t.y,faint?2.5:3.2,null,faint?'rgba(255,255,255,.35)':(pine?'#5dcaa5':'#c8c846'));});}
+function dLost(V){if(!LY.lost)return;(S.parrotTreeEvents||[]).filter(e=>e.event_type==='LOST').forEach(e=>dCross(V,e.x,e.y,'#ff453a'));}
+function dFlags(V){if(!LY.flags)return;
+  areaList().forEach(a=>{const b=a.box;
+    drawAreaBox(V.g,a,V.X(b[0]),V.Y(b[3]),(b[2]-b[0])*V.sc,(b[3]-b[1])*V.sc,V.k,true);
+    if(a.mission&&a.mission.photos.length)dIcon(V,V.X(b[2]),V.Y(b[3]),()=>areaFolder(a));});}
+// the sweep of the area being searched (done part solid) and the finished ones, faint
+function dHazards(V){(DBG.hazards||[]).forEach(h=>{dDot(V,h.x,h.y,6*V.k,'rgba(255,69,58,.35)','#ff453a');dCross(V,h.x,h.y,'#ff453a');});}
+function dSearch(V){dHazards(V);if(!LY.paths)return;const q=S.mq;if(!q)return;
+  const g=V.g, line=(pts,col,w,dash)=>{if(pts.length<2)return;g.save();g.setLineDash(dash||[]);g.beginPath();
+    pts.forEach((p,i)=>i?g.lineTo(V.X(p.x),V.Y(p.y)):g.moveTo(V.X(p.x),V.Y(p.y)));g.strokeStyle=col;g.lineWidth=w*V.k;g.stroke();g.restore();};
+  q.done.forEach(m=>line(m.path,'rgba(100,210,255,.3)',1));
+  const c=q.current; if(!c||!c.path.length)return;
+  const k=Math.max(1,Math.min(c.reached,c.path.length));
+  line(c.path.slice(0,k),'#64d2ff',2); line(c.path.slice(k-1),'rgba(100,210,255,.75)',1.5,[5*V.k,5*V.k]);
+  c.path.forEach((p,i)=>dDot(V,p.x,p.y,(i===c.reached?4.5:3)*V.k,i<c.reached?'#64d2ff':null,'#64d2ff'));}
+// a photo icon: click it to open the photos of that place
+function dIcon(V,px,py,folder){const g=V.g,k=V.k,w=18*k,h=13*k,x=px-w/2,y=py-h/2;
+  g.save();roundRectPath(g,x,y,w,h,3*k);g.fillStyle='rgba(255,255,255,.92)';g.fill();g.strokeStyle='rgba(0,0,0,.6)';g.lineWidth=1*k;g.stroke();
+  g.fillRect(x+w*.28,y-2.5*k,w*.3,3*k);
+  g.beginPath();g.arc(px,py+.5*k,3.6*k,0,7);g.fillStyle='#1c2128';g.fill();g.restore();
+  V.icons.push({x:px,y:py,r:12*k,folder});}
+function dWaste(V){if(!LY.waste)return;DBG.wasteTruth.forEach(b=>dDot(V,b.x,b.y,7,null,'#fff'));
+  DBG.wasteSites.forEach(s=>{dDot(V,s.x,s.y,4.5,['#ff9f0a','#ff453a','#8e8e93'][s.status]||'#ff9f0a','#000');
+    if(s.photo)dIcon(V,V.X(s.x)+12*V.k,V.Y(s.y)-10*V.k,()=>wasteFolder(s));});}
+function dGround(V){const r=DBG.refined;if(!LY.ground||!r){dTrees(V,true);return;}
+  r.trees.forEach(t=>{
+    if(t.status===0)dDot(V,t.dx,t.dy,2.5,null,'rgba(255,255,255,.35)');
+    else if(t.status===1){const g=V.g;g.beginPath();g.moveTo(V.X(t.dx),V.Y(t.dy));g.lineTo(V.X(t.gx),V.Y(t.gy));g.strokeStyle='rgba(48,209,88,.6)';g.lineWidth=1;g.stroke();dDot(V,t.gx,t.gy,3.2,'#30d158');}
+    else if(t.status===2)dDot(V,t.dx,t.dy,3,'#8e8e93');
+    else if(t.status===3)dCross(V,t.dx,t.dy,'#ff453a');
+    else if(t.status===4)dDot(V,t.dx,t.dy,5,null,'#bf5af2');
+    else if(t.status===5){const g=V.g;g.fillStyle='#64d2ff';g.fillRect(V.X(t.gx)-3.5,V.Y(t.gy)-3.5,7,7);}
+  });}
+const V_HEIGHT=v=>v==null?'outside the map':v<0?'not scanned':`canopy ${(v/10).toFixed(1)} m`;
+const DBG_PANELS=[
+  {id:'canopy',short:'Canopy',title:'Drone canopy height',topics:['/forest_canopy_map','/parrot1/odometry'],grid:()=>grid,value:V_HEIGHT,
+   legend:[['rgb(190,240,110)','tall canopy'],['rgb(40,80,45)','low canopy'],['#c8c846','oak (tracker)'],['#5dcaa5','pine (tracker)'],['#fff','detected now'],['#ffffff80','drone trail']],
+   draw:V=>{dbgGrid(V,grid,C_HEIGHT);dLine(V,DBG.droneTrail,'rgba(255,255,255,.35)',1);dTrees(V);
+     if(LY.detections)(autoTrees||[]).forEach(t=>dDot(V,t.x,t.y,1.6,'#fff'));dRobot(V,DBG.drone||S.drone,'#64d2ff');}},
+  {id:'change',short:'Change',title:'Drone change map',topics:['/canopy_change_map'],grid:()=>change,
+   value:v=>v==null?'outside the map':({'-100':'canopy lost','-40':'lost (late baseline)','-30':'canopy dropped','100':'new canopy','0':'no change'})[String(v)]||('change '+v),
+   legend:[['#ff453a','lost'],['#ff9f0a','lost (late baseline)'],['#ffd60a','dropped'],['#64d2ff','new'],['#ff453a','✕ tree LOST'],['#ff9f0a','▭ suspected area (dashed: not searched yet)']],
+   draw:V=>{dbgGrid(V,grid,C_FAINT);dbgGrid(V,change,C_CHANGE);dLost(V);dFlags(V);}},
+  {id:'species',short:'Species',title:'Drone camera: species colour',topics:['/forest_species_map'],grid:()=>species,
+   value:v=>v==null||v<0?'no camera data':`blue/green ${(v/100).toFixed(2)}${v>=65?' (pine colour)':v<=50?' (oak colour)':''}`,
+   legend:[['rgb(200,200,70)','oak colour'],['rgb(93,202,165)','pine colour'],['#ffffff','pine patch']],
+   draw:V=>{dbgGrid(V,species,C_SPECIES);if(LY.trees)((S.baselineInfo&&S.baselineInfo.pine_patches)||[]).forEach(p=>dDot(V,p.x,p.y,4,null,'#fff'));}},
+  {id:'waste',short:'Waste',title:'Waste: dumped vs found',topics:['/forest_red_map','/waste_ground_truth','/waste_sites'],grid:()=>DBG.red,
+   value:v=>v>0?`${v} red camera pixels (drone)`:'no red seen from the air',
+   legend:[['#ff2828','drone red pixels'],['#ffffff','◯ bag (truth)'],['#ff9f0a','seen from the air'],['#ff453a','found by the Husky'],['#8e8e93','not found']],
+   noteHtml:true,
+   note:()=>DBG.wasteTruth.length||DBG.wasteSites.length?`${DBG.wasteTruth.length} bags dumped, ${DBG.wasteSites.length} sites: `+
+     DBG.wasteSites.map(s=>'#'+s.id+' '+['seen','found','not found'][s.status]+
+       (s.photo?` (<a href="${photoUrl(s.photo)}" target="_blank" rel="noopener">photo</a>)`:'')).join(', '):'',
+   draw:V=>{dbgGrid(V,grid,C_FAINT);dbgGrid(V,DBG.red,C_RED);dFlags(V);dSearch(V);dWaste(V);dRobot(V,DBG.husky,'#ffd60a');}},
+  {id:'slam',mapFrame:true,short:'Husky map',title:'Husky SLAM map + route',topics:['/husky1/map','/husky1/odometry'],grid:()=>DBG.slam,
+   value:v=>v==null?'outside the Husky map':v<0?'unknown':v>=65?'obstacle':`free (${v})`,
+   legend:[['#ebebeb','obstacle'],['rgb(70,84,75)','free'],['#ffffff60','◯ drone tree'],['#30d158','planned path'],['#ffd60a','Husky'],['#ff9f0a','▭ suspected area'],['#64d2ff','Husky sweep'],['#ff453a','⊗ stuck spot']],
+   note:()=>{const t=DBG.m2w;return t?`SLAM map drift from the world: ${Math.hypot(t.tx,t.ty).toFixed(2)} m, ${(t.yaw*180/Math.PI).toFixed(1)}° (the maps here are corrected for it)`:'';},
+   draw:V=>{dbgGrid(V,DBG.slam,C_SLAM,1,true);dTrees(V,true);dLine(V,DBG.huskyTrail,'rgba(255,214,10,.45)',1.2);dLine(V,inMap(DBG.plan),'#30d158',2);
+     dFlags(V);dSearch(V);dWaste(V);dRobot(V,DBG.husky,'#ffd60a');}},
+  {id:'cost',mapFrame:true,short:'Costmap',title:'Husky Nav2 costmap',topics:['/husky1/global_costmap/costmap'],grid:()=>DBG.cost,
+   value:v=>v==null?'outside the costmap':v<0?'unknown':v>=99?'lethal (cannot drive)':`cost ${v}`,
+   legend:[['#ff453a','lethal'],['rgb(255,200,40)','high cost'],['rgb(40,90,200)','low cost'],['#30d158','planned path']],
+   draw:V=>{dbgGrid(V,DBG.cost,C_COST,1,true);dFlags(V);dSearch(V);dLine(V,inMap(DBG.plan),'#30d158',2);dRobot(V,DBG.husky,'#ffd60a');}},
+  {id:'trunk',mapFrame:true,short:'Ground check',title:'Ground check: Husky trunks vs drone trees',topics:['/forest_trunk_map','/all_tree_positions','/refined_trees'],grid:()=>DBG.trunk,
+   value:v=>v>0?`${v} trunk sightings (Husky LiDAR)`:'no trunk sightings',
+   legend:[['rgb(205,140,70)','trunk hits'],['#30d158','trunk confirmed'],['#ff453a','✕ cut confirmed'],['#bf5af2','false LOST'],['#64d2ff','hidden tree'],['#8e8e93','no trunk'],['#ffffff60','not checked yet']],
+   note:()=>{const r=DBG.refined;if(!r)return '';const c=[0,0,0,0,0,0];r.trees.forEach(t=>c[t.status]++);
+     return `mode ${r.mode}: ${c[1]} trunks confirmed, ${c[3]} cuts confirmed, ${c[4]} false LOST, ${c[5]} hidden trees, ${c[2]} no trunk, ${c[0]} not checked`;},
+   draw:V=>{dbgGrid(V,DBG.trunk,C_TRUNK,1,true);dGround(V);dLost(V);dLine(V,DBG.huskyTrail,'rgba(255,214,10,.45)',1.2);dRobot(V,DBG.husky,'#ffd60a');}},
+  {id:'missions',short:'Missions',title:'Missions: suspected areas and the Husky',topics:['/suspicious_areas','/mission_queue','/inspection_reports'],grid:()=>grid,value:V_HEIGHT,
+   legend:[['#ff9f0a','area to search'],['#30d158','area searched'],['#64d2ff','Husky sweep'],['#ffd60a','Husky'],['#30d158','Nav2 path'],['#fff','📷 photos: click']],
+   note:()=>[S.mission?'mission: '+S.mission:'',...(S.reports||[]).slice(-3).map(r=>r.text)].filter(Boolean).join('\n'),
+   draw:V=>{dbgGrid(V,grid,C_FAINT);dLost(V);dFlags(V);dSearch(V);dWaste(V);dLine(V,inMap(DBG.plan),'#30d158',2);
+     dLine(V,DBG.huskyTrail,'rgba(255,214,10,.45)',1.2);dRobot(V,DBG.drone||S.drone,'#64d2ff');dRobot(V,DBG.husky,'#ffd60a');}},
+];
 
 // ── Tabs (the lens slides to the selected view) ──
 const tabs=[...document.querySelectorAll('.tab[data-view]')];
@@ -1428,7 +2052,6 @@ function selectView(t,focus){
   if(t.scrollIntoView)t.scrollIntoView({block:'nearest',inline:'nearest'});
   if(view==='terrain'){if(!rend)initTerrain();resizeTerrain();}
   if(view==='map')drawMap();
-  if(view==='label'){setTimeout(()=>{resizeLabelCanvas(); drawLabelCanvas();},50);}
   if(view==='debug')drawDebug();
   if(view==='changes'){changesVisitedAt=Date.now();renderChanges(true);updateChangesBadge();}
   if(view==='report')buildReport();
@@ -1467,10 +2090,6 @@ document.getElementById('toggle-pine').addEventListener('click',()=>{
   if(pineEnabled&&!species)toast({tone:'info',title:'No camera colour map yet',sub:'It appears once the drone camera has seen some canopy.'});
   renderLegend(); if(mapActive())drawMap();
 });
-document.getElementById('map-calibrate').addEventListener('click',()=>{
-  selectView(tabFor('label'));
-  document.getElementById('label-calibrate').click();
-});
 
 // ── Cameras: refresh every 1s ──
 function refreshCamera(name,imgId,onFrame){
@@ -1481,39 +2100,193 @@ function refreshCamera(name,imgId,onFrame){
 }
 setInterval(()=>{
   refreshCamera('drone','drone-img',()=>dc++);
-  if(SHOW_HUSKY)refreshCamera('husky','husky-img',()=>hc++);
+  refreshCamera('husky','husky-img',()=>{hc++;huskySeen();});
 },1000);
 
-// ── 3D terrain (Three.js, with fallback) ──
-let scene=null,cam=null,rend=null,cloud=null,allPts=[],drag=false,lx=0,ly=0,vx=0,vy=0;
-const TERRAIN_HEIGHT_SCALE=1.6;
-let pointTex=null;
+// ── 3D view (Three.js): the forest as the robots know it ──
+// Trees are the drone's baseline (crown size from its area, height from the
+// canopy map; cut ones are stumps), plus the drone and the Husky with their
+// trails, the suspected areas with the Husky's sweep, waste finds, the drone
+// change map on the ground and the drone's raw points. Drag to orbit,
+// right-drag (or shift-drag) to pan, scroll to zoom, double-click to reset.
+let scene=null,cam=null,rend=null,cloud=null,allPts=[],pointTex=null;
+const T3={target:null,az:-0.75,el:0.62,dist:95,follow:null,layers:{trees:true,points:true,areas:true,robots:true,changes:true},
+  groups:{},treeSig:'',areaSig:'',changeSrc:null,trails:{drone:[],husky:[]},drone:null,husky:null};
+const to3=(x,y,z)=>new THREE.Vector3(x,z||0,-y);
 function initTerrain(){
   const el=document.getElementById('terrain-container'); if(!el||el.clientWidth<10||rend)return;
-  if(typeof THREE==='undefined'){ el.innerHTML='<div class="fallback glass">3D terrain is unavailable because Three.js failed to load. Check the network connection and reload.</div>'; return; }
+  if(typeof THREE==='undefined'){ el.innerHTML='<div class="fallback glass">3D view is unavailable because Three.js failed to load. Check the network connection and reload.</div>'; return; }
   el.innerHTML='';
   scene=new THREE.Scene(); scene.background=null;   // transparent: the ambient backdrop shows through
-  scene.add(new THREE.GridHelper(80,40,0x2a3a2f,0x1c2820));
-  const ground=new THREE.Mesh(new THREE.PlaneGeometry(80,80),new THREE.MeshBasicMaterial({color:0x142018,side:THREE.DoubleSide,transparent:true,opacity:.55}));
-  ground.rotateX(-Math.PI/2); scene.add(ground);
-  cam=new THREE.PerspectiveCamera(55,el.clientWidth/Math.max(el.clientHeight,1),0.5,200);
-  cam.position.set(40,55,50); cam.lookAt(0,0,5);
+  scene.add(new THREE.HemisphereLight(0xdfeeff,0x24331f,0.95));
+  const sun=new THREE.DirectionalLight(0xfff4e0,0.75); sun.position.set(-40,80,30); scene.add(sun);
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(84,84),new THREE.MeshLambertMaterial({color:0x1b2e18}));
+  ground.rotateX(-Math.PI/2); ground.position.y=-0.02; scene.add(ground);
+  const grid=new THREE.GridHelper(80,16,0x3d5a37,0x2b4227); grid.position.y=0.01; scene.add(grid);
+  const box=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([to3(-30,-30,.05),to3(30,-30,.05),to3(30,30,.05),to3(-30,30,.05)]),
+    new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:.35})); scene.add(box);   // survey box
+  ['trees','areas','robots','changes'].forEach(k=>{T3.groups[k]=new THREE.Group();scene.add(T3.groups[k]);});
+  T3.target=new THREE.Vector3(0,0,0);
+  cam=new THREE.PerspectiveCamera(50,el.clientWidth/Math.max(el.clientHeight,1),0.3,500);
   rend=new THREE.WebGLRenderer({antialias:true,alpha:true});
-  rend.setClearColor(0x000000,0);
-  rend.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  rend.setClearColor(0x000000,0); rend.setPixelRatio(Math.min(window.devicePixelRatio,2));
   rend.setSize(el.clientWidth,el.clientHeight); el.appendChild(rend.domElement);
-  el.addEventListener('pointerdown',e=>{drag=true;lx=e.clientX;ly=e.clientY;el.setPointerCapture(e.pointerId);vx=vy=0});
-  el.addEventListener('pointerup',()=>drag=false);
-  el.addEventListener('pointermove',e=>{
-    if(!drag)return; vx=(e.clientX-lx)*0.3; vy=(e.clientY-ly)*0.3;
-    cam.position.x-=vx; cam.position.z-=vy; cam.lookAt(0,0,5); lx=e.clientX; ly=e.clientY;
-  });
-  el.addEventListener('wheel',e=>{e.preventDefault(); cam.position.y+=e.deltaY*0.08; cam.position.y=Math.max(5,Math.min(130,cam.position.y)); cam.lookAt(0,0,5);},{passive:false});
+  el.insertAdjacentHTML('beforeend',`<div id="t3-panel" class="glass"><div class="t3-row">`+
+    [['trees','Trees'],['points','Drone points'],['changes','Canopy loss'],['areas','Areas & sweep'],['robots','Robots']].map(([k,l])=>
+      `<button class="chip active" data-layer="${k}">${l}</button>`).join('')+
+    `</div><div class="t3-row"><button class="chip" data-follow="drone">Follow drone</button><button class="chip" data-follow="husky">Follow Husky</button>`+
+    `<button class="chip" data-follow="reset">Reset view</button></div>`+
+    `<div class="t3-hint">Drag to orbit · right-drag to pan · scroll to zoom</div></div>`);
+  el.querySelectorAll('[data-layer]').forEach(b=>b.addEventListener('click',()=>{const k=b.dataset.layer;
+    T3.layers[k]=!T3.layers[k]; b.classList.toggle('active',T3.layers[k]); t3Visibility();}));
+  el.querySelectorAll('[data-follow]').forEach(b=>b.addEventListener('click',()=>{const f=b.dataset.follow;
+    if(f==='reset'){T3.follow=null;T3.target.set(0,0,0);T3.az=-0.75;T3.el=0.62;T3.dist=95;}
+    else T3.follow=T3.follow===f?null:f;
+    el.querySelectorAll('[data-follow]').forEach(x=>x.classList.toggle('active',x.dataset.follow===T3.follow));}));
+  // orbit / pan / zoom
+  const cv=rend.domElement; let drag=null;
+  cv.addEventListener('contextmenu',e=>e.preventDefault());
+  cv.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,pan:e.button===2||e.shiftKey};cv.setPointerCapture(e.pointerId);});
+  cv.addEventListener('pointerup',()=>drag=null);
+  cv.addEventListener('pointermove',e=>{ if(!drag)return;
+    const dx=e.clientX-drag.x, dy=e.clientY-drag.y; drag.x=e.clientX; drag.y=e.clientY;
+    if(drag.pan){T3.follow=null;const s=T3.dist*0.0016, c=Math.cos(T3.az), n=Math.sin(T3.az);
+      T3.target.x-=(dx*c+dy*n)*s; T3.target.z-=(-dx*n+dy*c)*s;}
+    else{T3.az-=dx*0.006; T3.el=Math.max(0.08,Math.min(1.5,T3.el+dy*0.005));}});
+  cv.addEventListener('wheel',e=>{e.preventDefault();T3.dist=Math.max(4,Math.min(220,T3.dist*Math.exp(e.deltaY*0.0012)));},{passive:false});
+  cv.addEventListener('dblclick',()=>el.querySelector('[data-follow="reset"]').click());
   (function anim(){ requestAnimationFrame(anim);
     if(!terrainActive())return;   // don't render WebGL behind other views
-    if(!drag&&(Math.abs(vx)>0.01||Math.abs(vy)>0.01)){cam.position.x-=vx;cam.position.z-=vy;cam.lookAt(0,0,5);vx*=0.94;vy*=0.94;}
-    if(rend)rend.render(scene,cam);
+    t3Update();
+    const f=T3.follow==='drone'?T3.drone:T3.follow==='husky'?T3.husky:null;
+    if(f)T3.target.lerp(new THREE.Vector3(f.position.x,0,f.position.z),0.15);
+    cam.position.set(T3.target.x+T3.dist*Math.cos(T3.el)*Math.sin(T3.az),T3.target.y+T3.dist*Math.sin(T3.el),T3.target.z+T3.dist*Math.cos(T3.el)*Math.cos(T3.az));
+    cam.lookAt(T3.target); rend.render(scene,cam);
   })();
+}
+function t3Visibility(){
+  Object.entries(T3.groups).forEach(([k,g])=>g.visible=T3.layers[k]);
+  if(cloud)cloud.visible=T3.layers.points;
+}
+function t3Clear(g){while(g.children.length){const o=g.children.pop();o.traverse(x=>{if(x.geometry)x.geometry.dispose();});}}
+const T3M={};   // shared materials
+function t3Mat(key,make){return T3M[key]||(T3M[key]=make());}
+function canopyAt(x,y,r){
+  if(!grid)return 0; let best=0;
+  const c=Math.ceil(r/grid.res), ix0=Math.floor((x-grid.ox)/grid.res), iy0=Math.floor((y-grid.oy)/grid.res);
+  for(let iy=iy0-c;iy<=iy0+c;iy++)for(let ix=ix0-c;ix<=ix0+c;ix++){
+    if(ix<0||iy<0||ix>=grid.w||iy>=grid.h)continue; const v=grid.data[iy*grid.w+ix]; if(v>best)best=v;}
+  return best/10;
+}
+function t3Trees(){
+  // before the baseline freezes: the drone's current detections, species unknown
+  const trees=baselineTrees().length?baselineTrees():(autoTrees||[]).map((t,i)=>({id:-1-i,x:t.x,y:t.y,species:'?'})), gone=lostIds();
+  const sig=trees.length+'|'+[...gone].join(',')+'|'+(grid?grid.w:0)+'|'+Math.floor(Date.now()/10000);
+  if(sig===T3.treeSig)return; T3.treeSig=sig;
+  const g=T3.groups.trees; t3Clear(g);
+  const bark=t3Mat('bark',()=>new THREE.MeshLambertMaterial({color:0x6b4a2f}));
+  const oak=t3Mat('oak',()=>new THREE.MeshLambertMaterial({color:0x7fa83a}));
+  const pine=t3Mat('pine',()=>new THREE.MeshLambertMaterial({color:0x2f6b4f}));
+  const unknown=t3Mat('tree?',()=>new THREE.MeshLambertMaterial({color:0x8fa080,transparent:true,opacity:.8}));
+  const cut=t3Mat('cut',()=>new THREE.MeshBasicMaterial({color:0xff453a}));
+  trees.forEach(t=>{
+    const isPine=t.species==='pine', r=Math.max(1.2,Math.min(4,Math.sqrt((t.area_m2||12)/Math.PI)));
+    if(gone.has(t.id)){
+      const stump=new THREE.Mesh(new THREE.CylinderGeometry(.28,.32,.35,10),bark); stump.position.copy(to3(t.x,t.y,.17)); g.add(stump);
+      const ring=new THREE.Mesh(new THREE.RingGeometry(r*.85,r,40),cut); ring.rotation.x=-Math.PI/2; ring.position.copy(to3(t.x,t.y,.04)); g.add(ring);
+      return;
+    }
+    const h=Math.max(isPine?4:4.5,Math.min(12,canopyAt(t.x,t.y,Math.min(r,1.5))||(isPine?5:6)));
+    const trunkH=isPine?h*.35:h*.5;
+    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.16,.24,trunkH,8),bark); trunk.position.copy(to3(t.x,t.y,trunkH/2)); g.add(trunk);
+    if(isPine){const cone=new THREE.Mesh(new THREE.ConeGeometry(Math.min(r,2.2),h-trunkH*.6,10),pine);
+      cone.position.copy(to3(t.x,t.y,trunkH*.6+(h-trunkH*.6)/2)); g.add(cone);}
+    else{const crown=new THREE.Mesh(new THREE.SphereGeometry(1,14,10),t.species==='?'?unknown:oak); const cr=h-trunkH*.8;
+      crown.scale.set(r,cr/2,r); crown.position.copy(to3(t.x,t.y,h-cr/2)); g.add(crown);}
+  });
+}
+function t3Areas(){
+  const areas=areaList(), cur=S.mq&&S.mq.current, sig=JSON.stringify(areas.map(a=>[a.name,a.status,a.box.map(v=>v.toFixed(1))]))+(cur?cur.reached+'/'+cur.path.length:'')+(S.waste||[]).length;
+  if(sig===T3.areaSig)return; T3.areaSig=sig;
+  const g=T3.groups.areas; t3Clear(g);
+  areas.forEach(a=>{
+    const col=a.status==='inspected'?0x30d158:a.status==='unreachable'?0x8e8e93:a.sev>=70?0xff453a:a.sev>=40?0xff9f0a:0xffd60a;
+    const [x0,y0,x1,y1]=a.box, h=1.6, w=x1-x0, d=y1-y0;
+    const fill=new THREE.Mesh(new THREE.PlaneGeometry(w,d),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.18,depthWrite:false}));
+    fill.rotation.x=-Math.PI/2; fill.position.copy(to3((x0+x1)/2,(y0+y1)/2,.06)); g.add(fill);
+    const edges=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(w,h,d)),
+      new THREE.LineBasicMaterial({color:col,transparent:true,opacity:a.status==='inspected'?.9:.6}));
+    edges.position.copy(to3((x0+x1)/2,(y0+y1)/2,h/2)); g.add(edges);
+    const tag=t3Label(a.name+(a.status==='inspected'?' ✓':''),col); tag.position.copy(to3(x0,y1,h+.6)); g.add(tag);
+  });
+  const path=(pts,col,op)=>{if(pts.length<2)return;g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(p=>to3(p.x,p.y,.15))),
+    new THREE.LineBasicMaterial({color:col,transparent:true,opacity:op})));};
+  if(S.mq)S.mq.done.forEach(m=>path(m.path,0x64d2ff,.35));
+  if(cur&&cur.path.length){path(cur.path,0x64d2ff,.95);
+    cur.path.forEach((p,i)=>{const s=new THREE.Mesh(new THREE.SphereGeometry(i<cur.reached?.22:.16,10,8),
+      new THREE.MeshBasicMaterial({color:i<cur.reached?0x64d2ff:0xffffff}));s.position.copy(to3(p.x,p.y,.2));g.add(s);});}
+  const bag=t3Mat('bag',()=>new THREE.MeshLambertMaterial({color:0xe02020}));
+  (S.waste||[]).forEach(w=>{const b=new THREE.Mesh(new THREE.SphereGeometry(1,14,10),bag); b.scale.set(.42,.32,.32);
+    b.position.copy(to3(w.x,w.y,.3)); g.add(b);
+    const tag=t3Label(`Waste #${w.id}`,0xff453a); tag.position.copy(to3(w.x,w.y,1.4)); g.add(tag);});
+}
+function t3Label(text,col){
+  const c=document.createElement('canvas'), x=c.getContext('2d'); x.font='600 34px -apple-system,system-ui,sans-serif';
+  const w=Math.ceil(x.measureText(text).width)+28; c.width=w; c.height=50;
+  x.font='600 34px -apple-system,system-ui,sans-serif'; x.fillStyle='rgba(0,0,0,.6)';
+  x.beginPath(); x.roundRect?x.roundRect(0,0,w,50,25):x.rect(0,0,w,50); x.fill();
+  x.fillStyle='#'+col.toString(16).padStart(6,'0'); x.fillText(text,14,37);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false,transparent:true}));
+  sp.scale.set(w/50*1.1,1.1,1); return sp;
+}
+function t3Changes(){
+  if(!change||change===T3.changeSrc)return; T3.changeSrc=change;
+  const g=T3.groups.changes; t3Clear(g);
+  const c=document.createElement('canvas'); c.width=change.w; c.height=change.h;
+  const x=c.getContext('2d'), im=x.createImageData(change.w,change.h);
+  for(let iy=0;iy<change.h;iy++)for(let ix=0;ix<change.w;ix++){const v=change.data[iy*change.w+ix];
+    if(v>=0)continue; const o=((change.h-1-iy)*change.w+ix)*4;
+    im.data[o]=255;im.data[o+1]=v<=-100?69:v===-40?159:214;im.data[o+2]=v<=-100?58:10;im.data[o+3]=170;}
+  x.putImageData(im,0,0);
+  const tex=new THREE.CanvasTexture(c); tex.magFilter=THREE.NearestFilter;
+  const W=change.w*change.res, H=change.h*change.res;
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(W,H),new THREE.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false}));
+  m.rotation.x=-Math.PI/2; m.position.copy(to3(change.ox+W/2,change.oy+H/2,.03)); g.add(m);
+}
+function t3Robot(kind){
+  const o=new THREE.Group();
+  if(kind==='drone'){
+    const body=t3Mat('dbody',()=>new THREE.MeshLambertMaterial({color:0xffffff}));
+    o.add(new THREE.Mesh(new THREE.BoxGeometry(.7,.18,.7),body));
+    const rot=t3Mat('rotor',()=>new THREE.MeshBasicMaterial({color:0x64d2ff,transparent:true,opacity:.55}));
+    [[.55,.55],[-.55,.55],[.55,-.55],[-.55,-.55]].forEach(([a,b])=>{const r=new THREE.Mesh(new THREE.CylinderGeometry(.38,.38,.04,18),rot);r.position.set(a,.12,b);o.add(r);});
+    o.scale.setScalar(1.6);
+  } else {
+    const body=t3Mat('hbody',()=>new THREE.MeshLambertMaterial({color:0xffd60a}));
+    const wheel=t3Mat('wheel',()=>new THREE.MeshLambertMaterial({color:0x202020}));
+    const b=new THREE.Mesh(new THREE.BoxGeometry(1.0,.38,.68),body); b.position.y=.38; o.add(b);
+    [[.33,.4],[-.33,.4],[.33,-.4],[-.33,-.4]].forEach(([a,c])=>{const w=new THREE.Mesh(new THREE.CylinderGeometry(.18,.18,.12,14),wheel);
+      w.rotation.x=Math.PI/2; w.position.set(a,.18,c); o.add(w);});
+    const cam3=new THREE.Mesh(new THREE.BoxGeometry(.12,.12,.2),wheel); cam3.position.set(.45,.63,0); o.add(cam3);
+  }
+  T3.groups.robots.add(o); return o;
+}
+function t3TrailLine(name,col){
+  const pts=T3.trails[name]; if(T3[name+'Trail']){T3.groups.robots.remove(T3[name+'Trail']);T3[name+'Trail'].geometry.dispose();}
+  if(pts.length<2)return;
+  T3[name+'Trail']=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.6}));
+  T3.groups.robots.add(T3[name+'Trail']);
+}
+let t3Last=0;
+function t3Update(){
+  t3Changes(); t3Trees(); t3Areas();
+  const now=performance.now(); if(now-t3Last<100)return; t3Last=now;
+  if(S.drone&&droneOn()){ if(!T3.drone)T3.drone=t3Robot('drone');
+    const p=to3(S.drone.x,S.drone.y,S.drone.z!=null?S.drone.z:10); T3.drone.position.copy(p); T3.drone.rotation.y=S.drone.yaw||0;
+    const tr=T3.trails.drone, l=tr[tr.length-1]; if(!l||l.distanceTo(p)>0.6){tr.push(p.clone());if(tr.length>3000)tr.shift();t3TrailLine('drone',0x64d2ff);} }
+  if(SHOW_HUSKY){ if(!T3.husky)T3.husky=t3Robot('husky');
+    const p=to3(hx,hy,0); T3.husky.position.copy(p); T3.husky.rotation.y=S.husky.yaw||0;
+    const tr=T3.trails.husky, q=to3(hx,hy,.08), l=tr[tr.length-1]; if(!l||l.distanceTo(q)>0.3){tr.push(q);if(tr.length>3000)tr.shift();t3TrailLine('husky',0xffd60a);} }
 }
 function makePointTexture(){
   const c=document.createElement('canvas'); c.width=c.height=32;
@@ -1533,16 +2306,16 @@ function updateTerrain(pts){
   if(cloud){scene.remove(cloud);cloud.geometry.dispose();cloud.material.dispose();}
   const g=new THREE.BufferGeometry(), p=new Float32Array(allPts.length*3), c=new Float32Array(allPts.length*3);
   for(let i=0;i<allPts.length;i++){
-    const rawZ=allPts[i].z||0.2;
-    const rosZ=rawZ*TERRAIN_HEIGHT_SCALE;
-    p[i*3]=allPts[i].x; p[i*3+1]=rosZ; p[i*3+2]=-allPts[i].y;
-    const h=Math.min(rawZ/10,1);
-    c[i*3]=0.25*(1-h); c[i*3+1]=0.35+0.55*h; c[i*3+2]=0.12;
+    const z=allPts[i].z||0.2;
+    p[i*3]=allPts[i].x; p[i*3+1]=z; p[i*3+2]=-allPts[i].y;
+    const h=Math.min(z/10,1);
+    c[i*3]=0.55*(1-h)+0.2; c[i*3+1]=0.6+0.35*h; c[i*3+2]=0.35*(1-h)+0.15;
   }
   g.setAttribute('position',new THREE.BufferAttribute(p,3));
   g.setAttribute('color',new THREE.BufferAttribute(c,3));
   if(!pointTex)pointTex=makePointTexture();
-  cloud=new THREE.Points(g,new THREE.PointsMaterial({size:0.32,map:pointTex,vertexColors:true,transparent:true,depthWrite:false,alphaTest:0.05}));
+  cloud=new THREE.Points(g,new THREE.PointsMaterial({size:0.34,map:pointTex,vertexColors:true,transparent:true,opacity:.9,depthWrite:false,alphaTest:0.05}));
+  cloud.visible=T3.layers.points;
   scene.add(cloud);
 }
 function resizeTerrain(){const el=document.getElementById('terrain-container'); if(rend&&el&&cam){rend.setSize(el.clientWidth,el.clientHeight);cam.aspect=el.clientWidth/Math.max(el.clientHeight,1);cam.updateProjectionMatrix();}}
@@ -1577,216 +2350,26 @@ canvas.addEventListener('pointermove',e=>{
     showTip(e,`Tree #${baseHit.id} · ${speciesName(baseHit)} · ${sourceName(baseHit.source)} · ${lost?'lost':'standing'}`);return;}
   if(changeEnabled)S.events.forEach(ev=>{const at=alertPos(ev.text);if(at&&near(at.x,at.y,13))alertHit=ev;});
   if(alertHit){showTip(e,alertHit.text);return;}
+  const area=areaUnder(e);
+  if(area){showTip(e,areaText(area)+(area.mission&&area.mission.photos.length?' · click for photos':''));canvas.style.cursor=area.mission&&area.mission.photos.length?'pointer':'';return;}
+  canvas.style.cursor='';
   const ix=Math.floor((e.offsetX-f.mx)/f.scale), iy=Math.floor((e.offsetY-f.my)/f.scale);
   if(ix>=0&&ix<w&&iy>=0&&iy<h){const v=data[iy*w+ix];showTip(e,fmtPos(ox+ix*res,oy+iy*res)+' · '+(v<0?'unexplored':(v/10).toFixed(1)+' m canopy'));}
   else tip.classList.remove('visible');
 });
 canvas.addEventListener('pointerleave',()=>tip.classList.remove('visible'));
+// the suspected area under the pointer (smallest box first)
+function areaUnder(e){
+  if(!grid)return null;
+  const f=mapFit(canvas.clientWidth,canvas.clientHeight), {res,ox,oy}=grid;
+  const wx=ox+(e.offsetX-f.mx)/f.scale*res, wy=oy+(e.offsetY-f.my)/f.scale*res;
+  return areaList().filter(a=>wx>=a.box[0]&&wx<=a.box[2]&&wy>=a.box[1]&&wy<=a.box[3])
+    .sort((a,b)=>(a.box[2]-a.box[0])*(a.box[3]-a.box[1])-(b.box[2]-b.box[0])*(b.box[3]-b.box[1]))[0]||null;
+}
+canvas.addEventListener('click',e=>{const a=areaUnder(e);if(a&&a.mission&&a.mission.photos.length)openFolder(areaFolder(a));});
 
-// ── Tree labelling page ──
-let treeLabels=[], autoTrees=[], labelDrawing=null, labelEraseMode=false, labelDrag=null, lastLabelMouse=null;
-let labelCalibration=null, labelCalibrationStage=0, labelCalibrationPoints=[];
-let labelsHydrated=false, labelCss={w:800,h:800}, labelNoteTimer=0;
-const labelCanvas=document.getElementById('label-canvas'), lctx=labelCanvas.getContext('2d');
-function setLabelNote(text){
-  const el=document.getElementById('label-note'); el.textContent=text;
-  clearTimeout(labelNoteTimer); if(text)labelNoteTimer=setTimeout(()=>{el.textContent='';},7000);
-}
-function resizeLabelCanvas(){ labelCss=sizeCanvas(labelCanvas,lctx); }
-function labelScreenTransform(){
-  const f=fitRect(labelCss.w,labelCss.h,grid.w,grid.h,{bottom:document.getElementById('label-toolbar').offsetHeight+cssPx('--gap')});
-  return {w:grid.w,h:grid.h,res:grid.res,ox:grid.ox,oy:grid.oy,scale:f.scale,mx:f.mx,my:f.my};
-}
-function labelScreenToWorld(sx,sy){
-  if(labelCalibration){
-    return {x:labelCalibration.ox+labelCalibration.sx*sx, y:labelCalibration.oy+labelCalibration.sy*sy};
-  }
-  const t=labelScreenTransform();
-  // FIX: the original omitted *res here, so clicks landed 1/res times too far from
-  // the map origin (5x at 0.2 m cells) and every new label was drawn off-screen.
-  return {x:t.ox+(sx-t.mx)/t.scale*t.res, y:t.oy+(sy-t.my)/t.scale*t.res};
-}
-function labelWorldToScreen(wx,wy){
-  if(labelCalibration){
-    return {x:(wx-labelCalibration.ox)/labelCalibration.sx, y:(wy-labelCalibration.oy)/labelCalibration.sy};
-  }
-  const t=labelScreenTransform();
-  return {x:t.mx+(wx-t.ox)/t.res*t.scale, y:t.my+(wy-t.oy)/t.res*t.scale};
-}
-function labelCalibrationMarkers(){
-  if(!grid)return [];
-  const ox=grid.ox, oy=grid.oy, res=grid.res;
-  return [
-    {wx:ox+8*res, wy:oy+8*res},
-    {wx:ox+(grid.w-8)*res, wy:oy+(grid.h-8)*res},
-  ];
-}
-function drawCalibrationMarkers(){
-  const pts=labelCalibrationMarkers();
-  pts.forEach((p,i)=>{
-    const s=labelWorldToScreen(p.wx,p.wy);
-    lctx.beginPath(); lctx.arc(s.x,s.y,7,0,Math.PI*2); lctx.fillStyle=i===0?'#ff453a':'#0a84ff'; lctx.fill();
-    lctx.strokeStyle='#fff'; lctx.lineWidth=1.5; lctx.stroke();
-  });
-}
-// Saved labels whose centre falls outside the current map (e.g. from another world).
-function offMapLabels(){
-  if(!grid)return [];
-  const x0=grid.ox, y0=grid.oy, x1=grid.ox+grid.w*grid.res, y1=grid.oy+grid.h*grid.res;
-  return treeLabels.filter(l=>l.cx<x0||l.cx>x1||l.cy<y0||l.cy>y1);
-}
-function updateOffMapButton(){
-  const n=offMapLabels().length, b=document.getElementById('label-offmap');
-  b.hidden=!n;
-  if(n)b.textContent=`Remove ${n} off-map label${n>1?'s':''}`;
-}
-function drawLabelCanvas(){
-  labelCss=sizeCanvas(labelCanvas,lctx);
-  lctx.clearRect(0,0,labelCss.w,labelCss.h);
-  if(!grid){ drawWaiting(lctx,labelCss.w,labelCss.h,'Waiting for the canopy map…'); updateOffMapButton(); return; }
-  const t=labelScreenTransform();
-  drawPlatter(lctx,canopyBase(grid),t,t.w,t.h,.12);
-  treeLabels.forEach(l=>{
-    const s=labelWorldToScreen(l.cx,l.cy), se=labelWorldToScreen(l.cx+l.r,l.cy);
-    const pr=Math.hypot(se.x-s.x,se.y-s.y);
-    lctx.beginPath(); lctx.arc(s.x,s.y,pr,0,Math.PI*2); lctx.strokeStyle='#ff453a'; lctx.lineWidth=2; lctx.stroke();
-    lctx.fillStyle='rgba(255,69,58,0.14)'; lctx.fill();
-  });
-  if(labelDrag&&treeLabels[labelDrag.index]){
-    const l=treeLabels[labelDrag.index];
-    const s=labelWorldToScreen(l.cx,l.cy);
-    lctx.beginPath(); lctx.arc(s.x,s.y,5,0,Math.PI*2); lctx.fillStyle='#ffd60a'; lctx.fill();
-  }
-  if(labelDrawing){
-    const s=labelWorldToScreen(labelDrawing.x,labelDrawing.y), se=labelWorldToScreen(labelDrawing.x+labelDrawing.r,labelDrawing.y);
-    const pr=Math.hypot(se.x-s.x,se.y-s.y);
-    lctx.beginPath(); lctx.arc(s.x,s.y,pr,0,Math.PI*2); lctx.strokeStyle='#ffd60a'; lctx.lineWidth=2; lctx.stroke();
-  }
-  if(labelCalibrationStage>0)drawCalibrationMarkers();
-  if(lastLabelMouse){
-    const s=labelWorldToScreen(lastLabelMouse.x,lastLabelMouse.y);
-    lctx.beginPath(); lctx.moveTo(s.x-8,s.y); lctx.lineTo(s.x+8,s.y); lctx.moveTo(s.x,s.y-8); lctx.lineTo(s.x,s.y+8);
-    lctx.strokeStyle='#fff'; lctx.lineWidth=1; lctx.stroke();
-  }
-  // Automatic individual-tree detections (yellow dots, red circles = manual).
-  autoTrees.forEach(tr=>{
-    const s=labelWorldToScreen(tr.x,tr.y);
-    lctx.beginPath(); lctx.arc(s.x,s.y,5,0,Math.PI*2);
-    lctx.fillStyle=pal().detected; lctx.fill();
-    lctx.strokeStyle='#111'; lctx.lineWidth=1.5; lctx.stroke();
-  });
-  updateOffMapButton();
-}
-function labelEventWorld(e){
-  const rect=labelCanvas.getBoundingClientRect();
-  return labelScreenToWorld(e.clientX-rect.left,e.clientY-rect.top);
-}
-labelCanvas.addEventListener('mousedown',e=>{
-  if(!grid)return;
-  if(labelCalibrationStage>0){
-    const rect=labelCanvas.getBoundingClientRect();
-    const sx=e.clientX-rect.left, sy=e.clientY-rect.top;
-    labelCalibrationPoints.push({sx,sy});
-    if(labelCalibrationStage===1){
-      labelCalibrationStage=2;
-      document.getElementById('label-calibrate').textContent='Now click the blue marker';
-      drawLabelCanvas();
-      return;
-    }
-    const markers=labelCalibrationMarkers();
-    const w0=markers[0], w1=markers[1];
-    const s0=labelCalibrationPoints[0], s1=labelCalibrationPoints[1];
-    const ddx=w1.wx-w0.wx, ddy=w1.wy-w0.wy;
-    const dsx=s1.sx-s0.sx, dsy=s1.sy-s0.sy;
-    if(Math.abs(dsx)>0.001&&Math.abs(dsy)>0.001){
-      const sxScale=ddx/dsx, syScale=ddy/dsy;
-      labelCalibration={sx:sxScale, sy:syScale, ox:w0.wx-sxScale*s0.sx, oy:w0.wy-syScale*s0.sy};
-      setLabelNote('Calibrated.');
-    } else setLabelNote('Calibration failed: the two clicks were too close. Try again.');
-    labelCalibrationStage=0;
-    labelCalibrationPoints=[];
-    document.getElementById('label-calibrate').textContent='Calibrate';
-    drawLabelCanvas();
-    return;
-  }
-  const p=labelEventWorld(e);
-  if(labelEraseMode){
-    for(let i=treeLabels.length-1;i>=0;i--){
-      const l=treeLabels[i];
-      if(Math.hypot(p.x-l.cx,p.y-l.cy)<=l.r){
-        treeLabels.splice(i,1); drawLabelCanvas(); return;
-      }
-    }
-    labelDrawing=null;
-    drawLabelCanvas(); return;
-  }
-  for(let i=treeLabels.length-1;i>=0;i--){
-    const l=treeLabels[i], d=Math.hypot(p.x-l.cx,p.y-l.cy);
-    if(d<=l.r*1.25&&d>=l.r*0.7){
-      labelDrag={index:i,mode:'resize'};
-      drawLabelCanvas(); return;
-    }
-    if(d<=l.r){
-      labelDrag={index:i,mode:'move'};
-      drawLabelCanvas(); return;
-    }
-  }
-  labelDrawing={x:p.x,y:p.y,r:0};
-});
-labelCanvas.addEventListener('mousemove',e=>{
-  if(labelDrag){
-    const p=labelEventWorld(e), l=treeLabels[labelDrag.index];
-    if(labelDrag.mode==='move'){l.cx=p.x;l.cy=p.y;}
-    else{l.r=Math.max(0.2,Math.hypot(p.x-l.cx,p.y-l.cy));}
-    drawLabelCanvas(); return;
-  }
-  if(!labelDrawing){lastLabelMouse=labelEventWorld(e);drawLabelCanvas();return;}
-  const p=labelEventWorld(e);
-  labelDrawing.r=Math.hypot(p.x-labelDrawing.x,p.y-labelDrawing.y);
-  drawLabelCanvas();
-});
-labelCanvas.addEventListener('mouseup',()=>{
-  labelDrag=null;
-  if(!labelDrawing)return;
-  if(labelDrawing.r>0.2)treeLabels.push({cx:labelDrawing.x,cy:labelDrawing.y,r:labelDrawing.r});
-  labelDrawing=null; drawLabelCanvas();
-});
-labelCanvas.addEventListener('mouseleave',()=>{lastLabelMouse=null;drawLabelCanvas();});
-document.getElementById('label-undo').addEventListener('click',()=>{treeLabels.pop();drawLabelCanvas();});
-document.getElementById('label-clear').addEventListener('click',()=>{
-  treeLabels=[]; drawLabelCanvas();
-  setLabelNote('Cleared. Save labels to overwrite the saved file.');
-});
-document.getElementById('label-offmap').addEventListener('click',()=>{
-  const off=new Set(offMapLabels()); const n=off.size;
-  treeLabels=treeLabels.filter(l=>!off.has(l)); drawLabelCanvas();
-  setLabelNote(`Removed ${n}. Save labels to update the saved file.`);
-});
-document.getElementById('label-erase').addEventListener('click',()=>{
-  labelEraseMode=!labelEraseMode;
-  const b=document.getElementById('label-erase'); b.classList.toggle('active',labelEraseMode); b.setAttribute('aria-pressed',labelEraseMode);
-});
-document.getElementById('label-calibrate').addEventListener('click',()=>{
-  labelCalibration=null; labelCalibrationStage=1; labelCalibrationPoints=[];
-  document.getElementById('label-calibrate').textContent='Click the red marker';
-  drawLabelCanvas();
-});
-document.getElementById('label-save').addEventListener('click',async()=>{
-  const b=document.getElementById('label-save');
-  try{
-    const r=await fetch('/api/labels',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(treeLabels)});
-    const j=await r.json();
-    b.textContent='Saved '+j.saved;
-    if(j.comparison){
-      const c=j.comparison;
-      document.getElementById('label-compare-result').textContent=
-        `TP ${c.true_positives} · FP ${c.false_positives} · Missed ${c.missed_trees} · P ${Math.round(c.precision*100)}% · R ${Math.round(c.recall*100)}%`;
-    }
-  }catch(e){
-    b.textContent='Save failed';
-  }
-  setTimeout(()=>{b.textContent='Save labels';},1800);
-});
+// Trees the drone detects right now (from /api/data)
+let autoTrees=[];
 
 // ── Instant refresh: hydrate from /api/data so the page is populated
 // immediately on load/reload instead of waiting for ROS subscriptions. ──
@@ -1798,8 +2381,8 @@ async function loadSnapshot(){
     S.treeStatus=(d.tree_status&&typeof d.tree_status==='object')?d.tree_status:{baseline_count:0,current_count:0,lost_count:0,gained_count:0};
     S.parrotTreeStatus=(d.parrot_tree_status&&typeof d.parrot_tree_status==='object')?d.parrot_tree_status:{baseline_count:0,current_count:0,lost_count:0,gained_count:0};
     S.trees=S.parrotTreeStatus.current_count||S.treeStatus.current_count||d.tree_count||0;
-    if(d.drone_pos)S.drone={x:d.drone_pos.x,y:d.drone_pos.y};
-    if(SHOW_HUSKY&&d.husky_pos)S.husky={x:d.husky_pos.x,y:d.husky_pos.y};
+    if(d.drone_pos)S.drone={...S.drone,x:d.drone_pos.x,y:d.drone_pos.y};
+    if(d.husky_pos){huskySeen();S.husky={...S.husky,x:d.husky_pos.x,y:d.husky_pos.y};hx=d.husky_pos.x;hy=d.husky_pos.y;}
     S.survey=d.survey_status||''; S.scanCoverage=d.scan_coverage||''; S.mission=d.mission_status||'';
     S.baseline=d.baseline_status||''; S.droneBaseline=d.drone_baseline_status||'';
     S.eval=d.evaluation||'';
@@ -1828,17 +2411,7 @@ async function loadSnapshot(){
     }
     // Robot positions fall back to the HTTP snapshot when the direct ROSLIB
     // odometry subscription is not delivering (QoS/discovery edge cases).
-    if(d.drone_pos){dx=d.drone_pos.x;dy=d.drone_pos.y;S.drone={x:dx,y:dy};}
-    // Saved labels load once per page load. Previously they reloaded whenever the
-    // list was empty, so "Clear" was undone by the next snapshot 3 s later.
-    if(!labelsHydrated){
-      labelsHydrated=true;
-      if(Array.isArray(d.labels)&&d.labels.length&&!treeLabels.length){
-        treeLabels=d.labels.map(l=>({cx:l.cx,cy:l.cy,r:l.r}));
-        setLabelNote(`Loaded ${treeLabels.length} saved label${treeLabels.length>1?'s':''}.`);
-      }
-    }
-    if(labelActive())drawLabelCanvas();
+    if(d.drone_pos){dx=d.drone_pos.x;dy=d.drone_pos.y;S.drone={...S.drone,x:dx,y:dy};}
     if(mapActive())drawMap();
     updateUI();
   }catch(e){}
@@ -1918,7 +2491,6 @@ const sidebarEl=document.getElementById('sidebar'), sidebarBtn=document.getEleme
 function relayout(){
   updateSafeArea(); moveLens();
   if(mapActive())drawMap();
-  if(labelActive())drawLabelCanvas();
   resizeTerrain();
 }
 function setSidebar(open){
@@ -1956,7 +2528,7 @@ setInterval(loadSnapshot,3000);
 let resizeRaf=0;
 window.addEventListener('resize',()=>{
   if(resizeRaf)return;
-  resizeRaf=requestAnimationFrame(()=>{resizeRaf=0;relayout();drawAmbient(true);if(labelActive()){resizeLabelCanvas();drawLabelCanvas();}});
+  resizeRaf=requestAnimationFrame(()=>{resizeRaf=0;relayout();drawAmbient(true);});
 });
 updateUI(); drawDebug();
 </script>

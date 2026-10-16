@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Starter node for students: a tiny map, image and Nav2 autonomy loop.
+
 """Very small map/image/Nav2 autonomy example.
 
 This node is intended as starter code for students. It deliberately keeps the
@@ -46,58 +48,58 @@ class BasicAutonomyDemo(Node):
     def __init__(self):
         super().__init__('basic_autonomy_demo')
 
-        # ------------------------------------------------------------------
-        # Parameters
-        # ------------------------------------------------------------------
-        # Keep topic/action names relative. The launch file places this node in
-        # /husky1 or /parrot1, so these automatically become /husky1/map,
-        # /parrot1/map, /husky1/navigate_to_pose, etc.
+
+
+
+
+
+
         self.declare_parameter('robot_name', '')
         self.declare_parameter('map_topic', 'map')
         self.declare_parameter('image_topic', 'camera/image')
         self.declare_parameter('navigate_action', 'navigate_to_pose')
 
-        # Bright images make the demo choose goals farther away; darker images
-        # make it choose closer goals. This is intentionally simple, and is just
-        # a placeholder for a more meaningful perception signal.
+
+
+
         self.declare_parameter('close_goal_min_distance', 4.0)
         self.declare_parameter('close_goal_max_distance', 7.0)
         self.declare_parameter('far_goal_min_distance', 7.0)
         self.declare_parameter('far_goal_max_distance', 15.0)
         self.declare_parameter('bright_image_threshold', 0.25)
 
-        # OccupancyGrid cells are normally -1 unknown, 0 free, and 100 occupied.
-        # We accept cells up to free_cell_threshold, and reject candidates close
-        # to occupied/unknown cells using occupied_margin_cells.
+
+
+
         self.declare_parameter('free_cell_threshold', 20)
         self.declare_parameter('occupied_margin_cells', 4)
 
-        # Pause briefly between goals so the terminal output is readable and so
-        # Nav2 has time to settle after each result.
+
+
         self.declare_parameter('goal_pause_seconds', 1.0)
 
-        # ------------------------------------------------------------------
-        # Namespace and frame setup
-        # ------------------------------------------------------------------
+
+
+
         self.robot_name = self._resolve_robot_name()
         self.map_frame = f'{self.robot_name}_map'
         self.base_frame = f'{self.robot_name}_base_link'
 
-        # Latest sensor/map data. Callbacks update these; the timer uses them.
+
         self.map_msg: Optional[OccupancyGrid] = None
         self.map_array: Optional[np.ndarray] = None
         self.latest_brightness: Optional[float] = None
         self.last_image_process_time = 0.0
 
-        # Nav2 action state. goal_active is True while Nav2 is executing a goal.
+
         self.goal_active = False
         self.goal_handle = None
         self.next_goal_time = 0.0
         self.last_feedback_log_time = 0.0
         self.last_waiting_log_time = 0.0
 
-        # TF is used to find the robot pose in the map frame. The launch file
-        # remaps /tf to the namespaced tf topic so each robot has its own TF tree.
+
+
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
@@ -119,8 +121,8 @@ class BasicAutonomyDemo(Node):
             self.get_parameter('navigate_action').value,
         )
 
-        # A timer drives the simple autonomy state machine. This avoids doing
-        # slow work inside subscription callbacks.
+
+
         self.timer = self.create_timer(1.0, self._tick)
 
         self.get_logger().info(
@@ -142,16 +144,16 @@ class BasicAutonomyDemo(Node):
         if namespace:
             return namespace
 
-        # This fallback is mainly for debugging if the node is launched without
-        # a namespace. The normal launch file passes /husky1 or /parrot1.
+
+
         return 'husky1'
 
     def _map_callback(self, msg: OccupancyGrid) -> None:
         """Store the latest map as both a ROS message and a 2D NumPy array."""
         self.map_msg = msg
 
-        # OccupancyGrid.data is a flat row-major list. Reshape it so that
-        # map_array[iy, ix] gives the cell value at grid coordinates (ix, iy).
+
+
         self.map_array = np.asarray(msg.data, dtype=np.int16).reshape(
             (msg.info.height, msg.info.width)
         )
@@ -207,8 +209,8 @@ class BasicAutonomyDemo(Node):
             self.get_logger().warn('Could not reshape image data. Brightness will not be updated.')
             return None
 
-        # Sample roughly 80 pixels across the shorter image dimension. The exact
-        # number is not important; this is only a cheap behaviour signal.
+
+
         stride = max(1, min(msg.width, msg.height) // 80)
 
         if channels == 1:
@@ -218,7 +220,7 @@ class BasicAutonomyDemo(Node):
         useful_cols = msg.width * channels
         sampled = rows[::stride, :useful_cols].reshape((-1, msg.width, channels))[:, ::stride, :]
 
-        # Average RGB/BGR channels only; ignore alpha if present.
+
         if channel_order.startswith('rgb'):
             rgb = sampled[..., :3]
         elif channel_order.startswith('bgr'):
@@ -236,8 +238,8 @@ class BasicAutonomyDemo(Node):
         if time.monotonic() < self.next_goal_time:
             return
 
-        # Wait for the Nav2 action server. This is the action endpoint that RViz
-        # also uses when you click a Nav2 goal.
+
+
         if not self.nav_client.server_is_ready():
             if not self.nav_client.wait_for_server(timeout_sec=0.1):
                 self._log_waiting('Waiting for Nav2 NavigateToPose action server...')
@@ -275,7 +277,7 @@ class BasicAutonomyDemo(Node):
                 rclpy.time.Time(),
                 timeout=Duration(seconds=0.2),
             )
-        except Exception as exc:  # TF exceptions are numerous; keep this compact for students.
+        except Exception as exc:
             self.get_logger().debug(f'TF lookup failed: {exc}')
             return None
 
@@ -296,7 +298,7 @@ class BasicAutonomyDemo(Node):
 
         brightness = self.latest_brightness
         if brightness is None:
-            # Neutral default until the first camera image arrives.
+
             brightness = 0.5
 
         bright_threshold = float(self.get_parameter('bright_image_threshold').value)
@@ -311,11 +313,11 @@ class BasicAutonomyDemo(Node):
 
         robot_x, robot_y, _ = robot_pose
 
-        # First try with the brightness-selected distance band.
+
         result = self._sample_free_goal(robot_x, robot_y, min_distance, max_distance, max_tries=1500)
 
-        # If that fails, relax the distance filter. This makes the demo more
-        # robust while the map is still small or mostly unknown.
+
+
         if result is None:
             result = self._sample_free_goal(robot_x, robot_y, 1.0, max(max_distance, 8.0), max_tries=1500)
             mode = 'fallback'
@@ -370,8 +372,8 @@ class BasicAutonomyDemo(Node):
 
         window = self.map_array[iy - margin:iy + margin + 1, ix - margin:ix + margin + 1]
 
-        # OccupancyGrid: -1 = unknown, 0 = free, 100 = occupied.
-        # This skeleton deliberately only chooses known free space.
+
+
         if np.any(window < 0):
             return False
         if np.any(window > free_threshold):
@@ -385,8 +387,8 @@ class BasicAutonomyDemo(Node):
         resolution = info.resolution
         origin = info.origin
 
-        # The map origin is the pose of grid cell (0, 0) in the map frame. The
-        # +0.5 uses the centre of the grid cell rather than the lower-left edge.
+
+
         local_x = (ix + 0.5) * resolution
         local_y = (iy + 0.5) * resolution
         origin_yaw = self._yaw_from_quaternion(
@@ -396,8 +398,8 @@ class BasicAutonomyDemo(Node):
             origin.orientation.w,
         )
 
-        # Most 2D maps have zero origin yaw, but this handles rotated map origins
-        # too. It is a useful pattern when converting between grid and world.
+
+
         cos_yaw = math.cos(origin_yaw)
         sin_yaw = math.sin(origin_yaw)
         world_x = origin.position.x + cos_yaw * local_x - sin_yaw * local_y
@@ -425,10 +427,10 @@ class BasicAutonomyDemo(Node):
         self.last_feedback_log_time = 0.0
         self.get_logger().info(f'Sending Nav2 goal: ({x:.2f}, {y:.2f}) in frame {self.map_frame}.')
 
-        # Nav2 action use happens in three stages:
-        #   1. send the goal request;
-        #   2. wait for Nav2 to accept/reject the goal;
-        #   3. if accepted, wait for the final result.
+
+
+
+
         send_future = self.nav_client.send_goal_async(
             goal_msg,
             feedback_callback=self._feedback_callback,
@@ -450,8 +452,8 @@ class BasicAutonomyDemo(Node):
 
     def _feedback_callback(self, feedback_msg) -> None:
         """Called whenever Nav2 sends feedback while driving to the goal."""
-        # Feedback can arrive quickly. Log at low rate so students can see it
-        # without flooding the terminal.
+
+
         now = time.monotonic()
         if now - self.last_feedback_log_time < 5.0:
             return

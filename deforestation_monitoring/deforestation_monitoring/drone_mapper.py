@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Turns the drone's depth cloud into terrain points in world frame.
+
 """
 Drone Terrain Mapper.
 
@@ -60,11 +62,11 @@ class DroneMapper(Node):
         self.step = max(1, int(self.get_parameter('downsample_step').value))
         self.process_every = max(1, int(self.get_parameter('process_every_n_frames').value))
 
-        # cell key -> [count, sum_x, sum_y, sum_z]
+
         self.terrain_cells = {}
         self.frames = 0
 
-        # Gazebo bridge sensor topics are best-effort in this project.
+
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.VOLATILE,
@@ -87,8 +89,8 @@ class DroneMapper(Node):
         self.terrain_pub = self.create_publisher(
             PointCloud2, '/drone_terrain', terrain_qos
         )
-        # Lightweight copy for the dashboard: <=8000 points at <=1 Hz so a
-        # single 3D view never saturates the rosbridge websocket.
+
+
         self.viz_pub = self.create_publisher(
             PointCloud2, '/drone_terrain_viz', terrain_qos
         )
@@ -183,7 +185,7 @@ class DroneMapper(Node):
         qz = transform.transform.rotation.z
         qw = transform.transform.rotation.w
 
-        # v' = v + qw*t + q_vec x t, where t = 2*(q_vec x v)
+
         tw = 2.0 * (qy * z - qz * y)
         tyv = 2.0 * (qz * x - qx * z)
         tzv = 2.0 * (qx * y - qy * x)
@@ -264,7 +266,7 @@ class DroneMapper(Node):
         cloud.data = pts.tobytes()
         self.terrain_pub.publish(cloud)
 
-        # Dashboard terrain view (throttled + downsampled server-side).
+
         self._viz_tick += 1
         if self._viz_tick % 2 == 0:
             max_viz = 8000

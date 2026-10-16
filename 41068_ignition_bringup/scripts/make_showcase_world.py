@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Regenerates the showcase forest world from the dense forest.
+
 """Generate worlds/showcase_forest.sdf from worlds/dense_forest.sdf.
 
 Showcase (client demo) variant of the dense forest in which every tree is
@@ -21,11 +23,11 @@ import math
 import re
 from pathlib import Path
 
-OAK_SEP = 7.0       # m between kept oaks
-PINE_CLEAR = 7.0    # m from a pine to every oak (oak crowns reach ~7 m)
-PINE_SEP = 3.5      # m between pines (pine crown radius ~1.6 m)
-EXTENT = 34.0       # keep trees within +-EXTENT m
-GRID = 0.5          # candidate spacing for relocated pines (m)
+OAK_SEP = 7.0
+PINE_CLEAR = 7.0
+PINE_SEP = 3.5
+EXTENT = 34.0
+GRID = 0.5
 
 HERE = Path(__file__).resolve().parents[1] / 'worlds'
 SRC = HERE / 'dense_forest.sdf'
@@ -58,8 +60,8 @@ def main():
             kept_oaks.append(t)
     oak_xy = [(o['x'], o['y']) for o in kept_oaks]
 
-    # Candidate open-ground cells, visited in a fixed pseudo-random order
-    # so relocated pines spread over the whole map instead of filling rows.
+
+
     n = int(2 * EXTENT / GRID) + 1
     cells = [(-EXTENT + i * GRID, -EXTENT + j * GRID)
              for i in range(n) for j in range(n)]
@@ -67,14 +69,14 @@ def main():
     cells.sort(key=lambda c: ((int(c[0] * 7919 + c[1] * 104729)) * 2654435761) % 2**32)
 
     placed, moved, kept_in_place, dropped = [], 0, 0, 0
-    for t in pines:                       # pines already clear stay put
+    for t in pines:
         p = (t['x'], t['y'])
         if abs(p[0]) <= EXTENT and abs(p[1]) <= EXTENT and \
                 _far(p, oak_xy, PINE_CLEAR) and _far(p, [q[:2] for q in placed], PINE_SEP):
             placed.append((p[0], p[1], t))
             kept_in_place += 1
     ci = 0
-    for t in pines:                       # the rest move to open ground
+    for t in pines:
         if any(q[2] is t for q in placed):
             continue
         while ci < len(cells) and not _far(cells[ci], [q[:2] for q in placed], PINE_SEP):

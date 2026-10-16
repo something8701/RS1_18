@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Starts the monitoring nodes against an already-running sim.
+
 """
 Monitoring-only launch. Use this when the simulation is already running.
 

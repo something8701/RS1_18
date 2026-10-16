@@ -1,3 +1,5 @@
+# Tests the visibility classification.
+
 """Detector-independent visibility classification."""
 
 from pathlib import Path
@@ -32,9 +34,9 @@ def _put(g, x, y, h, r=1.0):
 
 def test_synthetic_classes():
     g = _grid()
-    _put(g, 0, 0, 4.6)                 # pine top seen
-    _put(g, 10, 0, 5.8, r=3.0)         # oak crown covering a pine
-    g[:40, :40] = -1                   # unscanned corner
+    _put(g, 0, 0, 4.6)
+    _put(g, 10, 0, 5.8, r=3.0)
+    g[:40, :40] = -1
     assert classify_tree(g, RES, ORIGIN, ("pine_1", 0, 0))[0] == "visible"
     assert classify_tree(g, RES, ORIGIN, ("pine_2", 10, 0))[0] == "understory"
     assert classify_tree(g, RES, ORIGIN, ("pine_3", -37, -37))[0] == "unobserved"
@@ -68,8 +70,8 @@ def test_removal_tiers_for_dense_targets():
     tiers = {t[0]: removal_tier(t, cls[t[0]][0], truth) for t in targets}
     assert tiers["pine_53"] == "understory"
     assert all(tiers[n] == "canopy" for n in tiers if n.startswith("oak"))
-    assert tiers["pine_117"] == "crown-shared"      # oak 4.6 m away
-    assert tiers["pine_163"] == "canopy"            # nearest oak 6.0 m
+    assert tiers["pine_117"] == "crown-shared"
+    assert tiers["pine_163"] == "canopy"
 
 
 def test_showcase_trees_are_all_canopy_tier():
@@ -86,15 +88,15 @@ def test_top_drop_cells_mode_ignores_a_single_high_cell():
     from deforestation_monitoring.visibility import top_drop
     res, org = 0.25, (-5.0, -5.0)
     before = np.full((40, 40), 3.6, dtype=np.float32)
-    before[19:22, 19:22] = 4.6                       # the pine's top at (0, 0)
-    now = np.full((40, 40), 3.6, dtype=np.float32)   # pine removed ...
-    now[20, 17] = 4.6                                # ... one overhang cell
+    before[19:22, 19:22] = 4.6
+    now = np.full((40, 40), 3.6, dtype=np.float32)
+    now[20, 17] = 4.6
     assert top_drop(before, now, res, org, 0.0, 0.0, 1.0, 'max') < 0.1
     assert top_drop(before, now, res, org, 0.0, 0.0, 1.0, 'cells') >= 0.9
-    # a standing tree: nothing changed
+
     assert top_drop(before, before.copy(), res, org, 0.0, 0.0, 1.0,
                     'cells') == 0.0
-    # unscanned now -> unknown (0)
+
     assert top_drop(before, np.full_like(before, -1.0), res, org, 0.0, 0.0,
                     1.0, 'cells') == 0.0
 
@@ -105,8 +107,8 @@ def test_top_drop_mean_mode_sees_a_cut_crown_under_an_overhang():
     from deforestation_monitoring.visibility import top_drop
     res, org = 0.25, (-5.0, -5.0)
     before = np.full((40, 40), 4.4, dtype=np.float32)
-    now = np.full((40, 40), 1.0, dtype=np.float32)   # the crown is gone ...
-    now[21, 20] = 4.3                                # ... but for one branch tip
+    now = np.full((40, 40), 1.0, dtype=np.float32)
+    now[21, 20] = 4.3
     assert top_drop(before, now, res, org, 0.0, 0.0, 0.5, 'max') < 0.2
     assert top_drop(before, now, res, org, 0.0, 0.0, 0.5, 'mean') > 2.5
     assert top_drop(before, before.copy(), res, org, 0.0, 0.0, 0.5, 'mean') == 0.0

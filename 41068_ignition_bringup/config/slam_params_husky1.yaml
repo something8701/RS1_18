@@ -24,7 +24,11 @@
     tf_buffer_duration: 30.0
     stack_size_to_use: 40000000
     enable_interactive_mode: true
-    use_scan_matching: true
+    # Off: in the forest scan matching lost the Husky by 3.5-7 m and 15 deg
+    # (repeated trunks, pine branches at the LiDAR's height) while the sim's
+    # wheel odometry stayed within 5 cm of Gazebo's pose (STATUS.md §20).
+    # The map is built from the odometry poses instead.
+    use_scan_matching: false
     use_scan_barycenter: true
     minimum_travel_distance: 0.0
     minimum_travel_heading: 0.5
@@ -33,7 +37,7 @@
     link_match_minimum_response_fine: 0.1
     link_scan_maximum_distance: 1.5
     loop_search_maximum_distance: 3.0
-    do_loop_closing: true
+    do_loop_closing: false
     loop_match_minimum_chain_size: 10
     loop_match_maximum_variance_coarse: 3.0
     loop_match_minimum_response_coarse: 0.35

@@ -1,3 +1,5 @@
+# Projects the drone camera onto the world grid from a bag.
+
 """Project the drone camera onto the world grid from a bag (option A analysis).
 
 usage: camera_species.py BAG WORLD [--bin-s 60] [--out FILE.npz]
@@ -27,7 +29,7 @@ from sensor_msgs.msg import Image
 from deforestation_monitoring.camera_species import open_rays, project, quat_to_matrix
 from deforestation_monitoring.tree_detection import parse_tree_truth
 
-RES, ORIGIN, DIM = 0.25, -40.0, 320          # scan_mapper grid
+RES, ORIGIN, DIM = 0.25, -40.0, 320
 
 
 def stamp(msg):
@@ -97,7 +99,7 @@ def read(bag, bin_s, altitude, open_height=3.0):
     chm = None
     if canopy is not None:
         g = np.array(canopy.data, np.int16).reshape(canopy.info.height, canopy.info.width).T
-        chm = np.where(g >= 0, g / 10.0, np.nan).astype(np.float32)   # [ix, iy], metres
+        chm = np.where(g >= 0, g / 10.0, np.nan).astype(np.float32)
     return dict(count=count, rgb_sum=rgb_sum, bg_sum=bg_sum, high=high, open=opened,
                 zsum=zsum, zcount=zcount,
                 chm=chm if chm is not None else np.zeros(0), t0=t0, bin_s=bin_s)
