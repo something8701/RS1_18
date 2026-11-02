@@ -1,4 +1,5 @@
 <?xml version="1.0" ?>
+<!-- husky.urdf.xacro -->
 <robot name="husky" xmlns:xacro="http://ros.org/wiki/xacro">
   <xacro:arg name="prefix" default=""/>
   <xacro:property name="prefix" value="$(arg prefix)"/>
@@ -95,7 +96,6 @@
     </inertial>
   </link>
 
-  <!-- Wheels -->
   <xacro:wheel prefix="${prefix}" wheel_id="front_left" x_pos="0.256" y_pos="${wheel_separation/2}"/>
   <xacro:wheel prefix="${prefix}" wheel_id="front_right" x_pos="0.256" y_pos="-${wheel_separation/2}"/>
   <xacro:wheel prefix="${prefix}" wheel_id="rear_left" x_pos="-0.256" y_pos="${wheel_separation/2}"/>
@@ -134,7 +134,7 @@
   </link>
 
   <joint name="${prefix}camera_joint" type="fixed">
-    <origin xyz="0.45 0.0 0.25" rpy="0 0 0"/> <!-- 0.5 0.0 0.9 -->
+    <origin xyz="0.45 0.0 0.25" rpy="0 0 0"/> 
     <parent link="${prefix}base_link"/>
     <child link="${prefix}camera_link"/>
   </joint>

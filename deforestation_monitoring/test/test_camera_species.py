@@ -1,7 +1,4 @@
-# Tests camera pixel placement and per-cell colour.
-
-"""Camera pixel placement and per-cell colour (camera_species)."""
-
+# test_camera_species.py: Camera pixel placement and per-cell colour (camera_species)
 import numpy as np
 
 from deforestation_monitoring.camera_species import (
@@ -20,8 +17,6 @@ def test_centre_pixel_lands_under_the_camera():
     rgb, depth = _frame(5.0)
     pts, _ = project(rgb, depth, LEVEL, 10.0, -3.0, 10.0)
     assert len(pts) == WIDTH * HEIGHT
-
-
     x, y, z = pts.reshape(HEIGHT, WIDTH, 3)[int(round(CY)), int(round(CX))]
     assert abs(x - 10.25) < 0.05 and abs(y + 3.0) < 0.05
     assert abs(z - 5.25) < 0.05
@@ -47,7 +42,6 @@ def test_yaw_rotates_the_footprint():
     yaw90 = np.array([[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]])
     pts, _ = project(rgb, depth, yaw90, 0.0, 0.0, 10.0)
     grid = pts.reshape(HEIGHT, WIDTH, 3)
-
     assert grid[0, WIDTH // 2, 1] > grid[-1, WIDTH // 2, 1]
 
 

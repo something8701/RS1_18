@@ -1,27 +1,5 @@
 #!/usr/bin/env python3
-# Renders client-demo visuals from a recorded removal test.
-
-"""Client-demo visuals from a removal-test recording.
-
-Reads the rosbag and the removal_test JSON report of one run and renders
-
-* ``replay.mp4``: time-lapse of the run: the drone's canopy map filling
-  in, the trees it recorded (coloured by the species the camera saw, when
-  the bag has ``/parrot_tree_baseline_info``) vs the simulator's true tree
-  positions, the moment trees are cut, every LOST report appearing (and
-  whether the height map or the camera caught it), the camera's canopy-loss
-  alerts, and an inset of the drone camera when the bag has it;
-* ``comparison.png``: the final frame: map + every removed tree with its
-  tier, what reported it, position error and time to detect, and the score.
-
-Scoring comes from the report (the removal test's own per-tree results and
-false events), so the video agrees with the test verdict.
-
-    ros2 run deforestation_monitoring demo_replay \\
-        --bag ~/rs1_18_ws/recordings/dense_forest_new_model/bag \\
-        --report ~/rs1_18_ws/recordings/dense_forest_new_model/report.json
-"""
-
+# demo_replay.py: Client-demo visuals from a removal-test recording
 from __future__ import annotations
 
 import argparse
@@ -45,7 +23,6 @@ def _grid(msg):
 
 
 def read_bag(path):
-    """Yield (t_sec, topic, msg) for the topics the replay needs."""
     from rclpy.serialization import deserialize_message
     from rosbag2_py import ConverterOptions, SequentialReader, StorageOptions
     from nav_msgs.msg import OccupancyGrid, Odometry
@@ -124,7 +101,6 @@ def main(argv=None) -> int:
                  'crown-shared': 'crown-shared', 'understory': 'understory'}
 
     def tree_status(name, t):
-        """(done, text) for one removed tree at bag time t."""
         r = per_tree.get(name, {})
         tier = tier_name.get(r.get('tier', ''), r.get('tier', ''))
         label = f"{name}{f' ({tier})' if tier else ''}"
@@ -162,7 +138,6 @@ def main(argv=None) -> int:
                    zorder=5, label='tree cut in simulator' if after else None)
         handles = []
         if state['info'] is not None:
-
             for tr in state['info']['trees']:
                 col = pine_c if tr.get('species') == 'pine' else oak_c \
                     if tr.get('species') == 'oak' else '#e0e0e0'

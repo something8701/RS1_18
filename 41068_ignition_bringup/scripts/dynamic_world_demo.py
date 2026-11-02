@@ -1,24 +1,5 @@
 #!/usr/bin/env python3
-# Moves a small animated object around in Gazebo from a ROS node. Deliberately simple.
-
-"""Small example of changing an Ignition Gazebo world from a ROS 2 node.
-
-This is deliberately simple: it moves a small animal marker around the forest
-floor, and cycles a demo tree between healthy, fire, and burnt appearances. The
-goal is to provide a compact Python file students can read and modify for their
-own dynamic-world ideas.
-
-Implementation note:
-The demo models are already present in ``worlds/large_demo.sdf``. This node only
-moves existing models by calling Gazebo's ``/world/<world>/set_pose`` service.
-That keeps the example simple and avoids relying on dynamic model insertion.
-
-This script uses the ``ign`` / ``gz`` command-line tool through ``subprocess``.
-That is not the most efficient possible Gazebo API, but it is very explicit and
-readable for a teaching example: students can copy the printed service command
-idea and experiment with Gazebo services from a terminal.
-"""
-
+# dynamic_world_demo.py: Small example of changing an Ignition Gazebo world from a ROS 2 node
 import math
 import random
 import shutil
@@ -32,11 +13,6 @@ from rclpy.node import Node
 
 @dataclass
 class Pose2D:
-    """Minimal 2D pose container used by this demo.
-
-    Gazebo still receives a full 3D pose, but the demo only changes x, y, z, and
-    yaw. Roll and pitch are always zero.
-    """
 
     x: float
     y: float
@@ -45,15 +21,9 @@ class Pose2D:
 
 
 class DynamicWorldDemo(Node):
-    """Move simple pre-existing Gazebo models to create a dynamic scene."""
 
     def __init__(self):
         super().__init__('dynamic_world_demo')
-
-
-
-
-
 
         self.declare_parameter('world_name', 'large_demo')
         self.declare_parameter('animal_name', 'demo_animal')
@@ -61,13 +31,10 @@ class DynamicWorldDemo(Node):
         self.declare_parameter('tree_fire_name', 'demo_tree_fire')
         self.declare_parameter('tree_burnt_name', 'demo_tree_burnt')
 
-
         self.declare_parameter('tree_x', 4.0)
         self.declare_parameter('tree_y', -4.0)
         self.declare_parameter('animal_x', -4.0)
         self.declare_parameter('animal_y', 4.0)
-
-
 
         self.declare_parameter('update_period', 0.1)
         self.declare_parameter('tree_state_period', 3.0)
@@ -88,9 +55,6 @@ class DynamicWorldDemo(Node):
         self.step_size = float(self.get_parameter('step_size').value)
         self.wander_limit = float(self.get_parameter('wander_limit').value)
 
-
-
-
         self.tree_states = ['healthy', 'fire', 'burnt']
         self.tree_state_index = 0
         self.seconds_since_tree_change = 0.0
@@ -103,8 +67,6 @@ class DynamicWorldDemo(Node):
             yaw=0.0,
         )
 
-
-
         self.gz_command = 'ign' if shutil.which('ign') else 'gz'
         self.msg_prefix = 'ignition.msgs' if self.gz_command == 'ign' else 'gz.msgs'
 
@@ -116,9 +78,6 @@ class DynamicWorldDemo(Node):
             'Start the normal large_demo Gazebo simulation first, then this add-on node.'
         )
 
-
-
-
     def _run(
         self,
         command: Iterable[str],
@@ -126,7 +85,6 @@ class DynamicWorldDemo(Node):
         timeout: float = 2.0,
         warn_on_failure: bool = True,
     ) -> bool:
-        """Run a Gazebo command-line service call and return True on success."""
         command = list(command)
         try:
             result = subprocess.run(
@@ -157,10 +115,6 @@ class DynamicWorldDemo(Node):
         return True
 
     def set_model_pose(self, name: str, pose: Pose2D, *, warn_on_failure: bool = True) -> bool:
-        """Move an existing Gazebo model by calling the set_pose service."""
-
-
-
 
         request = (
             f'name: "{name}" '
@@ -177,11 +131,7 @@ class DynamicWorldDemo(Node):
             '--req', request,
         ], timeout=2.0, warn_on_failure=warn_on_failure)
 
-
-
-
     def update(self):
-        """Timer callback: initialise once, then move the demo objects."""
         if not self.initialised:
             self.initialised = self.reset_demo_models()
             return
@@ -194,7 +144,6 @@ class DynamicWorldDemo(Node):
             self.update_tree_state()
 
     def reset_demo_models(self) -> bool:
-        """Move all demo models to their initial visible/hidden positions."""
         self.get_logger().info('Resetting existing dynamic demo animal and tree markers.')
         ok = self.set_model_pose(self.animal_name, self.animal_pose)
         ok = self.update_tree_state() and ok
@@ -206,13 +155,9 @@ class DynamicWorldDemo(Node):
         return ok
 
     def move_animal(self):
-        """Move the animal marker with a small bounded random walk."""
-
-
         self.animal_pose.yaw += random.uniform(-0.7, 0.7)
         self.animal_pose.x += self.step_size * math.cos(self.animal_pose.yaw)
         self.animal_pose.y += self.step_size * math.sin(self.animal_pose.yaw)
-
 
         if abs(self.animal_pose.x) > self.wander_limit:
             self.animal_pose.x = max(min(self.animal_pose.x, self.wander_limit), -self.wander_limit)
@@ -224,7 +169,6 @@ class DynamicWorldDemo(Node):
         self.set_model_pose(self.animal_name, self.animal_pose)
 
     def update_tree_state(self) -> bool:
-        """Show one tree state and hide the other two states below the world."""
         visible_state = self.tree_states[self.tree_state_index]
         visible_pose = Pose2D(self.tree_x, self.tree_y, 0.0, 0.0)
 

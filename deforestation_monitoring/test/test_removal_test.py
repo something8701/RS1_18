@@ -1,7 +1,4 @@
-# Offline tests for removal-test scoring.
-
-"""Offline tests for the live removal-test scoring."""
-
+# test_removal_test.py: Offline tests for the live removal-test scoring
 import math
 from pathlib import Path
 
@@ -37,7 +34,6 @@ def test_all_found_no_false_is_pass():
 
 
 def test_missed_tree_is_diagnosed():
-
     base = [(1, 0.1, 0.0), (3, 20.0, 0.0)]
     events = [{'type': 'LOST', 'id': 1, 'x': 0.1, 'y': 0.0, 't': 30.0}]
     r = score_removal(TRUTH[:2], TRUTH, base, events)
@@ -92,7 +88,6 @@ def test_visible_only_filter_skips_pines_near_oaks():
 
 
 def test_default_targets_are_the_original_ten():
-    """Same targets as removal tests 1-2 so results stay comparable."""
     truth = parse_tree_truth(str(WORLDS / "dense_forest.sdf"))
     chosen = [n for n, _, _ in select_removal_targets(
         truth, 10, (-30.0, 30.0, -30.0, 30.0))]
@@ -101,7 +96,6 @@ def test_default_targets_are_the_original_ten():
 
 
 def test_loop_counter_ignores_partial_loop_after_removal():
-    """Removal test 7: removal at wp 18/18, wrap two seconds later."""
     from deforestation_monitoring.removal_test import LoopCounter
     c = LoopCounter()
     counted = [c.update(wp, 18) for wp in [18, 1, 2]]
@@ -143,9 +137,6 @@ def test_two_tier_understory_unchanged_is_not_observable():
 
 
 def test_understory_tolerance_is_the_measured_noise_one_sided():
-
-
-
     for before, after in ((5.5, 5.2), (5.0, 5.9), (5.4, 4.5)):
         tiers = _tiers(b=("understory", before, after))
         r = score_removal(TRUTH[1:2], TRUTH, BASE, [], tiers=tiers)
@@ -175,8 +166,6 @@ def test_crown_shared_tree_passes_with_area_alert():
 
 
 def test_identity_credits_an_offset_oak_detection():
-    """Dense oaks are detected ~1-2 m off their trunk; the baseline tree
-    paired with the removed trunk going LOST is the right tree."""
     truth = [("oak_1", 0.0, 0.0), ("oak_2", 8.0, 0.0)]
     base = [(1, 1.8, 0.3), (2, 8.2, 0.0)]
     events = [{'type': 'LOST', 'id': 1, 'x': 1.8, 'y': 0.3, 't': 40.0}]
@@ -187,8 +176,6 @@ def test_identity_credits_an_offset_oak_detection():
 
 
 def test_identity_never_credits_a_neighbours_lost():
-    """A neighbour's LOST 1.2 m from the removed trunk is still a false
-    report when that baseline tree is paired with the neighbour."""
     truth = [("oak_1", 0.0, 0.0), ("pine_2", 2.4, 0.0)]
     base = [(1, 0.3, 0.0), (2, 1.2, 0.0)]
     events = [{'type': 'LOST', 'id': 2, 'x': 1.2, 'y': 0.0, 't': 40.0}]
@@ -198,8 +185,6 @@ def test_identity_never_credits_a_neighbours_lost():
 
 
 def test_area_alert_far_from_every_removal_is_false():
-    """An area alert > 6 m from every removed tree is a
-    false event; one near a removal is not (repeats within 1 m count once)."""
     events = [{'type': 'LOST', 'id': 1, 'x': 0.1, 'y': 0.0, 't': 30.0}]
     tiers = _tiers(a=("visible", 6.2, 0.0))
     near = score_removal(TRUTH[:1], TRUTH, BASE, events, tiers=tiers,
@@ -212,8 +197,6 @@ def test_area_alert_far_from_every_removal_is_false():
 
 
 def test_loop_counter_reads_patrol_status_strings():
-    """survey_loops: the same counter feeds scan_mapper / the tracker
-    (baseline_min_loops, freeze_min_loops) from /survey_status."""
     from deforestation_monitoring.survey_loops import LoopCounter, parse_waypoint
     assert parse_waypoint('STATE=PATROL wp=3/18 coverage=11% diverted=0') == (3, 18)
     assert parse_waypoint('STATE=ORBITING target=(1.0,2.0) diverted=1') is None

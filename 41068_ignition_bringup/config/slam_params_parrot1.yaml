@@ -1,3 +1,4 @@
+# slam_params_parrot1.yaml: Slam_toolbox settings for the Parrot
 /**:
   ros__parameters:
     solver_plugin: solver_plugins::CeresSolver

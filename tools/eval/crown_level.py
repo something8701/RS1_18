@@ -1,13 +1,4 @@
-# Crown-level view of removal reports, not the official score.
-
-"""Secondary, crown-level view of removal-test reports (not the official
-score). For each removed canopy tree: any LOST within FOUND_R m of its
-trunk counts as found. Each LOST is then: the first report for a removed
-tree, a duplicate (another LOST within CROWN_R of an already-found removed
-trunk), or a false alarm (no removed trunk within CROWN_R).
-
-usage: crown_level.py REPORT.json [...]
-"""
+# crown_level.py: Secondary, crown-level view of removal-test reports (not the official score)
 import json
 import math
 import sys

@@ -1,5 +1,4 @@
-# Package manifest: entry points, data files, dependencies.
-
+# setup.py: Ament_python build of the deforestation_monitoring package
 import os
 from glob import glob
 from setuptools import setup
@@ -53,8 +52,11 @@ setup(
             'camera_republisher = deforestation_monitoring.camera_republisher:main',
             'clock_watchdog = deforestation_monitoring.clock_watchdog:main',
             'waste_detector = deforestation_monitoring.waste_detector:main',
+            'yolo_detector = deforestation_monitoring.yolo_detector:main',
             'depth_obstacles = deforestation_monitoring.depth_obstacles:main',
             'tree_refiner = deforestation_monitoring.tree_refiner:main',
+            'drone_prior_map = deforestation_monitoring.drone_prior_map:main',
+            'radio_link = deforestation_monitoring.radio_link:main',
         ],
     },
 )

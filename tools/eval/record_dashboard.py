@@ -1,21 +1,4 @@
-# Records just the dashboard to MP4 with headless Chrome.
-
-"""Record the dashboard (only the dashboard) to an MP4 with headless Chrome.
-
-usage: record_dashboard.py --out demo.mp4 [--url http://localhost:8081]
-                           [--size 1600x1000] [--fps 2] [--duration 1800]
-                           [--stop-file /tmp/stop] [--speed 1]
-                           [--finale-file /tmp/finale] [--finale-s 6]
-
-Starts google-chrome headless with a fixed window size, opens the dashboard
-and grabs a screenshot through the DevTools protocol every 1/fps seconds.
-Unlike screen_recorder (the whole desktop: Gazebo, RViz, other windows), the
-video shows the dashboard alone. Stops after --duration seconds, when
---stop-file appears, or on Ctrl+C; the video is always closed properly.
---speed N writes every frame once but plays at N x fps (a time-lapse).
-When --finale-file appears the recording ends with the Changes view and the
-report's tree table, each held for --finale-s seconds of video, then stops.
-"""
+# record_dashboard.py: Record the dashboard (only the dashboard) to an MP4 with headless Chrome
 import argparse
 import base64
 import json
@@ -33,7 +16,6 @@ import websocket
 
 
 def devtools_page(port, timeout=20.0):
-    """The websocket URL of the first page target once Chrome is up."""
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
@@ -49,7 +31,6 @@ def devtools_page(port, timeout=20.0):
 
 class Page:
     def __init__(self, ws_url):
-
         self.ws = websocket.create_connection(ws_url, suppress_origin=True, timeout=30)
         self.next_id = 0
 
@@ -98,7 +79,6 @@ def main():
         return img
 
     def hold(page, js, seconds):
-        """Run js in the page, let it settle, write one still for `seconds` of video."""
         page.call('Runtime.evaluate', expression=js)
         time.sleep(1.5)
         img = grab(page)
@@ -118,7 +98,6 @@ def main():
                 break
             if a.finale_file and os.path.exists(a.finale_file) and video is not None:
                 hold(page, "selectView(tabFor('changes'));renderChanges(true)", a.finale_s)
-
                 scroll_to = ("(id=>{const s=document.getElementById('report-scroll'),"
                              "e=document.getElementById(id).closest('section')||"
                              "document.getElementById(id);s.scrollTop+=e.getBoundingClientRect()"

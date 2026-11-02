@@ -1,18 +1,4 @@
-# How well camera colour separates pines from oaks.
-
-"""How well does camera colour separate pines from oaks? (option A feasibility)
-
-usage: camera_eval.py MAP.npz WORLD
-
-MAP.npz comes from camera_species.py (per-cell pixel counts and RGB sums).
-Trees are tiered exactly as in removal_test (visibility.py on the LiDAR
-canopy map in the npz, SDF trunks only). For each colour feature the AUC of
-pine vs oak is printed:
-  - per tree: mean colour within 0.75 m of the trunk;
-  - per cell: cells within 0.5 m of a canopy-tier pine trunk vs cells within
-    2.5 m of an oak trunk and more than 3 m from every pine.
-AUC 0.5 = no information, 1.0 = perfect separation.
-"""
+# camera_eval.py: How well does camera colour separate pines from oaks? (option A feasibility)
 import sys
 
 import numpy as np
@@ -25,7 +11,6 @@ XS = ORIGIN + (np.arange(DIM) + 0.5) * RES
 
 
 def features(rgb):
-    """Colour features from mean RGB (..., 3)."""
     r, g, b = rgb[..., 0], rgb[..., 1], np.maximum(rgb[..., 2], 0)
     g = np.maximum(g, 1.0)
     mx, mn = rgb.max(-1), rgb.min(-1)
@@ -39,7 +24,6 @@ def features(rgb):
 
 
 def auc(pos, neg):
-    """P(pos > neg) by ranks; symmetric: returns max(auc, 1 - auc) and direction."""
     pos, neg = np.asarray(pos), np.asarray(neg)
     if len(pos) == 0 or len(neg) == 0:
         return float('nan'), ''
@@ -62,7 +46,6 @@ def main():
     tiers = {t[0]: removal_tier(t, classify_tree(grid, RES, (ORIGIN, ORIGIN), t)[0], truth)
              for t in truth}
     in_box = {t[0] for t in truth if abs(t[1]) <= 30 and abs(t[2]) <= 30}
-
 
     per_tree = {}
     for name, x, y in truth:
@@ -91,7 +74,6 @@ def main():
                 a, _ = auc(v, fo[f])
                 aucs.append(f'{k.split("(")[1][:-1]} {a:.2f}')
         print(f'{f:14s} ' + ' '.join(f'{r:>24s}' for r in row) + '   AUC vs oak: ' + ', '.join(aucs))
-
 
     pine_cells = np.zeros((DIM, DIM), bool)
     near_pine = np.zeros((DIM, DIM), bool)

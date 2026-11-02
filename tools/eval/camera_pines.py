@@ -1,22 +1,4 @@
-# Whether camera colour finds pines the height map misses.
-
-"""Can camera colour find pines the height map misses? (option A)
-
-usage: camera_pines.py MAP.npz WORLD [--mode spires|patches] [--min-bg 0.6]
-
-MAP.npz comes from camera_species.py.
-  spires (default): local maxima of the LiDAR canopy map (window
-      --window m, >= --min-top m) whose camera colour within 0.5 m has mean
-      per-pixel B/G >= min_bg. A pine is a cone with its tip over the trunk;
-      the height map finds the tip but cannot tell it from an oak branch
-      clump, the colour can.
-  patches: 8-connected pine-coloured cells (B/G >= min_bg, camera height
-      >= min_height), >= min_cells cells, at their pixel-weighted centroid.
-Candidates are matched one-to-one to SDF trunks within 1.0 m and scored per
-tier (visibility.py on the npz's LiDAR map), so the question "does colour
-find the crown-shared pines?" gets a number, as well as how many
-candidates sit on no pine at all.
-"""
+# camera_pines.py: Can camera colour find pines the height map misses? (option A)
 import argparse
 import math
 

@@ -1,7 +1,4 @@
-# GATE 1: a no-change run must emit nothing.
-
-"""scan_mapper change gating (GATE 1: a no-change run must emit nothing)."""
-
+# test_scan_mapper_change.py: Scan_mapper change gating (GATE 1: a no-change run must emit nothing)
 import numpy as np
 import pytest
 import rclpy
@@ -21,8 +18,6 @@ def _mapper():
 
 
 def _with_baseline(node, heights, hits, frac=None):
-    """Fake a baseline: ``hits`` = scans that touched each cell, ``frac`` =
-    fraction of them that read canopy (default: from ``heights``)."""
     node.height_grid[:] = heights
     node.hits_grid[:] = hits
     node.baseline_heights = heights.copy()
@@ -42,7 +37,6 @@ def test_edge_cell_seen_once_at_baseline_is_not_new_canopy(ros_ctx):
     edge = (slice(100, 104), slice(100, 104))
     hits[edge] = 1.0
     _with_baseline(node, heights, hits)
-
     node.height_recent[:] = 0.0
     node.height_recent[edge] = 3.9
     node.high_streak[edge] = 5
@@ -69,11 +63,6 @@ def test_well_observed_clearing_is_still_lost(ros_ctx):
 
 
 def test_flickering_crown_edge_is_not_lost(ros_ctx):
-    """Removal test 4: crown-edge cells read canopy on some beams and
-    ground on others. Comparing the latest reading with the all-time max
-    flagged 27/47 standing dense trees far from any removal. A cell that
-    read canopy in only half its baseline scans is not 'lost' after a
-    ground streak."""
     node = _mapper()
     shape = (node.dim_x, node.dim_y)
     heights = np.zeros(shape, dtype=np.float32)
@@ -101,10 +90,6 @@ def _scan_msg(range_m):
 
 
 def test_ground_below_zero_overwrites_a_removed_tree(ros_ctx):
-    """Removal tests 1-3: bare ground projects to z ~ -0.2 m (fixed 10 m
-    altitude vs the real sensor height). With the old `max >= 0` touch
-    rule, ground never overwrote a cell, so a removed tree's height stayed
-    in /forest_canopy_map forever."""
     from geometry_msgs.msg import Quaternion
     node = ScanMapper()
     node._odom_received = True
@@ -119,10 +104,6 @@ def test_ground_below_zero_overwrites_a_removed_tree(ros_ctx):
 
 
 def test_height_drop_onto_a_neighbour_crown_is_marked_not_lost(ros_ctx):
-    """Dense removal 8: oak_153 fell onto its neighbours' crowns (6.2 ->
-    5.1 m over the trunk), exposing almost no ground. With drop_evidence_m
-    those cells are marked DROP_VALUE — distinct from -100 (lost to ground),
-    and above pattern_scanner's -50 flag threshold."""
     from deforestation_monitoring.scan_mapper import DROP_VALUE
     node = _mapper()
     shape = (node.dim_x, node.dim_y)
@@ -149,11 +130,6 @@ def test_height_drop_onto_a_neighbour_crown_is_marked_not_lost(ros_ctx):
 
 
 def test_cell_first_seen_after_the_snapshot_gets_a_baseline(ros_ctx):
-    """Edge trees, run 35: the snapshot comes at 90 % of the coverage box,
-    before the drone flies its last lane, so a tree in that lane had no
-    baseline scans and its removal left no lost cells. With baseline_fill a
-    cell under change_min_baseline_hits keeps adding scans to its baseline
-    until it has enough; then a later ground streak is a loss."""
     from geometry_msgs.msg import Quaternion
     ix = None
     for fill in (False, True):
@@ -177,7 +153,6 @@ def test_cell_first_seen_after_the_snapshot_gets_a_baseline(ros_ctx):
             assert hits_after == node.change_min_baseline_hits
             assert node.baseline_hit_counts[ix, iy] == node.change_min_baseline_hits
             assert node.baseline_canopy_frac[ix, iy] == pytest.approx(1.0)
-
             assert grid[ix, iy] == FILL_LOST_VALUE and -50 < FILL_LOST_VALUE < 0
             assert not lost.any()
         else:
@@ -186,10 +161,6 @@ def test_cell_first_seen_after_the_snapshot_gets_a_baseline(ros_ctx):
 
 
 def test_filled_cell_needs_canopy_on_every_scan(ros_ctx):
-    """Fill replays (2026-10-05): a filled cell seals after 3 scans, so a
-    flickering crown edge (canopy on 2 of 3) passed the 0.6 canopy fraction
-    and gave false area alerts and a standing oak LOST. Filled cells need
-    fill_canopy_fraction (1.0) of their scans to read canopy."""
     from geometry_msgs.msg import Quaternion
     node = ScanMapper()
     node.baseline_fill = True
@@ -214,8 +185,6 @@ def test_filled_cell_needs_canopy_on_every_scan(ros_ctx):
 
 
 def test_snapshot_waits_for_survey_loops(ros_ctx):
-    """baseline_min_loops (dense world 2): coverage alone no longer
-    freezes the change baseline; the patrol's loop count must also reach it."""
     from geometry_msgs.msg import Quaternion
     node = ScanMapper()
     node._odom_received = True

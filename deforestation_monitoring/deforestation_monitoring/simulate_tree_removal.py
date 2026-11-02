@@ -1,22 +1,5 @@
 #!/usr/bin/env python3
-# Deletes a cluster of trees in Gazebo so detection has real change to find.
-
-"""
-Tree Removal Simulator: deletes a known cluster of trees in Gazebo so the
-perception pipeline can detect a real canopy/tree loss.
-
-It waits for the mapping baselines, then deletes each target tree through the
-Gazebo entity-remove service. The `ign service` CLI is used because it talks to
-the Ignition transport directly and needs no ROS service bridge. The removed
-trees' centroid is published on /ground_truth_events so evaluate_mission can
-score the detection pipeline against a known clearing.
-
-Tree positions are read from the installed world SDF (any world), with
-hardcoded simple_trees / dense_forest tables as a fallback. Removal waits
-for the parrot_tree_tracker "frozen: N trees" baseline, not just any
-/drone_baseline_status message.
-"""
-
+# simulate_tree_removal.py: Tree Removal Simulator: deletes a known cluster of trees in Gazebo so the perception pipeline can …
 import os
 import subprocess
 import tempfile
@@ -34,7 +17,6 @@ from deforestation_interfaces.msg import SuspiciousArea
 from .tree_detection import parse_tree_truth
 
 
-
 SIMPLE_TREES: Dict[str, Tuple[float, float]] = {
     'oak_1': (-23.9, -28.8),
     'oak_2': (-27.9, -15.2),
@@ -50,7 +32,6 @@ SIMPLE_TREES: Dict[str, Tuple[float, float]] = {
     'pine_12': (17.9, -22.2),
     'pine_13': (12.2, -10.9),
 }
-
 
 DENSE_FOREST_TREES: Dict[str, Tuple[float, float]] = {
     'oak_1': (-36.9, -35.9), 'oak_2': (-33.4, -31.7), 'pine_3': (-36.1, -24.6),
@@ -129,12 +110,6 @@ DENSE_FOREST_TREES: Dict[str, Tuple[float, float]] = {
 
 
 def positions_for_world(world: str) -> Dict[str, Tuple[float, float]]:
-    """Return the name->(x, y) map for the given Gazebo world.
-
-    Read from the installed world SDF, so every world (sparse_trees,
-    cluster_test, ...) gets its real tree positions. The hardcoded tables
-    are only a fallback when the SDF cannot be found.
-    """
     try:
         from ament_index_python.packages import get_package_share_directory
         path = os.path.join(
@@ -152,7 +127,6 @@ def positions_for_world(world: str) -> Dict[str, Tuple[float, float]]:
 
 
 def remove_model(world: str, name: str) -> Tuple[bool, str]:
-    """Delete a model from the running Ignition world. Returns (ok, output)."""
     req = f'name: "{name}" type: MODEL'
     cmd = [
         'ign', 'service', '-s', f'/world/{world}/remove',
@@ -172,7 +146,6 @@ def remove_model(world: str, name: str) -> Tuple[bool, str]:
 
 
 class TreeRemoval(Node):
-    """Deletes trees in Gazebo and publishes the clearing as ground truth."""
 
     def __init__(self):
         super().__init__('simulate_tree_removal')
@@ -253,7 +226,6 @@ class TreeRemoval(Node):
             f'Waiting for baselines (both={self.require_both}).')
 
 
-
     def _select_trees(self) -> List[str]:
         if not self.use_center:
             return list(self.tree_names)
@@ -270,17 +242,12 @@ class TreeRemoval(Node):
         return chosen
 
 
-
     def _tree_baseline_cb(self, _msg):
         if not self.tree_baseline_ready:
             self.tree_baseline_ready = True
             self.get_logger().info('tree_mapper baseline received')
 
     def _drone_baseline_cb(self, msg):
-
-
-
-
         if self.drone_baseline_ready or not msg.data.startswith('frozen'):
             return
         self.drone_baseline_ready = True
@@ -290,7 +257,6 @@ class TreeRemoval(Node):
         if self.require_both:
             return self.tree_baseline_ready and self.drone_baseline_ready
         return self.tree_baseline_ready or self.drone_baseline_ready
-
 
 
     def _manual_trigger(self, _request, response):
@@ -320,7 +286,6 @@ class TreeRemoval(Node):
             self._publish_ground_truth(removed)
 
 
-
     def _remove_tree(self, name: str) -> bool:
         ok, out = remove_model(self.world, name)
         if not ok:
@@ -328,13 +293,6 @@ class TreeRemoval(Node):
         return ok
 
     def _spawn_replacement(self, name: str, x: float, y: float) -> bool:
-        """Spawn disturbance evidence where the tree used to be.
-
-        'cut' -> short vertical stump cylinder (deliberate removal).
-        'windthrow' -> fallen horizontal trunk (natural fall).
-        Gives the ground inspection real geometry to classify instead of an
-        empty hole.
-        """
         if self.disturbance_type == 'windthrow':
             geom = '<cylinder><radius>0.12</radius><length>3.0</length></cylinder>'
             rot = '0 1.5708 0'
@@ -392,7 +350,6 @@ class TreeRemoval(Node):
             if pos is not None:
                 self._spawn_replacement(name, pos[0], pos[1])
         return removed
-
 
 
     def _publish_ground_truth(self, removed: List[str]):

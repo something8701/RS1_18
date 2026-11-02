@@ -1,24 +1,5 @@
 #!/usr/bin/env python3
-# Regenerates the showcase forest world from the dense forest.
-
-"""Generate worlds/showcase_forest.sdf from worlds/dense_forest.sdf.
-
-Showcase (client demo) variant of the dense forest in which every tree is
-visible to the drone from above:
-
-* oaks are thinned (deterministically, by name) so no two stand closer than
-  OAK_SEP, so each oak crown stays separable in the canopy height model;
-* every pine keeps its name and yaw, but a pine closer than PINE_CLEAR to an
-  oak is moved into open ground (>= PINE_CLEAR from every oak, >= PINE_SEP
-  from every other pine). In dense_forest the pines stand 4-6 m from oaks,
-  under the oak canopy, where no top-down sensor can separate them. Pines
-  that do not fit are dropped.
-
-dense_forest.sdf itself is left unchanged (it stays the stress test).
-
-    python3 scripts/make_showcase_world.py            # writes worlds/showcase_forest.sdf
-"""
-
+# make_showcase_world.py: Generate worlds/showcase_forest.sdf from worlds/dense_forest.sdf
 import math
 import re
 from pathlib import Path
@@ -59,8 +40,6 @@ def main():
                 _far((t['x'], t['y']), [(o['x'], o['y']) for o in kept_oaks], OAK_SEP):
             kept_oaks.append(t)
     oak_xy = [(o['x'], o['y']) for o in kept_oaks]
-
-
 
     n = int(2 * EXTENT / GRID) + 1
     cells = [(-EXTENT + i * GRID, -EXTENT + j * GRID)

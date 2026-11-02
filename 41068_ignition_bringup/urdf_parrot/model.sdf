@@ -1,14 +1,14 @@
 <?xml version="1.0"?>
+<!-- model.sdf -->
 <sdf version="1.5">
   <model name="parrot_bebop_2">
     <static>false</static>
     <pose>0 0 0.062656 0 0 0</pose>
 
-    <!-- Main link -->
     <link name="body">
       <inertial>
-        <mass>0.503</mass> <!-- kg -->
-        <inertia> <!-- kg.m^2 -->
+        <mass>0.503</mass> 
+        <inertia> 
           <ixx>1.805e-3</ixx>
           <ixy>-8.619e-7</ixy>
           <iyy>1.764e-3</iyy>

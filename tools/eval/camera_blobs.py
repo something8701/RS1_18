@@ -1,36 +1,4 @@
-# Simulates a camera area alert for pines the baseline missed.
-
-"""Simulate a camera area alert for pines missing from the baseline (option A).
-
-usage: camera_blobs.py BAG WORLD [--log LAUNCH_LOG] [--min-cells 6]
-       [--attach] [--site-radius 0.5] [--drop-mode mean --drop 1.0]
-       [--show-candidates] [--debug X Y]
-
-The tracker's defaults (area_attach, area_radius 0.5, area_mean_drop 1.0):
-    --attach --site-radius 0.5 --drop-mode mean --drop 1.0
-
-At the tracker's freeze (first /parrot_tree_baseline), cells the camera saw
-as pine-coloured canopy (mean blue/green >= --pine, canopy fraction >=
---canopy) form patches; a patch of >= --min-cells cells with no baseline
-tree within --exclude m is a pine the tracker does not know about (e.g. one
-inside an oak's crown). After the freeze each patch gets the tracker's
-camera rule: the canopy fraction over a --radius disc at its centre,
-averaged per visit (frames split by gaps > --gap s), must be < --open in two
-visits in a row, and the LiDAR top there (/forest_canopy_map, max within the
-disc) must have dropped >= --drop since the freeze.
-
-Printed: every patch that would raise an alert, with the nearest removed
-tree (<= 3 m counts in removal_test) and whether it would be false (> 6 m from
-every removed trunk). --drop-mode mean compares the disc mean instead of the
-max; --show-candidates prints every site with two see-through visits in a
-row, whatever its drop; --debug X Y prints the patches near (X, Y).
-
---attach: a patch whose nearby trees are all non-pine is watched for the
-nearest of them (the tracker's area_attach); when it fires that tree goes
-LOST, scored by the identity rule (removed trunk = credited, standing one =
-false). --host-max-top limits hosts to trees whose top at the freeze is
-below it.
-"""
+# camera_blobs.py: Simulate a camera area alert for pines missing from the baseline (option A)
 import argparse
 import gzip
 import math

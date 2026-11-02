@@ -1,19 +1,5 @@
 #!/usr/bin/env python3
-# Starts the drone-only demo plus the removal test node.
-
-"""Live tree-removal acceptance test.
-
-Starts the full demo (drone only, no scripted tree removal) plus the
-removal_test node, which waits for >=90% coverage and the frozen tree
-baseline, deletes 10 trees, keeps patrolling for 2 survey loops and writes
-a report to /tmp/deforestation_eval/removal_test_<stamp>.md.
-
-    ros2 launch deforestation_monitoring removal_test.launch.py
-    ros2 launch deforestation_monitoring removal_test.launch.py n_trees:=5
-    ros2 launch deforestation_monitoring removal_test.launch.py lite:=true
-    ros2 topic echo /removal_test_result
-"""
-
+# removal_test.launch.py: Live tree-removal acceptance test
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -56,7 +42,7 @@ def generate_launch_description():
             'canopy_only': PythonExpression(["'", canopy_only, "' == 'true'"]),
             'trees': LaunchConfiguration('trees'),
             'waste': PythonExpression(["'", LaunchConfiguration('waste'), "'.lower() == 'true'"]),
-
+            'evidence': PythonExpression(["'", LaunchConfiguration('evidence'), "'.lower() == 'true'"]),
             'wait_for_husky': PythonExpression(["'", LaunchConfiguration('waste'), "'.lower() == 'true'"]),
             'min_coverage': 0.9,
             'survey_x_min': _box(world, -15.0, -10.0, -30.0),
@@ -75,6 +61,9 @@ def generate_launch_description():
         DeclareLaunchArgument('n_trees', default_value='10'),
         DeclareLaunchArgument('waste', default_value='false',
                               description='Dump a red garbage bag next to each cut tree'),
+        DeclareLaunchArgument('evidence', default_value='false',
+                              description='Leave a stump and a felled log at each cut tree '
+                              '(scored against yolo_detector; use with yolo:=true waste:=true)'),
         DeclareLaunchArgument('settle_loops', default_value='2'),
         DeclareLaunchArgument('balanced', default_value='false',
                               description='Remove oaks and pines alternately'),

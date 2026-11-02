@@ -1,26 +1,4 @@
-# Ground-check logic: does the drone's tree still exist down at trunk height?
-
-"""Ground check of the drone's trees with the Husky's LiDAR (pure logic).
-
-The Husky scans at about 0.8 m, where it sees trunks (and a pine's lowest
-branches), not crowns. tree_mapper turns each scan into trunk cluster
-centres; here they become persistent trunks (``TrunkTracker``). For every
-drone tree the refiner also counts clear views: a LiDAR beam aimed at the
-tree's spot that travels past it, so "no trunk there" is only said about
-spots the Husky actually saw (neighbouring trunks block views).
-
-Then each drone tree gets a status (RefinedTree.msg): its trunk is there,
-there is no trunk, a LOST is confirmed or contradicted, and trunks no drone
-tree explains are hidden trees.
-
-Trunks are remembered with the time they were last seen and forgotten when
-clear beams pass through their spot (a cut tree). Only a trunk seen after
-the drone's LOST contradicts it: the Husky's long-range LiDAR may have seen
-the tree before it was cut. Pine branches at the LiDAR's height also form
-clusters, 2-3 m from the stem and shifting with the viewpoint, so a hidden
-tree needs many sightings at a steady position, away from the drone's trees.
-"""
-
+# tree_refine.py: Ground check of the drone's trees with the Husky's LiDAR (pure logic)
 import math
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -47,9 +25,6 @@ class Trunk:
 
 
 class TrunkTracker:
-    """Persistent trunks from per-scan cluster centres: a centre within
-    ``merge`` m of a trunk updates its running mean, any other starts one.
-    ``forget`` clear beams through a trunk's spot remove it."""
 
     def __init__(self, merge: float = 0.6, forget: int = 8):
         self.merge = merge
@@ -71,7 +46,6 @@ class TrunkTracker:
                 self.trunks.append(Trunk(x, y, last_seen=t))
 
     def seen_through(self, clear: np.ndarray):
-        """One scan's clear views of the trunks (same order as self.trunks)."""
         for k, c in zip(self.trunks, clear):
             if c:
                 k.cleared += 1
@@ -84,8 +58,6 @@ class TrunkTracker:
 def clear_views(sensor_xy: Tuple[float, float], sensor_yaw: float, angle_min: float,
                 angle_increment: float, ranges: np.ndarray, spots: np.ndarray,
                 max_dist: float = 12.0, margin: float = 0.6) -> np.ndarray:
-    """For each spot (N, 2), whether this scan saw through it: the beam
-    aimed at the spot reads at least ``margin`` m past it (or no return)."""
     out = np.zeros(len(spots), bool)
     if len(spots) == 0:
         return out
@@ -122,16 +94,6 @@ class RefineConfig:
 def refine(drone_trees: Sequence[Tuple[int, float, float]], lost: Dict[int, float],
            trunks: Sequence[Trunk], views: Dict[int, int],
            cfg: RefineConfig = RefineConfig()) -> List[Refined]:
-    """Statuses for the drone's trees (+ hidden trunks, id 0).
-
-    ``lost`` maps the drone's LOST trees to the time of the LOST; ``views``
-    counts clear beams per tree (for a LOST tree, since the LOST). Drone
-    trees and confirmed trunks are paired one-to-one (closest pairs, within
-    ``match_radius``). A tree with a trunk is STANDING; for a LOST tree the
-    trunk must have been seen after the LOST (FALSE_LOST). Without one, after
-    ``min_views`` clear beams, NO_TRUNK (CUT_CONFIRMED if LOST); otherwise
-    UNCHECKED. Hidden trees count only inside the box the drone's trees span.
-    """
     good = [t for t in trunks if t.hits >= cfg.min_hits]
     out = [Refined(i, (x, y), views=views.get(i, 0)) for i, x, y in drone_trees]
     pair: Dict[int, Trunk] = {}
@@ -154,7 +116,6 @@ def refine(drone_trees: Sequence[Tuple[int, float, float]], lost: Dict[int, floa
             r.status = FALSE_LOST if is_lost else STANDING
         elif r.views >= cfg.min_views:
             r.status = CUT_CONFIRMED if is_lost else NO_TRUNK
-
     xs, ys = [x for _, x, _ in drone_trees], [y for _, _, y in drone_trees]
     inside = (lambda x, y: min(xs) - 1 <= x <= max(xs) + 1 and min(ys) - 1 <= y <= max(ys) + 1) \
         if drone_trees else None

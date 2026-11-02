@@ -1,26 +1,4 @@
-# Checks whether a cut pine shows up as a colour change.
-
-"""Does a cut pine show up as a colour change? (option A, change cue)
-
-usage: camera_change.py MAP.npz WORLD [--bag BAG --log LAUNCH_LOG]
-
-MAP.npz comes from camera_species.py (time bins of per-cell B/G sums). With
---bag/--log (a removal test), the removal moment and the removed trees are
-read from the launch log ("[test] removed N: ..."); the wall-clock time is
-converted to sim time with the bag's odometry (receive time vs header).
-
-Per tree, B/G within 0.75 m of the trunk is computed per time bin (bins with
->= MIN_PIX pixels). Printed:
-  - removed trees: B/G before vs after the cut;
-  - standing pines (B/G before >= PINE): how often a single bin, or two
-    consecutive bins, drop below OAK. That is the false-alarm risk of a
-    "pine colour gone" rule.
-  - canopy fraction (npz with `high`/`open`): per tree, the share of camera
-    rays at the trunk (0.75 m) that hit canopy at >= 3 m, before vs after
-    the cut, and how often a standing tree's fraction drops below FRAC in
-    one bin or two consecutive bins (the false-alarm risk of a "the camera
-    now sees through it" rule).
-"""
+# camera_change.py: Does a cut pine show up as a colour change? (option A, change cue)
 import argparse
 import gzip
 import re
@@ -56,7 +34,6 @@ def removal(log_path, bag):
 
 
 def series(count, bg_sum, x, y, radius=0.75):
-    """Per-bin mean of per-pixel B/G within `radius` of (x, y), and pixel counts."""
     gx, gy = np.meshgrid(XS, XS, indexing='ij')
     m = np.hypot(gx - x, gy - y) <= radius
     n = count[:, m].sum(1)

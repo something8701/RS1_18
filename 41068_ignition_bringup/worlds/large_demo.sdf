@@ -1,18 +1,14 @@
 <?xml version="1.0"?>
+<!-- large_demo.sdf -->
 <sdf version='1.8'>
   <world name="large_demo">
-    <!-- Basic world setup  -->
+    
     <light name="sun" type="directional">
       <cast_shadows>0</cast_shadows>
       <pose>0 0 100 0 -0 0</pose>
       <diffuse>0.8 0.8 0.8 1</diffuse>
       <specular>0.8 0.8 0.8 1</specular>
-      <!-- <attenuation>
-        <range>1000</range>
-        <constant>0.9</constant>
-        <linear>0.01</linear>
-        <quadratic>0.001</quadratic>
-      </attenuation> -->
+      
       <direction>-0.5 0.1 -0.9</direction>
       <intensity>5</intensity>
     </light>
@@ -31,7 +27,6 @@
       <grid>0</grid>
     </scene>
 
-    <!-- Initialise spherical coordinates somewhere -->
     <spherical_coordinates>
       <latitude_deg>0.0</latitude_deg>
       <longitude_deg>0.0</longitude_deg>
@@ -40,7 +35,6 @@
       <surface_model>EARTH_WGS84</surface_model>
     </spherical_coordinates>
 
-    <!-- Large ground planes with forest floor texture -->
     <include>
       <uri>
         model://forest_plane
@@ -49,7 +43,6 @@
       <pose>0 0 0 0 0 0</pose>
     </include>
 
-    <!-- Forest wall -->
     <include>
       <uri>
         model://forest_wall
@@ -135,7 +128,6 @@
       <pose>+9.32 12.5 2 1.570796 0 0</pose>
     </include>
 
-    <!-- Oak trees -->
     <include>
       <uri>
         https://fuel.gazebosim.org/1.0/OpenRobotics/models/Oak%20tree
@@ -192,8 +184,7 @@
       <name>oak8</name>
       <pose>3.54698 5 -0.3 0 -0 0.1</pose>
     </include>
-    
-    <!-- Pine trees -->
+
     <include>
       <uri>
         https://fuel.gazebosim.org/1.0/OpenRobotics/models/Pine%20tree
@@ -237,7 +228,6 @@
       <pose>-2.27195 -8.68441 0 0 -0 0.9</pose>
     </include>
 
-    <!-- Platypus -->
     <include>
       <uri>
         https://fuel.gazebosim.org/1.0/OpenRobotics/models/platypus
@@ -246,7 +236,6 @@
       <pose>-8 6 0 0 0 0</pose>
     </include>
 
-    <!-- Gazebo -->
     <include>
       <uri>
         https://fuel.gazebosim.org/1.0/OpenRobotics/models/Gazebo
@@ -255,7 +244,6 @@
       <pose>10 -10 0 0 0 0</pose>
     </include>
 
-    <!-- Rocks -->
     <include>
       <uri>
         https://fuel.gazebosim.org/1.0/OpenRobotics/models/Falling%20Rock%201
@@ -299,11 +287,6 @@
       <pose>-14 -12 0 0 0 0</pose>
     </include>
 
-
-    <!-- Dynamic world demo models -->
-    <!-- These simple marker models are manipulated by scripts/dynamic_world_demo.py.
-         They are intentionally defined in this world, rather than spawned by the
-         script, so the add-on node only needs to move existing Gazebo entities. -->
     <model name="demo_animal">
       <pose>-4 4 0 0 0 0</pose>
       <static>true</static>
@@ -450,7 +433,6 @@
         </visual>
       </link>
     </model>
-    <!-- End dynamic world demo models -->
 
   </world>
 </sdf>

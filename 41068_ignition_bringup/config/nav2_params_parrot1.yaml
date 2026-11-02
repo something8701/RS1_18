@@ -1,3 +1,4 @@
+# nav2_params_parrot1.yaml: Nav2 settings for the Parrot
 amcl:
   ros__parameters:
     use_sim_time: true

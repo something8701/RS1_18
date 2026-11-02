@@ -1,7 +1,4 @@
-# Tests bag placement, red blobs and site tracking.
-
-"""Land waste: red test, bag placement, red blobs, site tracking."""
-
+# test_waste.py: Land waste: red test, bag placement, red blobs, site tracking
 import math
 
 import numpy as np
@@ -65,12 +62,10 @@ def test_ground_projection_puts_the_nadir_pixel_under_the_drone():
     mask[cs.HEIGHT // 2, cs.WIDTH // 2] = True
     xy = cs.plane_points(mask, np.eye(3), 5.0, -3.0, 10.0, 0.2)
     assert xy.shape == (1, 2)
-
     assert abs(xy[0, 0] - 5.25) < 0.1 and abs(xy[0, 1] + 3.0) < 0.1
 
 
 def _cloud(points_rgb):
-    """A gz-style RGB-D cloud: x, y, z float32 at 0/4/8, packed b, g, r at 16."""
     from sensor_msgs.msg import PointCloud2
     msg = PointCloud2()
     msg.point_step, msg.height, msg.width = 24, 1, len(points_rgb)
@@ -136,7 +131,6 @@ def test_clear_views_need_the_beam_to_pass_the_spot():
     ranges[90] = 4.0
     spots = np.array([[5.0, 0.0], [0.0, 5.0], [0.0, 3.0]])
     seen = clear_views((0.0, 0.0), 0.0, 0.0, 2 * math.pi / n, ranges, spots)
-
     assert seen.tolist() == [True, False, True]
 
 
@@ -167,6 +161,14 @@ def test_sweep_covers_the_area_and_a_margin_from_the_nearest_corner():
     assert free_spot(cost, 0.5, 0.0, 0.0, 10.0, 10.0) is None
 
 
+def test_a_grown_clearing_overlaps_the_area_already_searched():
+    from deforestation_monitoring.area_search import box_overlap
+    old, grown = (5.5, 2.2, 9.5, 8.5), (6.2, 2.0, 15.2, 9.8)
+    assert 0.25 < box_overlap(grown, old) < 0.5
+    assert box_overlap(old, grown) > 0.8
+    assert box_overlap((20, 20, 24, 24), old) == 0.0
+
+
 def test_depth_obstacles_thin_the_camera_cloud():
     from sensor_msgs.msg import PointCloud2
     from deforestation_monitoring.depth_obstacles import thin_cloud
@@ -180,7 +182,6 @@ def test_depth_obstacles_thin_the_camera_cloud():
     buf[..., :16] = xyz.view(np.uint8).reshape(h, w, 16)
     msg.data = buf.tobytes()
     pts = thin_cloud(msg, stride=2, max_range=3.0)
-
     assert len(pts) == 4 * 4 - 1 and pts[:, 0].max() <= 3.0
 
 

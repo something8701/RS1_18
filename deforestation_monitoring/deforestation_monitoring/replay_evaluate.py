@@ -1,18 +1,5 @@
 #!/usr/bin/env python3
-# Rebuilds the canopy model from a raw scan bag.
-
-"""Offline replay evaluation: rebuild the CHM from raw /parrot1/scan.
-
-Reads a rosbag of ``/parrot1/scan`` + ``/parrot1/odometry`` and rebuilds the
-canopy height model with the same push-broom projection the live scan_mapper
-uses. It does NOT read the recorded canopy map or terrain cloud, so the
-detector can be retuned on exactly the sensor geometry the drone produces.
-
-Metrics vs the world SDF ground truth: precision, recall, F1, within-pass
-treetop flicker (two halves of the bag), and false change events between the
-two halves (the pass/fail gate: must be 0 for a no-change run).
-"""
-
+# replay_evaluate.py: Offline replay evaluation: rebuild the CHM from raw /parrot1/scan
 from __future__ import annotations
 
 import argparse
@@ -34,7 +21,6 @@ from .tree_detection import (
 
 
 def scan_to_world(scan: LaserScan, odom: Odometry, altitude: float):
-    """Shared projection from scan_mapper (never reimplemented here)."""
     ranges = np.array(scan.ranges, dtype=np.float64)
     angles = scan.angle_min + np.arange(len(ranges)) * scan.angle_increment
     valid = (np.isfinite(ranges) & (ranges >= 0.5) & (ranges <= scan.range_max))
@@ -52,7 +38,6 @@ def scan_to_world(scan: LaserScan, odom: Odometry, altitude: float):
 
 
 def scan_times(reader):
-    """Bag receive times (ns) of every /parrot1/scan message."""
     times = []
     while reader.has_next():
         topic, _, t = reader.read_next()
@@ -63,13 +48,7 @@ def scan_times(reader):
 
 def accumulate(reader, altitude, res=0.25, origin=-40.0, dim=320,
                split_ns=None):
-    """Rebuild the CHM. Scans before ``split_ns`` go to half 0 (pass A),
-    the rest to half 1 (pass B). ``split_ns=None`` falls back to
-    alternating scans, which is NOT a pass-A/pass-B comparison."""
     height = np.zeros((dim, dim), dtype=np.float32)
-
-
-
     recent = np.zeros((dim, dim), dtype=np.float32)
     hits = np.zeros((dim, dim), dtype=np.int32)
     last_odom = None
@@ -110,10 +89,6 @@ def accumulate(reader, altitude, res=0.25, origin=-40.0, dim=320,
 
 
 def match_passes(a, b, fallback_radius=0.6):
-    """One-to-one match of pass-A to pass-B treetops.
-
-    Returns ``(unmatched_a, unmatched_b, matched_distances)``.
-    """
     from scipy.optimize import linear_sum_assignment
     if not a or not b:
         return len(a), len(b), []
@@ -179,16 +154,11 @@ def main(argv=None) -> int:
         open_reader(), args.altitude, res=0.25, split_ns=split_ns)
     print(f'scanned cells: {np.count_nonzero(hits)}')
 
-
-
-
     if last_map is not None:
-
         live = np.array(last_map.data, dtype=np.float32).reshape(
             last_map.info.height, last_map.info.width).T
         common = (hits > 0) & (live >= 0)
         if np.any(common):
-
             diff = np.abs(live[common] / 10.0 - recent[common])
             print(f'parity vs live map: max={diff.max():.3f}m '
                   f'mean={diff.mean():.3f}m over {common.sum()} cells')
@@ -202,8 +172,6 @@ def main(argv=None) -> int:
     dets = detect_trees(height, scanned, params, -40.0, -40.0)
     m = score_detections(dets, truth, args.match_radius)
     print('FULL BAG:', {k: round(v, 3) for k, v in m.items()})
-
-
 
     from .tree_detection import match_detections
     truth_pos = [(x, y) for _, x, y in truth]
@@ -226,7 +194,6 @@ def main(argv=None) -> int:
         hm = score_detections(d, truth, args.match_radius)
         print(f'HALF {half}:', {k: round(v, 3) for k, v in hm.items()})
 
-
     common = (half_hits[0] > 0) & (half_hits[1] > 0)
 
     def observed(dets):
@@ -237,9 +204,6 @@ def main(argv=None) -> int:
             if 0 <= ix < 320 and 0 <= iy < 320 and common[ix, iy]:
                 out.append((d.x, d.y))
         return out
-
-
-
 
     only_a, only_b, shifts = match_passes(
         observed(half_dets[0]), observed(half_dets[1]))

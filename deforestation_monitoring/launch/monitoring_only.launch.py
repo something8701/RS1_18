@@ -1,16 +1,5 @@
 #!/usr/bin/env python3
-# Starts the monitoring nodes against an already-running sim.
-
-"""
-Monitoring-only launch. Use this when the simulation is already running.
-
-    ros2 launch deforestation_monitoring monitoring_only.launch.py
-
-Launches the monitoring node set (monitoring_nodes.launch.py) without the
-simulation, for a Gazebo instance with the Husky and drone already
-spawned. drone:=false / husky:=false leave one robot's nodes out.
-"""
-
+# monitoring_only.launch.py: Monitoring-only launch
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, LogInfo
 from launch.launch_description_sources import PythonLaunchDescriptionSource

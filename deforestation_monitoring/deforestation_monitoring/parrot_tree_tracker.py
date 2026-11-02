@@ -1,18 +1,5 @@
 #!/usr/bin/env python3
-# Finds individual trees in the canopy model, freezes a baseline, then flags the lost ones.
-
-"""Parrot Tree Tracker: finds individual trees from the drone's canopy
-height model (CHM), freezes them as a baseline, then reports trees that go
-LOST (cut) or GAINED.
-
-The CHM is the canopy map (``/forest_canopy_map``), with cells it has not
-scanned optionally filled from the depth-camera cloud (``/drone_terrain``).
-Trees come from :mod:`tree_detection` (treetops on a height-dependent window,
-crowns split by a saddle-aware watershed). Its parameters are in
-``config/tree_detection_params.yaml``, calibrated against the world SDF by
-``calibrate_tree_detection``.
-"""
-
+# parrot_tree_tracker.py: Finds individual trees from the drone's canopy height model (CHM), freezes them as a baseline, then …
 import collections
 import dataclasses
 import json
@@ -41,11 +28,9 @@ from .visibility import disc_max, top_drop
 
 
 class ParrotTreeTracker(Node):
-    """Detect individual trees from the fused CHM and track them over time."""
 
     def __init__(self):
         super().__init__('parrot_tree_tracker')
-
 
         self.declare_parameter('canopy_map_topic', '/forest_canopy_map')
         self.declare_parameter('change_map_topic', '/canopy_change_map')
@@ -58,118 +43,43 @@ class ParrotTreeTracker(Node):
         self.declare_parameter('min_baseline_trees', 2)
         self.declare_parameter('baseline_coverage', 0.70)
         self.declare_parameter('baseline_stable_ticks', 3)
-
-
-
         self.declare_parameter('admit_window', 4)
-
-
         self.declare_parameter('admit_window_s', 0.0)
         self.declare_parameter('admit_fraction', 0.0)
         self.declare_parameter('candidate_max_misses', 2)
         self.declare_parameter('reset_candidates_at_plateau', True)
         self.declare_parameter('baseline_mean_position', False)
-
         self.declare_parameter('mean_position_hits', 12)
-
-
-
-
-
         self.declare_parameter('baseline_mean_chm', False)
-
-
-
-
-
-
-
         self.declare_parameter('merge_lost_crowns', False)
         self.declare_parameter('merge_window_s', 30.0)
-
-
-
-
         self.declare_parameter('merge_after_s', 600.0)
-
-
-
-
-
         self.declare_parameter('merge_after_ratio', 0.0)
-
-
-
-
-
         self.declare_parameter('merge_hold_s', 0.0)
         self.declare_parameter('merge_hold_ratio', 0.25)
         self.declare_parameter('merge_max_dist', 5.5)
         self.declare_parameter('merge_min_height', 5.5)
-
-
         self.declare_parameter('plateau_delta', 0.003)
         self.declare_parameter('plateau_ticks', 25)
-
-
-
         self.declare_parameter('freeze_min_loops', 0)
-
-
         self.declare_parameter('freeze_max_wait_ticks', 10)
-
-
         self.declare_parameter('track_radius', 0.6)
         self.declare_parameter('terrain_min_hits', 2)
-
-
-
         self.declare_parameter('terrain_fill', True)
         self.declare_parameter('canopy_min_hits', 2)
         self.declare_parameter('min_gain_area_m2', 0.5)
         self.declare_parameter('gain_stable_ticks', 3)
-
-
         self.declare_parameter('gain_crown_exclusion', 1.0)
         self.declare_parameter('lost_streak_threshold', 3)
-
-
         self.declare_parameter('lost_evidence_cells', 10)
-
-
         self.declare_parameter('gain_evidence_cells', 10)
-
-
         self.declare_parameter('evidence_max_radius', 2.0)
-
-
-
-
         self.declare_parameter('lost_drop_evidence', False)
-
-
-
-
-
         self.declare_parameter('lost_top_drop', 0.0)
         self.declare_parameter('lost_top_radius', 1.0)
-
-
-
         self.declare_parameter('lost_top_frac', 0.0)
-
-
-
-
         self.declare_parameter('lost_mean_drop', 0.0)
         self.declare_parameter('lost_mean_frac', 0.6)
-
-
-
-
-
-
-
         self.declare_parameter('seen_lost', False)
         self.declare_parameter('seen_canopy', 0.6)
         self.declare_parameter('seen_open', 0.3)
@@ -177,59 +87,21 @@ class ParrotTreeTracker(Node):
         self.declare_parameter('seen_min_cells', 4)
         self.declare_parameter('seen_visit_gap_s', 15.0)
         self.declare_parameter('seen_pine', 0.65)
-
-
-
-
-
         self.declare_parameter('camera_area_alerts', False)
         self.declare_parameter('area_min_cells', 6)
         self.declare_parameter('area_exclude', 1.5)
-
-
-
         self.declare_parameter('area_radius', 0.5)
-
-
-
         self.declare_parameter('area_attach', False)
-
-
-
         self.declare_parameter('area_mean_drop', 1.0)
-
-
-
-
-
-
         self.declare_parameter('area_admit_cells', 12)
         self.declare_parameter('area_admit_ticks', 60)
         self.declare_parameter('area_admit_dist', 1.0)
-
-
-
-
-
-
         self.declare_parameter('freeze_median_ticks', 0)
         self.declare_parameter('freeze_median_radius', 1.5)
         self.declare_parameter('freeze_median_exclusive', False)
-
-
-
-
         self.declare_parameter('area_camera_cells', 20)
-
-
-
         self.declare_parameter('area_edge_margin', 0.0)
         self.declare_parameter('area_camera_clear', 2.0)
-
-
-
-
-
         self.declare_parameter('colour_pines', False)
         self.declare_parameter('colour_spire_bg', 0.65)
         self.declare_parameter('colour_spire_window', 1.25)
@@ -240,7 +112,6 @@ class ParrotTreeTracker(Node):
         self.declare_parameter('survey_y_min', -40.0)
         self.declare_parameter('survey_y_max', 40.0)
         self.declare_parameter('publish_rate', 1.0)
-
 
         defaults = DetectionParams()
         for key, value in defaults.to_dict().items():
@@ -360,7 +231,6 @@ class ParrotTreeTracker(Node):
         self.origin_x = -self.map_x / 2.0
         self.origin_y = -self.map_y / 2.0
 
-
         self.terrain_height = np.zeros((self.dim_x, self.dim_y), dtype=np.float32)
         self.terrain_hits = np.zeros((self.dim_x, self.dim_y), dtype=np.int32)
         self.terrain_points = 0
@@ -378,16 +248,11 @@ class ParrotTreeTracker(Node):
         self.change_ox = None
         self.change_oy = None
 
-
-
-
-
         self.species_mean = None
         self.seen_map = None
         self.seen_recent = None
         self.camera_grid = None
         self._seen_visits = {}
-
 
         self.baseline_trees = []
         self.baseline_frozen = False
@@ -420,7 +285,6 @@ class ParrotTreeTracker(Node):
         self._last_cov = 0.0
         self._cov_stable_ticks = 0
 
-
         map_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
@@ -439,7 +303,6 @@ class ParrotTreeTracker(Node):
             history=HistoryPolicy.KEEP_LAST,
             depth=5,
         )
-
 
         self.canopy_sub = self.create_subscription(
             OccupancyGrid, self.canopy_topic, self.canopy_cb, map_qos)
@@ -462,12 +325,10 @@ class ParrotTreeTracker(Node):
         self.create_subscription(
             OccupancyGrid, '/forest_canopy_seen', self.seen_recent_cb, map_qos)
 
-
         self.status_pub = self.create_publisher(
             TreeStatus, '/parrot_tree_status', default_qos)
         self.event_pub = self.create_publisher(
             TreeChangeEvent, '/parrot_tree_change_events', default_qos)
-
         self.canopy_alert_pub = self.create_publisher(
             String, '/canopy_change_events', default_qos)
         self.marker_pub = self.create_publisher(
@@ -478,15 +339,10 @@ class ParrotTreeTracker(Node):
             MarkerArray, '/parrot_treetop_markers', default_qos)
         self.crown_pub = self.create_publisher(
             OccupancyGrid, '/parrot_crown_map', map_qos)
-
         self.baseline_pub = self.create_publisher(
             PointCloud2, '/parrot_tree_baseline', map_qos)
-
-
         self.baseline_info_pub = self.create_publisher(
             String, '/parrot_tree_baseline_info', map_qos)
-
-
         self.change_note_pub = self.create_publisher(
             String, '/parrot_tree_change_notes', default_qos)
         self.drone_baseline_pub = self.create_publisher(
@@ -506,8 +362,6 @@ class ParrotTreeTracker(Node):
         )
 
     def _on_params_changed(self, params):
-        """Apply live parameter changes so the detector can be recalibrated
-        in place without restarting the node."""
         fields = set(self.itd_params.to_dict().keys())
         for param in params:
             if param.name == 'chm_resolution':
@@ -535,9 +389,7 @@ class ParrotTreeTracker(Node):
         return SetParametersResult(successful=True)
 
 
-
     def terrain_cb(self, cloud: PointCloud2):
-        """Accumulate the drone depth cloud as a max-height grid."""
         offsets = {}
         for field in cloud.fields:
             if field.name in ('x', 'y', 'z'):
@@ -595,7 +447,6 @@ class ParrotTreeTracker(Node):
         self.change_oy = grid.info.origin.position.y
 
     def _camera_grid(self, grid: OccupancyGrid):
-        """A camera_species_mapper grid as [iy, ix] floats (value / 100, NaN = no data)."""
         self.camera_grid = (grid.info.resolution, grid.info.origin.position.x,
                             grid.info.origin.position.y)
         data = np.array(grid.data, dtype=np.float32).reshape(
@@ -612,8 +463,6 @@ class ParrotTreeTracker(Node):
         self.seen_recent = self._camera_grid(grid)
 
     def _disc_mean(self, grid, tree, radius=None):
-        """Mean of a camera grid within `radius` (default seen_radius) of a
-        tree; None if fewer than seen_min_cells cells have data."""
         if grid is None or self.camera_grid is None:
             return None
         radius = self.seen_radius if radius is None else radius
@@ -631,9 +480,6 @@ class ParrotTreeTracker(Node):
         return float(vals.mean()) if vals.size >= self.seen_min_cells else None
 
     def _find_pine_patches(self):
-        """Pine-coloured canopy patches with no baseline tree nearby (at the
-        freeze). With area_attach, a patch whose nearby trees are none of them
-        camera pines becomes the nearest one's camera site (tree['site'])."""
         if self.species_mean is None or self.seen_map is None:
             return []
         res, ox, oy = self.camera_grid
@@ -666,13 +512,6 @@ class ParrotTreeTracker(Node):
         return patches
 
     def _median_position(self, tree, final=()):
-        """Median of the tree's detections over the last freeze_median_ticks
-        pre-freeze ticks (nearest one per tick within freeze_median_radius);
-        its own position if it was seen in fewer than 3.
-
-        With freeze_median_exclusive, a past detection within the radius of
-        two or more freeze-tick trees (``final``) is skipped: it may be those
-        crowns fused into one, and using it would pull both trees onto it."""
         rad = self.freeze_median_radius
         xs, ys = [], []
         for tick in list(self._recent_dets)[-self.freeze_median_ticks:]:
@@ -689,9 +528,6 @@ class ParrotTreeTracker(Node):
         return float(np.median(xs)), float(np.median(ys))
 
     def _admit_pine_patches(self):
-        """Move watched pine patches into the baseline: those the LiDAR also
-        saw a tree at (recently, before the freeze), then large ones clear of
-        every baseline tree as camera-only trees. Returns the new trees."""
         if not self.camera_area_alerts:
             return []
         admitted = []
@@ -733,7 +569,6 @@ class ParrotTreeTracker(Node):
         return admitted
 
     def _check_pine_patches(self):
-        """Publish a CANOPY LOST alert for each watched patch the camera now sees through."""
         for p in self._pine_patches:
             if p['id'] in self._alerted_patches or not self._seen_through(p):
                 continue
@@ -746,8 +581,6 @@ class ParrotTreeTracker(Node):
             self.get_logger().info(text)
 
     def _update_seen(self, now):
-        """Average the canopy fraction per camera visit, for each baseline pine
-        (and each watched pine patch)."""
         sites = [t for t in self.baseline_trees if t.get('camera_pine') or t.get('site')]
         if self.camera_area_alerts:
             sites += self._pine_patches
@@ -770,7 +603,6 @@ class ParrotTreeTracker(Node):
                 v['t'] = now
 
     def _colour_spires(self, chm, scanned, detections):
-        """Pine tips the height detector missed, from the CHM and camera colour."""
         if self.species_mean is None:
             return []
         k = max(3, int(round(self.colour_spire_window / self.res)) | 1)
@@ -798,9 +630,6 @@ class ParrotTreeTracker(Node):
         return added
 
     def _top_fell(self, tree) -> bool:
-        """The height part of the LOST rule: the disc max fell >= lost_top_drop
-        with >= lost_top_frac of the top cells down, or the disc mean fell
-        >= lost_mean_drop with >= lost_mean_frac of them down."""
         frac = self._top_drop(tree, 'frac') if (self.lost_top_frac > 0
                                                  or self.lost_mean_drop > 0) else 1.0
         top = ((self.lost_top_drop <= 0
@@ -813,11 +642,6 @@ class ParrotTreeTracker(Node):
                 and self._top_drop(tree, 'mean') >= self.lost_mean_drop - 1e-6)
 
     def _site_dropped(self, site) -> bool:
-        """The height map agrees with the camera: a patch's disc mean fell
-        >= area_mean_drop (area_radius); a baseline pine's top fell
-        >= lost_top_drop (disc max, seen_radius) or its disc mean fell
-        >= area_mean_drop. The mean matters because a neighbour's branch tip
-        can hold the max for minutes after the pine is gone."""
         if 'r' in site and self.area_mean_drop > 0:
             return (self._top_drop(site, mode='mean', radius=site['r'])
                     >= self.area_mean_drop - 1e-6)
@@ -848,16 +672,7 @@ class ParrotTreeTracker(Node):
                 f'survey loop {self.loop_counter.loops}/{self.freeze_min_loops} completed')
 
 
-
     def _terrain_ground_offset(self) -> float:
-        """Estimate the additive height offset of the terrain cloud.
-
-        The depth camera's downward tilt means the cloud's ground is not at
-        exactly 0 m (in practice 0.3-5 m). Where the canopy map shows known
-        ground cells (< 1 m), the terrain heights at those cells measure the
-        offset directly. Fall back to a low percentile of all terrain heights
-        when there is no map/terrain overlap yet.
-        """
         seen = self.terrain_hits > 0
         if not np.any(seen):
             return 0.0
@@ -878,20 +693,10 @@ class ParrotTreeTracker(Node):
         return float(np.percentile(heights, 10.0))
 
     def _fused_chm(self):
-        """Fuse the canopy map and terrain cloud into (chm, scanned).
-
-        The canopy map is height above ground (ground about 0 m), so it is
-        the primary source. The terrain cloud fills cells the map has
-        not scanned, after subtracting its measured ground offset.
-        """
         fused = np.zeros((self.dim_x, self.dim_y), dtype=np.float32)
         scanned = np.zeros((self.dim_x, self.dim_y), dtype=bool)
 
-
         if self.canopy_data is not None and self.canopy_res is not None:
-
-
-
             fx = self.origin_x + (np.arange(self.dim_x) + 0.5) * self.res
             fy = self.origin_y + (np.arange(self.dim_y) + 0.5) * self.res
             cols = np.floor((fx - self.canopy_ox) / self.canopy_res).astype(np.int64)
@@ -902,15 +707,11 @@ class ParrotTreeTracker(Node):
             ix = np.nonzero(ok_x)[0]
             iy = np.nonzero(ok_y)[0]
             if len(ix) and len(iy):
-
                 sampled = self.canopy_data[np.ix_(rows[iy], cols[ix])].T
                 seen = sampled >= 0
                 block = np.where(seen, sampled / self.height_scale, 0.0)
                 fused[np.ix_(ix, iy)] = block
                 scanned[np.ix_(ix, iy)] = seen
-
-
-
 
         terrain_seen = self.terrain_hits >= self.terrain_min_hits
         if self.terrain_fill and np.any(terrain_seen):
@@ -921,11 +722,7 @@ class ParrotTreeTracker(Node):
         return fused, scanned
 
 
-
     def _candidate_det(self, cand):
-        """The detection a freeze candidate enters the baseline with: its
-        latest one, or with baseline_mean_position its position averaged
-        over its last mean_position_hits hits."""
         det = cand[5]
         if not self.baseline_mean_position or len(cand[6]) < 2:
             return det
@@ -934,8 +731,6 @@ class ParrotTreeTracker(Node):
                                    y=float(np.mean(ys)))
 
     def _trim_candidate(self, cand, now_s):
-        """Keep only the admission window: the last admit_window ticks, or
-        with admit_window_s the ticks of the last admit_window_s seconds."""
         if self.admit_window_s > 0:
             start = next((k for k, t in enumerate(cand[7])
                           if now_s - t <= self.admit_window_s), len(cand[7]))
@@ -945,8 +740,6 @@ class ParrotTreeTracker(Node):
         cand[7] = cand[7][start:]
 
     def _keep_candidate(self, cand) -> bool:
-        """Drop a candidate after candidate_max_misses misses in a row, or,
-        with admit_window_s, once it has no hit left in the window."""
         if self.admit_window_s > 0:
             return any(cand[2])
         return cand[4] < self.candidate_max_misses
@@ -959,13 +752,6 @@ class ParrotTreeTracker(Node):
                 or hits >= self.admit_fraction * len(cand[2]))
 
     def _neighborhood_observed_fraction(self, det, scanned) -> float:
-        """Gap-filled, crown-circle observed fraction (not raw hits).
-
-        Thin stripes of missing LiDAR returns inside a flown-over crown are
-        scan gaps, not unobserved ground, so the hit mask is morphologically
-        closed first (same idea as the CHM pit fill). The check answers
-        "did the drone fly over this crown?", not "did every cell return?".
-        """
         r_px = max(1, int(round(det.radius_m / self.res)))
         ix = int((det.x - self.origin_x) / self.res)
         iy = int((det.y - self.origin_y) / self.res)
@@ -974,12 +760,8 @@ class ParrotTreeTracker(Node):
         window = scanned[x0:x1, y0:y1]
         if window.size == 0:
             return 0.0
-
         rows, cols = np.mgrid[0:window.shape[0], 0:window.shape[1]]
         circle = (rows - (ix - x0)) ** 2 + (cols - (iy - y0)) ** 2 <= r_px ** 2
-
-
-
         iterations = max(1, int(self.itd_params.mask_close_iterations))
         padded = np.pad(window, iterations, mode='edge')
         closed = ndimage.binary_closing(
@@ -990,7 +772,6 @@ class ParrotTreeTracker(Node):
         return float(window[circle].mean()) if np.any(circle) else 0.0
 
     def _crown_coverage_detail(self, det, scanned):
-        """Position, radius (m and cells), cells checked/observed, fraction."""
         r_px = max(1, int(round(det.radius_m / self.res)))
         ix = int((det.x - self.origin_x) / self.res)
         iy = int((det.y - self.origin_y) / self.res)
@@ -1004,18 +785,12 @@ class ParrotTreeTracker(Node):
             'x': det.x, 'y': det.y,
             'radius_m': det.radius_m,
             'radius_cells': r_px,
-
-
             'checked': int(circle.sum()),
             'observed': int(np.count_nonzero(window[circle])),
             'fraction': gap_fraction,
         }
 
     def _freeze_baseline(self, detections, scanned=None, chm=None):
-
-
-
-
         eligible = [
             d for d in detections
             if d.area_m2 >= self.min_gain_area_m2
@@ -1155,20 +930,7 @@ class ParrotTreeTracker(Node):
         return response
 
     def _match_baseline(self, detections):
-        """Optimal one-to-one matching of detections to baseline IDs.
-
-        The association radius is adaptive per tree:
-        ``min(0.4 * nearest_neighbour_distance, 1.5)`` m, so two trees 1.4 m
-        apart can never swap IDs between passes. The assignment minimises
-        total distance over all pairs (Hungarian algorithm), which is the
-        correct one-to-one objective, unlike greedy nearest-neighbour.
-
-        Returns ``(matched_ids, unmatched_base_indices)`` where matched_ids
-        maps a detection index to its stable baseline ID (or None for new
-        trees).
-        """
         ids = [None] * len(detections)
-
         tracked = [i for i, t in enumerate(self.baseline_trees) if not t.get('camera_only')]
         camera_only = [i for i, t in enumerate(self.baseline_trees) if t.get('camera_only')]
         if not tracked or not detections:
@@ -1183,7 +945,6 @@ class ParrotTreeTracker(Node):
         np.fill_diagonal(d_bb, np.inf)
         nearest = d_bb.min(axis=1)
         radius = np.minimum(0.4 * nearest, 1.5)
-
         radius = np.where(np.isinf(nearest), self.track_radius, radius)
 
         cost = np.hypot(
@@ -1202,7 +963,6 @@ class ParrotTreeTracker(Node):
         return ids, sorted(unmatched + camera_only)
 
     def _containing_crown(self, det):
-        """Return the baseline tree whose crown contains det, else None."""
         best, best_d = None, float('inf')
         for tree in self.baseline_trees:
             if tree['id'] in self._alerted_lost_ids:
@@ -1213,21 +973,15 @@ class ParrotTreeTracker(Node):
         return best
 
     def _lost_cells_near(self, tree, radius) -> int:
-        """Count change-map lost cells within radius of the tree."""
         n = self._change_cells_near(self.change_lost, tree, radius)
         if self.lost_drop_evidence:
             n += self._change_cells_near(self.change_dropped, tree, radius)
         return n
 
     def _gained_cells_near(self, tree, radius) -> int:
-        """Count change-map new-canopy cells within radius of the tree."""
         return self._change_cells_near(self.change_gained, tree, radius)
 
     def _top_drop(self, tree, mode: str = 'max', radius=None) -> float:
-        """visibility.top_drop within `radius` (default lost_top_radius) of
-        the tree: 'max' = baseline minus current disc max (m); 'frac' =
-        fraction of the freeze-time top cells that fell >= 0.6 m. 0 if
-        unknown."""
         if self.baseline_chm is None or self._current_chm is None:
             return 0.0
         return top_drop(self.baseline_chm, self._current_chm, self.res,
@@ -1245,7 +999,6 @@ class ParrotTreeTracker(Node):
         wy = self.change_oy + (rows + 0.5) * self.change_res
         close = (wx - tree['x']) ** 2 + (wy - tree['y']) ** 2 <= radius ** 2
         return int(np.count_nonzero(close))
-
 
 
     def publish_status(self):
@@ -1266,8 +1019,6 @@ class ParrotTreeTracker(Node):
             det_chm, scanned, self.itd_params, self.origin_x, self.origin_y,
             return_debug=True)
 
-
-
         detections = [
             d for d in detections
             if self.survey_x_min <= d.x <= self.survey_x_max
@@ -1278,10 +1029,8 @@ class ParrotTreeTracker(Node):
         if not self.baseline_frozen:
             self._recent_dets.append(list(detections))
 
-
         if not self.baseline_frozen:
             covered = int(np.count_nonzero(scanned))
-
             if self.coverage_pct - self._last_cov < self.plateau_delta:
                 self._cov_stable_ticks += 1
             else:
@@ -1292,12 +1041,9 @@ class ParrotTreeTracker(Node):
                 self._plateau_reached = True
                 self._plateau_time = self.get_clock().now().nanoseconds / 1e9
                 if self.reset_candidates_at_plateau:
-
                     self._freeze_candidates = []
             if self._plateau_reached:
                 self._ticks_since_plateau += 1
-
-
 
             det_pos = np.array([[d.x, d.y] for d in detections])
             if len(det_pos) > 1:
@@ -1310,8 +1056,6 @@ class ParrotTreeTracker(Node):
             else:
                 radii = np.full(len(det_pos), self.track_radius)
 
-
-
             now_s = self.get_clock().now().nanoseconds / 1e9
             seen = [False] * len(self._freeze_candidates)
             for det, radius in zip(detections, radii):
@@ -1321,8 +1065,6 @@ class ParrotTreeTracker(Node):
                     if d <= cand[3] and d < best_d:
                         best_idx, best_d = idx, d
                 if best_idx is None:
-
-
                     cand = [det.x, det.y, [1], float(radius), 0, det,
                             [(det.x, det.y)], [now_s]]
                     self._freeze_candidates.append(cand)
@@ -1350,8 +1092,6 @@ class ParrotTreeTracker(Node):
                     kept.append(cand)
             self._freeze_candidates = kept
 
-
-
             self._pre_freeze_ticks += 1
             if self._pre_freeze_ticks % 20 == 0 and \
                     (self._disp_pre or self._disp_post):
@@ -1364,16 +1104,10 @@ class ParrotTreeTracker(Node):
                             f'max={a.max():.2f}m p95={np.percentile(a, 95):.2f}m '
                             f'(n={len(a)})')
 
-
-
-
             stable_dets = [
                 self._candidate_det(cand) for cand in self._freeze_candidates
                 if self._candidate_confirmed(cand)]
             confirmed = len(stable_dets)
-
-
-
             pending = len(self._freeze_candidates) - confirmed
             waiting_for_pending = (
                 pending > 0
@@ -1401,8 +1135,6 @@ class ParrotTreeTracker(Node):
                     self._publish_positions(detections)
                     return
             else:
-
-
                 self._publish_positions(detections)
                 return
 
@@ -1415,9 +1147,6 @@ class ParrotTreeTracker(Node):
             self._update_seen(self.get_clock().now().nanoseconds / 1e9)
             if self.camera_area_alerts:
                 self._check_pine_patches()
-
-
-
 
         self._tick += 1
         if self._tick % 5 == 0:
@@ -1432,13 +1161,9 @@ class ParrotTreeTracker(Node):
                 f'rejected (no new-canopy evidence): '
                 f'{self._gains_rejected_no_evidence}')
 
-
         seen_ids = {tid for tid in matched_ids if tid is not None}
         for tid in seen_ids:
             self._unmatched_streaks.pop(tid, None)
-
-
-
 
         for di, tid in enumerate(matched_ids):
             if tid is not None:
@@ -1446,8 +1171,6 @@ class ParrotTreeTracker(Node):
             det = detections[di]
             if det.area_m2 < self.min_gain_area_m2:
                 continue
-
-
             slot = None
             for idx, (px, py, count) in enumerate(self._pending_gains):
                 if math.hypot(det.x - px, det.y - py) <= self.track_radius:
@@ -1465,8 +1188,6 @@ class ParrotTreeTracker(Node):
             if self._pending_gains[slot][2] < self.gain_stable_ticks:
                 continue
             self._pending_gains.pop(slot)
-
-
             host = self._containing_crown(det)
             if host is not None:
                 self._gains_rejected_in_crown += 1
@@ -1477,9 +1198,6 @@ class ParrotTreeTracker(Node):
                     f'r={host["radius_m"]:.1f}m',
                     throttle_duration_sec=10.0)
                 continue
-
-
-
             cell_ix = int((det.x - self.origin_x) / self.res)
             cell_iy = int((det.y - self.origin_y) / self.res)
             if self.baseline_scanned is not None:
@@ -1516,10 +1234,6 @@ class ParrotTreeTracker(Node):
             self._publish_event('GAINED', new_id, det.x, det.y, det.area_m2)
         self._prev_dets = [(d.x, d.y) for d in detections]
 
-
-
-
-
         for bi in unmatched:
             tree = self.baseline_trees[bi]
             if tree['id'] in self._alerted_lost_ids:
@@ -1528,8 +1242,6 @@ class ParrotTreeTracker(Node):
             height_evidence = (not tree.get('camera_only')
                                and self._lost_cells_near(tree, radius) >= self.lost_evidence_cells
                                and self._top_fell(tree))
-
-
             camera_evidence = (
                 self.seen_lost and self._seen_through(tree)
                 and self._site_dropped(tree.get('site') or tree))
@@ -1585,8 +1297,6 @@ class ParrotTreeTracker(Node):
         return tree.get('top', tree.get('height', 0.0)) >= self.merge_min_height
 
     def _has_standing_host(self, tree) -> bool:
-        """A non-pine crown within merge_max_dist, at least 1 / merge_hold_ratio
-        times this one's area, that has not gone LOST."""
         if self.merge_hold_s <= self.merge_window_s or not self._is_oak(tree):
             return False
         return any(
@@ -1597,8 +1307,6 @@ class ParrotTreeTracker(Node):
             for other in self.baseline_trees)
 
     def _merge_host(self, tree, when):
-        """A larger oak crown that went LOST near this one at about the same
-        time, or None."""
         if not self._is_oak(tree):
             return None
         reported = {id(o) for _, o in self._reported_lost}
@@ -1617,7 +1325,6 @@ class ParrotTreeTracker(Node):
         return None
 
     def _flush_pending_lost(self, now):
-        """Publish (or merge) the held LOSTs whose window has passed, largest first."""
         due = [e for e in self._pending_lost
                if now - e[0] >= e[1].get('hold', self.merge_window_s)]
         if not due:
@@ -1635,7 +1342,6 @@ class ParrotTreeTracker(Node):
                                     'x': tree['x'], 'y': tree['y'], 'dist': round(d, 1)})
         self._pending_lost = [e for e in self._pending_lost
                               if now - e[0] < e[1].get('hold', self.merge_window_s)]
-
 
 
     def _publish_event(self, event_type, tree_id, x, y, area_m2):
@@ -1687,14 +1393,11 @@ class ParrotTreeTracker(Node):
 
     @staticmethod
     def _source(tree) -> str:
-        """'lidar', 'camera' (camera-only pine) or 'lidar+camera' (a pine
-        patch the LiDAR also saw, admitted at the freeze)."""
         if tree.get('camera_only'):
             return 'camera'
         return 'lidar+camera' if 'hits' in tree else 'lidar'
 
     def _species(self, tree):
-        """'pine' / 'oak' from the camera colour at the freeze, else None."""
         if tree.get('camera_pine') or tree.get('site'):
             return 'pine'
         colour = tree.get('colour')

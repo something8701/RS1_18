@@ -1,17 +1,8 @@
 #!/usr/bin/env bash
-# One removal test recorded for the showcase.
-
-
-
-
-
-
-
+# run_showcase_recording.sh: OUT_DIR [extra launch args]: one removal test, fully recorded for showing: rosbag (incl
 OUT=$(realpath -m "$1"); shift
 WORLD=${WORLD:-dense_forest}; SPEED=${SPEED:-10}
 mkdir -p "$OUT"; L=$OUT/launch.log
-
-
 until ! ps -eo args | grep -q "^bash .*tools/eval/stop_sim.sh"; do sleep 1; done
 cd ~/rs1_18_ws && export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-7} ROS_LOCALHOST_ONLY=1 ROS_LOG_DIR=$OUT/ros DISPLAY=:1
 source /opt/ros/humble/setup.bash && source install/setup.bash

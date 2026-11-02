@@ -1,25 +1,5 @@
 #!/usr/bin/env python3
-# Replays a recorded test through the real mapper and tracker, no sim needed.
-
-"""Replay a recorded removal test through the real mapper + tracker offline.
-
-The bag's raw ``/parrot1/scan`` and ``/parrot1/odometry`` are fed to the
-real ``ScanMapper`` and ``ParrotTreeTracker`` classes on bag time, with no
-simulator and no DDS. If the bag has the drone camera (RGB + depth),
-``CameraSpeciesMapper`` runs too. Every publish period the mapper's outputs
-go straight to the tracker's callbacks, like the live topics. The trees were
-already cut in the recording, so the result is scored with the same
-``score_removal`` and visibility tiers as the live ``removal_test``.
-
-    ros2 run deforestation_monitoring offline_replay \\
-        --bag ~/rs1_18_ws/bags/removal33 --world dense_forest \\
-        --log ~/rs1_18_ws/eval/logs/removal33.log \\
-        [--min-loops 2] [--set tracker.lost_evidence_cells=8]
-
-``--log`` gives the cut time and cut list; recordings flown with the
-two-loop baseline need ``--min-loops 2``.
-"""
-
+# offline_replay.py: Replay a recorded removal test through the real mapper + tracker offline
 from __future__ import annotations
 
 import argparse
@@ -33,7 +13,6 @@ from typing import Dict, List, Optional
 
 import numpy as np
 import yaml
-
 
 MAPPER_PARAMS = {
     'resolution': 0.25, 'map_size_x': 80.0, 'map_size_y': 80.0,
@@ -52,8 +31,6 @@ TRACKER_PARAMS = {
     'publish_rate': 1.0, 'seen_lost': True, 'baseline_mean_chm': True,
     'merge_lost_crowns': True, 'camera_area_alerts': True, 'area_attach': True, 'freeze_median_ticks': 30, 'freeze_median_radius': 2.0, 'freeze_median_exclusive': True, 'merge_hold_s': 240.0, 'merge_after_ratio': 0.6,
 }
-
-
 TRACKER_BOX = {'dense_forest': (37.0, 7.0)}
 TRACKER_WORLD: Dict[str, Dict] = {}
 BOX = {'dense_forest': 30.0, 'sparse_trees': 15.0, 'cluster_test': 10.0,
@@ -61,7 +38,6 @@ BOX = {'dense_forest': 30.0, 'sparse_trees': 15.0, 'cluster_test': 10.0,
 
 
 class _Sink:
-    """Stand-in publisher: records messages and forwards them."""
 
     def __init__(self, forward=None, keep=False):
         self.forward, self.keep, self.msgs, self.last = forward, keep, [], None
@@ -84,7 +60,6 @@ def _coerce(v: str):
 
 
 def removal_time_from_log(path: str) -> Optional[float]:
-    """Epoch of the ``[test] removed N:`` line in a launch log (.gz is fine)."""
     pat = re.compile(r'\[(\d+\.\d+)\] \[removal_test\]: \[test\] removed \d+')
     opener = gzip.open if path.endswith('.gz') else open
     with opener(path, 'rt', errors='replace') as fh:
@@ -96,8 +71,6 @@ def removal_time_from_log(path: str) -> Optional[float]:
 
 
 def removed_names_from_log(path: str) -> List[str]:
-    """Tree names of the ``[test] removed N: a, b`` line (the cut that was
-    really made), or [] if the log has none."""
     pat = re.compile(r'\[test\] removed \d+: (.*)$')
     opener = gzip.open if path.endswith('.gz') else open
     with opener(path, 'rt', errors='replace') as fh:
@@ -174,7 +147,6 @@ def replay(bag: str, world: str, t_removed: Optional[float],
         for n in (mapper, tracker, camera):
             set_logger_level(n.get_logger().name, LoggingSeverity.WARN)
 
-
     canopy_events: List = []
     sink_map = _Sink(tracker.canopy_cb)
     mapper.canopy_pub = sink_map
@@ -208,9 +180,6 @@ def replay(bag: str, world: str, t_removed: Optional[float],
     camera.seen_pub = _Sink(tracker.seen_recent_cb)
     frames: Dict[tuple, Dict] = {}
 
-
-
-
     gate_log: Dict[int, List] = {}
     freeze_map: List = [None]
     freeze_ring: List = []
@@ -220,7 +189,6 @@ def replay(bag: str, world: str, t_removed: Optional[float],
     cache: Dict = {}
 
     def features(name, mask):
-
         key = (name, now_s[0])
         if cache.get(name, (None,))[0] != key:
             m = mask.astype(np.int16)
@@ -257,8 +225,6 @@ def replay(bag: str, world: str, t_removed: Optional[float],
             both = cache['bothmask'][1]
         g = metrics('ground', ground, tree, radius)
         b = metrics('both', both, tree, radius)
-
-
         tops = []
         if freeze_map[0] is not None and sink_map.last is not None:
             key = ('now', now_s[0])
@@ -279,7 +245,6 @@ def replay(bag: str, world: str, t_removed: Optional[float],
                 tree['x'], tree['y'], 1.0, 'frac'), 2))
         else:
             tops = [0.0, 0.0, 0.0, 0.0, 0.0]
-
         near_det = 99.0
         if pos_sink.last is not None:
             key = ('pos', now_s[0])
@@ -316,8 +281,6 @@ def replay(bag: str, world: str, t_removed: Optional[float],
     while reader.has_next():
         topic, data, stamp = reader.read_next()
         if topic in camera_topics:
-
-
             msg = deserialize_message(data, Image)
             key = (msg.header.stamp.sec, msg.header.stamp.nanosec)
             pair = frames.setdefault(key, {})
@@ -327,7 +290,6 @@ def replay(bag: str, world: str, t_removed: Optional[float],
                 del frames[key]
             continue
         if topic == '/survey_status':
-
             from std_msgs.msg import String as _String
             status = deserialize_message(data, _String)
             if mapper.baseline_min_loops > 0:
@@ -395,7 +357,6 @@ def replay(bag: str, world: str, t_removed: Optional[float],
            'quality': baseline_quality(truth, baseline, box_t)}
     if t_removed is None:
         return out
-
     if names:
         removed = [t for t in truth if t[0] in names]
     else:
@@ -425,7 +386,6 @@ def replay(bag: str, world: str, t_removed: Optional[float],
              'why': 'event before any tree was removed'})
     result['false_events'] = len(result['false_event_list'])
     result['passed'] = result['passed'] and not before
-
     removed_ids = {t['baseline_id'] for t in result['trees']
                    if t.get('baseline_id') is not None}
     gate = {}
@@ -487,8 +447,6 @@ def main(argv=None) -> int:
     names = [n for n in a.trees.split(',') if n]
     if a.log:
         t_removed = removal_time_from_log(a.log)
-
-
         names = names or removed_names_from_log(a.log)
     if a.report_json:
         t_removed = json.load(open(a.report_json)).get('t_removed_epoch')

@@ -1,5 +1,4 @@
-# Digs into why oaks get missed.
-
+# oak_miss_causes.py: Why the detector misses canopy oaks in the dense forest (developer analysis)
 import os
 import math, collections
 import numpy as np, yaml
@@ -7,14 +6,14 @@ from scipy import ndimage
 from concurrent.futures import ProcessPoolExecutor
 import deforestation_monitoring.tree_detection as T
 from deforestation_monitoring.visibility import classify_tree, removal_tier
-R = os.path.expanduser('~/rs1_18_ws/src/RS1_18/')
+R = '/home/alig/rs1_18_ws/src/RS1_18/'
 RES, O = 0.25, -40.0
 truth = T.parse_tree_truth(R + '41068_ignition_bringup/worlds/dense_forest.sdf')
 full = [t for t in truth if abs(t[1]) <= 30 and abs(t[2]) <= 30]
 base = yaml.safe_load(open(R + 'deforestation_monitoring/config/tree_detection_params.yaml'))['/**']['ros__parameters']
 frames = []
 for f in ('dense_survey_None_8', 'removal4_270.0_8', 'removal6_270.0_8', 'removal8_270.0_8'):
-    frames += list(np.load(os.path.expanduser(f'~/rs1_18_ws/bags/.map_cache/{f}.npz'))['maps'])
+    frames += list(np.load(f'/home/alig/rs1_18_ws/bags/.map_cache/{f}.npz')['maps'])
 cell = lambda x, y: np.array([int((x - O) / RES), int((y - O) / RES)])
 def run(g):
     p = T.DetectionParams.from_dict(base); p.chm_resolution = RES
@@ -29,7 +28,6 @@ def run(g):
     for s in np.unique(rpx):
         cand |= (rpx == s) & (h == ndimage.maximum_filter(h, size=int(2*s+1), mode='constant'))
     cand = np.argwhere(cand & canopy)
-
     order = np.argsort(-h[cand[:, 0], cand[:, 1]]); nms = []
     for i in cand[order]:
         if all(math.hypot(i[0]-k[0], i[1]-k[1]) >= p.min_sep / RES for k in nms): nms.append(i)
@@ -42,7 +40,6 @@ def run(g):
         if removal_tier((n, x, y), classify_tree(g, RES, (O, O), (n, x, y))[0], truth) != 'canopy': continue
         c = cell(x, y)
         d = min(dets, key=lambda q: math.hypot(q.x - x, q.y - y)); dd = math.hypot(d.x - x, d.y - y)
-
         other = min((math.hypot(d.x - t[1], d.y - t[2]), t[0]) for t in full if t[0] != n)
         if dd <= 2.0 and dd <= other[0]: out.append((n, 'ok')); continue
         near = lambda arr, r: [m for m in arr if math.hypot(m[0]-c[0], m[1]-c[1]) * RES <= r]

@@ -1,28 +1,5 @@
 #!/usr/bin/env python3
-# Starter node for students: a tiny map, image and Nav2 autonomy loop.
-
-"""Very small map/image/Nav2 autonomy example.
-
-This node is intended as starter code for students. It deliberately keeps the
-"autonomy" simple so the ROS structure is easy to follow:
-
-  1. Read the current SLAM/Nav2 map (nav_msgs/OccupancyGrid).
-  2. Read the latest camera image and compute one cheap brightness score.
-  3. Look up the robot pose with TF.
-  4. Pick a random free-space waypoint from the map.
-  5. Send the waypoint to Nav2's NavigateToPose action server.
-  6. Wait for the result, then choose another waypoint.
-
-The same script works for /husky1 and /parrot1 when launched in the matching
-namespace. Topic and action names are intentionally relative. For example, the
-relative topic ``map`` becomes ``/husky1/map`` when the node is launched in the
-``husky1`` namespace, and ``/parrot1/map`` when launched in ``parrot1``.
-
-This is not meant to be a good exploration algorithm. It is meant to be a small,
-readable template showing how perception, mapping, TF, and Nav2 can be connected
-inside one ROS node.
-"""
-
+# basic_autonomy_demo.py: Very small map/image/Nav2 autonomy example
 import math
 import random
 import time
@@ -43,24 +20,14 @@ import tf2_ros
 
 
 class BasicAutonomyDemo(Node):
-    """A tiny map-aware random-walk autonomy example."""
 
     def __init__(self):
         super().__init__('basic_autonomy_demo')
-
-
-
-
-
-
 
         self.declare_parameter('robot_name', '')
         self.declare_parameter('map_topic', 'map')
         self.declare_parameter('image_topic', 'camera/image')
         self.declare_parameter('navigate_action', 'navigate_to_pose')
-
-
-
 
         self.declare_parameter('close_goal_min_distance', 4.0)
         self.declare_parameter('close_goal_max_distance', 7.0)
@@ -68,37 +35,25 @@ class BasicAutonomyDemo(Node):
         self.declare_parameter('far_goal_max_distance', 15.0)
         self.declare_parameter('bright_image_threshold', 0.25)
 
-
-
-
         self.declare_parameter('free_cell_threshold', 20)
         self.declare_parameter('occupied_margin_cells', 4)
 
-
-
         self.declare_parameter('goal_pause_seconds', 1.0)
-
-
-
 
         self.robot_name = self._resolve_robot_name()
         self.map_frame = f'{self.robot_name}_map'
         self.base_frame = f'{self.robot_name}_base_link'
-
 
         self.map_msg: Optional[OccupancyGrid] = None
         self.map_array: Optional[np.ndarray] = None
         self.latest_brightness: Optional[float] = None
         self.last_image_process_time = 0.0
 
-
         self.goal_active = False
         self.goal_handle = None
         self.next_goal_time = 0.0
         self.last_feedback_log_time = 0.0
         self.last_waiting_log_time = 0.0
-
-
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
@@ -121,8 +76,6 @@ class BasicAutonomyDemo(Node):
             self.get_parameter('navigate_action').value,
         )
 
-
-
         self.timer = self.create_timer(1.0, self._tick)
 
         self.get_logger().info(
@@ -131,11 +84,6 @@ class BasicAutonomyDemo(Node):
         )
 
     def _resolve_robot_name(self) -> str:
-        """Return the robot name used to construct frame IDs.
-
-        The launch file passes robot_name explicitly. If students remove that
-        parameter, the node can still infer the robot name from its namespace.
-        """
         configured_name = str(self.get_parameter('robot_name').value).strip().strip('/')
         if configured_name:
             return configured_name
@@ -144,27 +92,16 @@ class BasicAutonomyDemo(Node):
         if namespace:
             return namespace
 
-
-
         return 'husky1'
 
     def _map_callback(self, msg: OccupancyGrid) -> None:
-        """Store the latest map as both a ROS message and a 2D NumPy array."""
         self.map_msg = msg
-
-
 
         self.map_array = np.asarray(msg.data, dtype=np.int16).reshape(
             (msg.info.height, msg.info.width)
         )
 
     def _image_callback(self, msg: Image) -> None:
-        """Compute a tiny image feature from the latest camera image.
-
-        The node receives camera images at the simulator's camera rate, but this
-        demo only processes at 1 Hz. That keeps the example lightweight and
-        avoids image processing slowing down navigation.
-        """
         now = time.monotonic()
         if now - self.last_image_process_time < 1.0:
             return
@@ -175,13 +112,6 @@ class BasicAutonomyDemo(Node):
             self.latest_brightness = brightness
 
     def _estimate_image_brightness(self, msg: Image) -> Optional[float]:
-        """Return a fast approximate image brightness between 0.0 and 1.0.
-
-        This deliberately avoids cv_bridge/OpenCV to keep dependencies minimal.
-        It samples only a subset of pixels, so the computation stays fast even if
-        the camera image is large. Students can replace this function with more
-        meaningful perception later.
-        """
         encoding = msg.encoding.lower()
         channels = None
         channel_order = None
@@ -209,8 +139,6 @@ class BasicAutonomyDemo(Node):
             self.get_logger().warn('Could not reshape image data. Brightness will not be updated.')
             return None
 
-
-
         stride = max(1, min(msg.width, msg.height) // 80)
 
         if channels == 1:
@@ -219,7 +147,6 @@ class BasicAutonomyDemo(Node):
 
         useful_cols = msg.width * channels
         sampled = rows[::stride, :useful_cols].reshape((-1, msg.width, channels))[:, ::stride, :]
-
 
         if channel_order.startswith('rgb'):
             rgb = sampled[..., :3]
@@ -231,14 +158,11 @@ class BasicAutonomyDemo(Node):
         return float(np.mean(rgb)) / 255.0
 
     def _tick(self) -> None:
-        """One step of the autonomy state machine."""
         if self.goal_active:
             return
 
         if time.monotonic() < self.next_goal_time:
             return
-
-
 
         if not self.nav_client.server_is_ready():
             if not self.nav_client.wait_for_server(timeout_sec=0.1):
@@ -262,14 +186,12 @@ class BasicAutonomyDemo(Node):
         self._send_goal(goal_xy)
 
     def _log_waiting(self, message: str) -> None:
-        """Log repeated waiting messages at low rate."""
         now = time.monotonic()
         if now - self.last_waiting_log_time > 5.0:
             self.last_waiting_log_time = now
             self.get_logger().info(message)
 
     def _lookup_robot_pose(self) -> Optional[Tuple[float, float, float]]:
-        """Look up the robot pose in the robot's map frame using TF."""
         try:
             transform = self.tf_buffer.lookup_transform(
                 self.map_frame,
@@ -287,18 +209,11 @@ class BasicAutonomyDemo(Node):
         return (translation.x, translation.y, yaw)
 
     def _choose_goal(self, robot_pose: Tuple[float, float, float]) -> Optional[Tuple[float, float, float]]:
-        """Choose the next random goal from known free space.
-
-        The only role of the image in this demo is to bias goal distance:
-        brighter images choose farther goals, darker images choose closer goals.
-        This is intentionally artificial but easy to replace.
-        """
         assert self.map_msg is not None
         assert self.map_array is not None
 
         brightness = self.latest_brightness
         if brightness is None:
-
             brightness = 0.5
 
         bright_threshold = float(self.get_parameter('bright_image_threshold').value)
@@ -313,10 +228,7 @@ class BasicAutonomyDemo(Node):
 
         robot_x, robot_y, _ = robot_pose
 
-
         result = self._sample_free_goal(robot_x, robot_y, min_distance, max_distance, max_tries=1500)
-
-
 
         if result is None:
             result = self._sample_free_goal(robot_x, robot_y, 1.0, max(max_distance, 8.0), max_tries=1500)
@@ -341,7 +253,6 @@ class BasicAutonomyDemo(Node):
         max_distance: float,
         max_tries: int,
     ) -> Optional[Tuple[float, float]]:
-        """Randomly sample map cells until a suitable free-space cell is found."""
         assert self.map_msg is not None
         assert self.map_array is not None
 
@@ -366,13 +277,10 @@ class BasicAutonomyDemo(Node):
         return None
 
     def _is_free_with_margin(self, ix: int, iy: int, margin: int) -> bool:
-        """Check that a candidate cell and nearby cells are known free space."""
         assert self.map_array is not None
         free_threshold = int(self.get_parameter('free_cell_threshold').value)
 
         window = self.map_array[iy - margin:iy + margin + 1, ix - margin:ix + margin + 1]
-
-
 
         if np.any(window < 0):
             return False
@@ -381,13 +289,10 @@ class BasicAutonomyDemo(Node):
         return True
 
     def _map_cell_to_world(self, ix: int, iy: int) -> Tuple[float, float]:
-        """Convert OccupancyGrid cell coordinates into map-frame metres."""
         assert self.map_msg is not None
         info = self.map_msg.info
         resolution = info.resolution
         origin = info.origin
-
-
 
         local_x = (ix + 0.5) * resolution
         local_y = (iy + 0.5) * resolution
@@ -398,8 +303,6 @@ class BasicAutonomyDemo(Node):
             origin.orientation.w,
         )
 
-
-
         cos_yaw = math.cos(origin_yaw)
         sin_yaw = math.sin(origin_yaw)
         world_x = origin.position.x + cos_yaw * local_x - sin_yaw * local_y
@@ -407,7 +310,6 @@ class BasicAutonomyDemo(Node):
         return (world_x, world_y)
 
     def _send_goal(self, goal_xy_yaw: Tuple[float, float, float]) -> None:
-        """Send one NavigateToPose action goal to Nav2."""
         x, y, yaw = goal_xy_yaw
 
         goal_msg = NavigateToPose.Goal()
@@ -427,10 +329,6 @@ class BasicAutonomyDemo(Node):
         self.last_feedback_log_time = 0.0
         self.get_logger().info(f'Sending Nav2 goal: ({x:.2f}, {y:.2f}) in frame {self.map_frame}.')
 
-
-
-
-
         send_future = self.nav_client.send_goal_async(
             goal_msg,
             feedback_callback=self._feedback_callback,
@@ -438,7 +336,6 @@ class BasicAutonomyDemo(Node):
         send_future.add_done_callback(self._goal_response_callback)
 
     def _goal_response_callback(self, future) -> None:
-        """Called when Nav2 accepts or rejects the goal request."""
         self.goal_handle = future.result()
         if not self.goal_handle.accepted:
             self.get_logger().warn('Nav2 goal was rejected.')
@@ -451,9 +348,6 @@ class BasicAutonomyDemo(Node):
         result_future.add_done_callback(self._result_callback)
 
     def _feedback_callback(self, feedback_msg) -> None:
-        """Called whenever Nav2 sends feedback while driving to the goal."""
-
-
         now = time.monotonic()
         if now - self.last_feedback_log_time < 5.0:
             return
@@ -465,7 +359,6 @@ class BasicAutonomyDemo(Node):
             self.get_logger().info(f'Nav2 feedback: distance remaining {distance:.2f} m.')
 
     def _result_callback(self, future) -> None:
-        """Called once Nav2 has finished, failed, or cancelled the goal."""
         wrapped_result = future.result()
         status = wrapped_result.status
         status_text = self._goal_status_to_text(status)
@@ -494,14 +387,12 @@ class BasicAutonomyDemo(Node):
 
     @staticmethod
     def _yaw_from_quaternion(x: float, y: float, z: float, w: float) -> float:
-        """Convert a quaternion into a 2D yaw angle in radians."""
         siny_cosp = 2.0 * (w * z + x * y)
         cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
         return math.atan2(siny_cosp, cosy_cosp)
 
     @staticmethod
     def _quaternion_from_yaw(yaw: float) -> Tuple[float, float, float, float]:
-        """Convert a 2D yaw angle into a quaternion tuple."""
         half_yaw = 0.5 * yaw
         return (0.0, 0.0, math.sin(half_yaw), math.cos(half_yaw))
 

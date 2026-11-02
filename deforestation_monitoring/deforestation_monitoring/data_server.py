@@ -1,21 +1,5 @@
 #!/usr/bin/env python3
-# The dashboard's brain: talks to ROS over rosbridge and serves the web page.
-
-"""
-Data Server: Connects to ROS via rosbridge websocket, stores all data,
-and serves a web dashboard. History survives a page refresh.
-
-Run as a standalone ROS 2 node via the launch system (it does not itself
-use rclpy; it talks to the graph through rosbridge at ws://localhost:9090).
-
-Subscribes to the live topic set used by the system:
-  /suspicious_areas, /inspection_reports, /mission_status, /survey_status,
-  /baseline_status, /drone_baseline_status, /evaluation_summary,
-  /canopy_change_events, /forest_change_events, change-marker arrays,
-  canopy + change occupancy grids, both robot odometries, the drone
-  lidar point cloud and both compressed camera streams.
-"""
-
+# data_server.py: Connects to ROS via rosbridge websocket, stores all data, and serves a web dashboard
 import json
 import time
 import threading
@@ -25,7 +9,6 @@ import struct
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
 import websocket
-
 
 
 store = {
@@ -72,35 +55,27 @@ store_lock = threading.Lock()
 
 
 def _parse_count(text):
-    """Extract an integer count from a 'label: N' status string."""
     try:
         return int(text.split(':')[1].strip().split()[0])
     except (IndexError, ValueError):
         return 0
 
 
-
 def rosbridge_thread():
-    """Connect to rosbridge websocket and subscribe to all relevant topics."""
     ws = None
     while True:
         try:
             ws = websocket.create_connection('ws://localhost:9090', timeout=30)
 
-
-
             subscriptions = {
-
                 '/suspicious_areas': 'deforestation_interfaces/SuspiciousArea',
                 '/inspection_reports': 'std_msgs/String',
                 '/mission_status': 'std_msgs/String',
                 '/survey_status': 'std_msgs/String',
-
                 '/baseline_status': 'std_msgs/String',
                 '/drone_baseline_status': 'std_msgs/String',
                 '/scan_coverage': 'std_msgs/String',
                 '/evaluation_summary': 'std_msgs/String',
-
                 '/tree_change_events': 'deforestation_interfaces/TreeChangeEvent',
                 '/tree_status': 'deforestation_interfaces/TreeStatus',
                 '/parrot_tree_change_events': 'deforestation_interfaces/TreeChangeEvent',
@@ -114,16 +89,15 @@ def rosbridge_thread():
                 '/suspicious_markers': 'visualization_msgs/MarkerArray',
                 '/tree_change_markers': 'visualization_msgs/MarkerArray',
                 '/canopy_change_markers': 'visualization_msgs/MarkerArray',
-
                 '/forest_canopy_map': 'nav_msgs/OccupancyGrid',
                 '/canopy_change_map': 'nav_msgs/OccupancyGrid',
                 '/forest_change_map': 'nav_msgs/OccupancyGrid',
-
                 '/parrot1/odometry': 'nav_msgs/Odometry',
                 '/husky1/odometry': 'nav_msgs/Odometry',
                 '/drone_lidar_points': 'sensor_msgs/PointCloud2',
                 '/parrot1/camera/compressed': 'sensor_msgs/CompressedImage',
                 '/husky1/camera/compressed': 'sensor_msgs/CompressedImage',
+                '/husky1/yolo/compressed': 'sensor_msgs/CompressedImage',
             }
             for topic, mtype in subscriptions.items():
                 ws.send(json.dumps({
@@ -134,8 +108,6 @@ def rosbridge_thread():
                 try:
                     msg = json.loads(ws.recv())
                 except websocket.WebSocketTimeoutException:
-
-
                     continue
                 if msg.get('op') != 'publish':
                     continue
@@ -144,7 +116,6 @@ def rosbridge_thread():
 
                 with store_lock:
                     if topic == '/suspicious_areas':
-
                         pos = data.get('position', {})
                         px = pos.get('x', 0)
                         py = pos.get('y', 0)
@@ -283,9 +254,6 @@ def rosbridge_thread():
                             store['change_events'] = store['change_events'][-50:]
 
                     elif topic == '/forest_change_events':
-
-
-
                         ev = store.setdefault('husky_change_events', [])
                         ev.append({'text': data.get('data', ''), 'time': time.time()})
                         if len(ev) > 50:
@@ -327,6 +295,13 @@ def rosbridge_thread():
                         except (ValueError, TypeError):
                             pass
 
+                    elif topic == '/husky1/yolo/compressed':
+                        try:
+                            store['husky_yolo'] = base64.b64decode(data.get('data', ''))
+                            store['husky_yolo_t'] = time.time()
+                        except (ValueError, TypeError):
+                            pass
+
         except Exception as e:
             if ws is not None:
                 try:
@@ -339,7 +314,6 @@ def rosbridge_thread():
 
 
 def _grid_summary(data):
-    """Extract the fields the dashboard needs from an OccupancyGrid dict."""
     return {
         'width': data.get('info', {}).get('width', 0),
         'height': data.get('info', {}).get('height', 0),
@@ -350,15 +324,10 @@ def _grid_summary(data):
     }
 
 
-
-
 def _find_dashboard():
-    """Locate the dashboard HTML file relative to the script or in standard ROS paths."""
-
     rel = os.path.join(os.path.dirname(__file__), '..', 'config', 'dashboard.html')
     if os.path.isfile(rel):
         return os.path.abspath(rel)
-
     try:
         from ament_index_python.packages import get_package_share_directory
         return os.path.join(
@@ -367,8 +336,7 @@ def _find_dashboard():
         )
     except ImportError:
         pass
-
-    for base in [os.path.expanduser('~/41068_ws/src')]:
+    for base in ['/home/alig/41068_ws/src', os.path.expanduser('~/41068_ws/src')]:
         p = os.path.join(base, 'deforestation_monitoring', 'config', 'dashboard.html')
         if os.path.isfile(p):
             return p
@@ -376,9 +344,8 @@ def _find_dashboard():
 
 
 HTML_PATH = _find_dashboard()
-
-PHOTO_DIRS = ['/tmp/deforestation_eval/waste_photos', '/tmp/deforestation_inspections']
-
+PHOTO_DIRS = ['/tmp/deforestation_eval/waste_photos', '/tmp/deforestation_inspections',
+              '/tmp/deforestation_eval/evidence_photos']
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -390,8 +357,6 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             with store_lock:
-
-
                 payload = {k: v for k, v in store.items()
                            if not isinstance(v, bytes)}
                 payload['uptime'] = time.time() - store['started']
@@ -403,13 +368,13 @@ class Handler(BaseHTTPRequestHandler):
         elif path == '/api/camera/drone':
             self._serve_cached_camera('drone_cam')
         elif path == '/api/camera/husky':
-            self._serve_cached_camera('husky_cam')
+            fresh = time.time() - store.get('husky_yolo_t', 0) < 3.0
+            self._serve_cached_camera('husky_yolo' if fresh else 'husky_cam')
         elif path.startswith('/api/photo/'):
             self._serve_photo(os.path.basename(path))
         elif path == '/api/photos':
             self._serve_photo_list()
         else:
-
             if HTML_PATH and os.path.isfile(HTML_PATH):
                 try:
                     with open(HTML_PATH, 'rb') as f:
@@ -429,7 +394,6 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(b'Dashboard not found. Check HTML_PATH in data_server.py')
 
     def _serve_photo(self, name):
-        """A Husky photo (waste find or site inspection), by file name only."""
         for folder in PHOTO_DIRS:
             f = os.path.join(folder, name)
             if name.lower().endswith(('.jpg', '.png')) and os.path.isfile(f):
@@ -446,7 +410,6 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def _serve_photo_list(self):
-        """Photos taken since this server started, newest first."""
         photos = []
         for folder in PHOTO_DIRS:
             try:
@@ -460,7 +423,8 @@ class Handler(BaseHTTPRequestHandler):
                 mtime = os.path.getmtime(f)
                 if mtime >= store['started']:
                     photos.append({'name': name, 'time': mtime,
-                                   'kind': 'waste' if 'waste' in folder else 'inspection'})
+                                   'kind': ('waste' if 'waste' in folder else
+                                            'evidence' if 'evidence' in folder else 'inspection')})
         photos.sort(key=lambda p: -p['time'])
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
@@ -468,7 +432,6 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(photos[:200]).encode())
 
     def _serve_cached_camera(self, key):
-        """Return the latest cached camera image."""
         with store_lock:
             img = store.get(key)
         if img and len(img) > 100:
@@ -487,7 +450,6 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def start_server():
-    """Start the HTTP server and rosbridge listener (blocking)."""
     if HTML_PATH:
         print(f'[server] Dashboard: {HTML_PATH}')
     else:
@@ -499,7 +461,6 @@ def start_server():
 
 
 def main(args=None):
-    """Entry point for ros2 run / launch. Starts the data server."""
     start_server()
 
 

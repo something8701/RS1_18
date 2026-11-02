@@ -1,30 +1,5 @@
 #!/usr/bin/env python3
-# The live acceptance test: cuts trees, dumps bags, scores everything against truth.
-
-"""Live tree-removal acceptance test.
-
-Scenario (run against a live simulation, see ``removal_test.launch.py``):
-
-  1. wait until the drone survey reaches ``min_coverage`` (default 90%) and
-     ``parrot_tree_tracker`` has frozen its individual-tree baseline;
-  2. delete ``n_trees`` trees from the Gazebo world (default 10, chosen
-     automatically: inside the survey box, well separated);
-  3. keep patrolling for ``settle_loops`` survey-loop completions;
-  4. score what the pipeline reported against the known removals:
-
-     * right:  a LOST event at a removed tree (true positive);
-     * missed: a removed tree with no LOST event (false negative), with a
-               diagnosis of why;
-     * wrong:  a LOST event at a tree that is still standing, any GAINED
-               event, or an area alert far from every cut (false positives).
-
-A markdown + JSON report is written to ``report_dir`` and the one-line
-verdict is published on ``/removal_test_result``. PASS = every removed tree
-found at its tier (see ``score_removal``) and zero false events.
-
-The scoring functions are pure so they are unit-tested offline.
-"""
-
+# removal_test.py: Live tree-removal acceptance test
 from __future__ import annotations
 
 import json
@@ -43,14 +18,8 @@ Tree = Tuple[str, float, float]
 Point2 = Tuple[float, float]
 
 
-
-
 def occluded_from_above(truth: Sequence[Tree],
                         radius: float = 7.0) -> set:
-    """Pines within ``radius`` of an oak trunk (possibly under its crown).
-
-    Optional, not used by default.
-    """
     oaks = [t for t in truth if t[0].startswith('oak')]
     return {t[0] for t in truth if t[0].startswith('pine') and any(
         math.hypot(t[1] - o[1], t[2] - o[2]) <= radius for o in oaks)}
@@ -66,12 +35,6 @@ def select_removal_targets(
     balanced: bool = False,
     canopy_only: bool = False,
 ) -> List[Tree]:
-    """Pick ``n`` trees inside ``box`` (x_min, x_max, y_min, y_max) shrunk
-    by ``margin``, most isolated first, at least ``min_separation`` apart so
-    each removal is scored on its own, skipping trees hidden under another
-    crown when ``visible_only``. ``canopy_only`` keeps only trees that are
-    canopy tier by geometry (``visibility.removal_tier``): oaks, and pines
-    with no oak trunk within ``CROWN_SHARE_RADIUS``. Deterministic."""
     from .visibility import CROWN_SHARE_RADIUS
     x0, x1, y0, y1 = box
     hidden = occluded_from_above(truth) if visible_only else set()
@@ -88,8 +51,6 @@ def select_removal_targets(
 
     ranked = sorted(inside, key=lambda t: (-nn(t), t[0]))
     if balanced:
-
-
         by_sp: Dict[str, List[Tree]] = {}
         for t in ranked:
             by_sp.setdefault(t[0].split('_')[0], []).append(t)
@@ -111,7 +72,6 @@ def select_removal_targets(
 
 
 def parse_canopy_events(text: str) -> List[Tuple[str, float, float]]:
-    """``/canopy_change_events`` strings -> [(LOST|NEW, x, y)]."""
     out = []
     for part in text.split(';'):
         m = re.search(r'(CANOPY LOST|NEW CANOPY).*near \(([-0-9.]+), ([-0-9.]+)\)',
@@ -148,43 +108,12 @@ def score_removal(
     unchanged_tol: float = 1.0,
     identity_radius: float = 2.0,
 ) -> Dict:
-    """Score tracker events against the known removals.
-
-    With ``tiers`` (``{name: {'class': visible|understory|unobserved,
-    'top_before': m, 'top_after': m}}`` from ``visibility.classify_tree`` on
-    the pre-removal canopy map):
-
-    * canopy trees (visible) need a tree-level LOST;
-    * understory trees pass with an area alert (``area_alerts``: scan_mapper
-      CANOPY LOST clusters / pattern_scanner CLEARING flags) within
-      ``area_radius``, or are "not observable" when the canopy over the trunk
-      dropped by no more than ``unchanged_tol`` (1.0 m, the noise of that
-      quantity over standing understory trunks);
-    * false events are strict for both: any LOST at a standing tree, any
-      GAINED, any area alert farther than ``false_area_radius`` from every
-      removed trunk.
-
-    Without ``tiers`` every tree is treated as canopy.
-
-    Identity matching (``identity_radius`` > 0): baseline trees are paired
-    one-to-one with SDF trunks (closest pairs first, within
-    ``identity_radius``). A LOST whose baseline tree is paired with a removed
-    trunk counts for that tree; one paired with a standing trunk is false,
-    even if it lies near a removed tree. (Dense oaks are detected about 1 m
-    off their trunk, so position alone would credit a neighbour's LOST.)
-    Events from unpaired baseline trees fall back to position.
-
-    ``baseline``: [(id, x, y)] frozen baseline trees.
-    ``events``: [{'type': 'LOST'|'GAINED', 'id', 'x', 'y', 't'}] with t =
-    seconds after the removal.
-    """
     base_pts = [(b[1], b[2]) for b in baseline]
     lost = [e for e in events if e['type'] == 'LOST']
     gained = [e for e in events if e['type'] == 'GAINED']
 
     removed_names = {r[0] for r in removed}
     rindex = {r[0]: i for i, r in enumerate(removed)}
-
 
     trunk_of: Dict[int, str] = {}
     base_of: Dict[str, Tuple[int, float]] = {}
@@ -282,8 +211,6 @@ def score_removal(
             why = 'duplicate / off-position LOST for a removed tree'
         elif paired is None and identity_radius > 0 and near in removed_names \
                 and td <= 5.5:
-
-
             why = (f'double count: baseline #{e["id"]} was a phantom crown '
                    f'(no trunk within {identity_radius:.0f} m) inside '
                    f'removed {near}\'s crown reach')
@@ -304,8 +231,6 @@ def score_removal(
             'nearest_dist': td, 'nearest_was_removed': False,
             'why': 'GAINED — nothing was added to the world',
         })
-
-
     seen: List[Point2] = []
     for a in area_alerts:
         if any(math.hypot(a[0] - b[0], a[1] - b[1]) < 1.0 for b in seen):
@@ -374,7 +299,6 @@ def baseline_quality(truth: Sequence[Tree],
                      baseline: Sequence[Tuple[int, float, float]],
                      box: Tuple[float, float, float, float],
                      radius: float = 1.0) -> Dict:
-    """Baseline vs SDF truth inside the survey box (one-to-one, greedy)."""
     x0, x1, y0, y1 = box
     t_in = [t for t in truth if x0 <= t[1] <= x1 and y0 <= t[2] <= y1]
     pairs = sorted(
@@ -393,11 +317,6 @@ def baseline_quality(truth: Sequence[Tree],
 
 def score_husky(bags: Sequence[Tuple[float, float]], sites: Sequence[Dict],
                 refined: Sequence[Dict], lost_ids: Sequence[int]) -> Dict:
-    """The Husky's part against the truth. Waste: a bag is found when a site
-    the Husky confirmed (status 1) is within 1.5 m, seen from the air when
-    only a drone site is; a site with no bag within 2 m is false. Ground
-    check of the drone's LOST trees of removed trees (``lost_ids``): cut
-    confirmed, contradicted (false LOST) or not checked; plus hidden trees."""
     out = {'bags': len(bags), 'found': 0, 'air_only': 0, 'missed': 0, 'false_sites': 0}
     for bx, by in bags:
         near = [s for s in sites if math.hypot(s['x'] - bx, s['y'] - by) <= 1.5]
@@ -491,8 +410,6 @@ def format_report(result: Dict, meta: Dict) -> str:
     return '\n'.join(lines) + '\n'
 
 
-
-
 def _cloud_xyz(cloud) -> np.ndarray:
     offs = {f.name: f.offset for f in cloud.fields}
     if not all(k in offs for k in 'xyz') or cloud.width == 0:
@@ -520,6 +437,9 @@ def main(args=None):
     from .tree_detection import parse_tree_truth
     from .simulate_tree_removal import remove_model
     from .waste import bag_sdf, bag_spot_near, spawn_sdf
+    from .logging_evidence import (log_sdf, log_spot_near, params_for, score_evidence,
+                                   stump_sdf)
+    from deforestation_interfaces.msg import EvidenceArray
     from geometry_msgs.msg import Pose, PoseArray
     from .visibility import classify_tree, disc_max, removal_tier
 
@@ -545,6 +465,7 @@ def main(args=None):
             p('max_wait_s', 2400.0)
             p('report_dir', '/tmp/deforestation_eval')
             p('waste', False)
+            p('evidence', False)
             p('wait_for_husky', False)
             p('husky_wait_s', 2400.0)
             g = lambda k: self.get_parameter(k).value
@@ -572,6 +493,9 @@ def main(args=None):
             self.max_wait = float(g('max_wait_s'))
             self.report_dir = g('report_dir')
             self.waste_on = bool(g('waste'))
+            self.evidence_on = bool(g('evidence'))
+            self.evidence: List[Dict] = []
+            self.evidence_items = []
             self.wait_husky = bool(g('wait_for_husky'))
             self.husky_wait = float(g('husky_wait_s'))
             self.husky_idle = False
@@ -629,6 +553,10 @@ def main(args=None):
             self.create_subscription(WasteSiteArray, '/waste_sites', lambda m: setattr(
                 self, 'waste_sites', [{'id': w.id, 'x': w.position.x, 'y': w.position.y,
                                        'status': w.status} for w in m.sites]), latched)
+            self.create_subscription(EvidenceArray, '/logging_evidence', lambda m: setattr(
+                self, 'evidence_items', [{'id': i.id, 'kind': i.kind, 'x': i.position.x,
+                                          'y': i.position.y, 'conf': round(i.confidence, 3),
+                                          'sightings': i.sightings} for i in m.items]), latched)
             self.create_subscription(RefinedTreeArray, '/refined_trees', lambda m: setattr(
                 self, 'refined', [{'id': t.id, 'status': t.status,
                                    'x': round(t.ground_position.x if t.id == 0 else t.drone_position.x, 2),
@@ -643,7 +571,6 @@ def main(args=None):
                 f'{len(self.targets)} targets: '
                 + ', '.join(f'{n}({x:.1f},{y:.1f})'
                             for n, x, y in self.targets))
-
 
         def _baseline_cb(self, msg):
             pts = _cloud_xyz(msg)
@@ -697,7 +624,6 @@ def main(args=None):
                     f'[test] survey loop {self.loops_after}/'
                     f'{self.settle_loops} completed after removal')
 
-
         def _tick(self):
             if self.done:
                 return
@@ -745,6 +671,8 @@ def main(args=None):
                 self.get_logger().warn(f'[test] model list failed: {exc}')
             if self.waste_on:
                 self._dump_waste()
+            if self.evidence_on:
+                self._leave_evidence()
             self.pre_map = self.map
             self.t_removed = time.time()
             self.state = 'MONITOR'
@@ -753,8 +681,6 @@ def main(args=None):
                 + ', '.join(n for n, _, _ in self.removed))
 
         def _dump_waste(self):
-            """A red garbage bag next to each cut tree (logging sites are
-            where dumping happens); positions go out on /waste_ground_truth."""
             poses = PoseArray()
             poses.header.frame_id = 'parrot1_odom'
             for name, x, y in self.removed:
@@ -777,6 +703,27 @@ def main(args=None):
                 f'[test] dumped {len(poses.poses)} waste bags: '
                 + ', '.join(f"{w['near']} ({w['x']:.1f},{w['y']:.1f})"
                             for w in self.waste if w['spawned']))
+
+        def _leave_evidence(self):
+            bags = [(w['x'], w['y']) for w in self.waste if w['near']]
+            for name, x, y in self.removed:
+                sp = params_for('stump', name)
+                todo = [('stump', f'stump_{name}', x, y, 0.0, stump_sdf(
+                    f'stump_{name}', x, y, 0.0, sp, collision=False))]
+                lp = params_for('log', name)
+                spot = log_spot_near((name, x, y), self.truth, lp['length'], avoid=bags)
+                if spot is not None:
+                    todo.append(('log', f'log_{name}', *spot,
+                                 log_sdf(f'log_{name}', *spot, lp, collision=False)))
+                for kind, model, ox, oy, yaw, sdf in todo:
+                    ok, out = spawn_sdf(self.world, model, sdf)
+                    self.evidence.append({'kind': kind, 'name': model, 'x': ox, 'y': oy,
+                                          'yaw': yaw, 'near': name, 'spawned': ok})
+                    if not ok:
+                        self.get_logger().error(f'[test] spawn {model}: {out}')
+            self.get_logger().info(
+                '[test] left evidence: ' + ', '.join(
+                    f"{e['kind']} ({e['x']:.1f},{e['y']:.1f})" for e in self.evidence if e['spawned']))
 
         def _finish(self, timeout=False):
             self.done = True
@@ -828,6 +775,15 @@ def main(args=None):
                                     self.waste_sites, self.refined,
                                     [t['event_id'] for t in result['trees'] if t['detected']])
                 report += '\n'.join(format_husky(husky)) + '\n'
+            evidence_score = None
+            if self.evidence_on or self.evidence_items:
+                truth = [e for e in self.evidence if e['spawned']] + \
+                    [{'kind': 'bag', 'x': w['x'], 'y': w['y']} for w in self.waste if w['spawned']]
+                evidence_score = score_evidence(truth, self.evidence_items)
+                report += '\n**Husky camera, YOLO evidence:** ' + '; '.join(
+                    f"{k} {v['found']}/{v['total']} found, {v['false']} false"
+                    + (f", error {v['mean_err_m']} m" if v['mean_err_m'] is not None else '')
+                    for k, v in evidence_score.items()) + '\n'
             os.makedirs(self.report_dir, exist_ok=True)
             stamp = time.strftime('%Y%m%d_%H%M%S')
             base = os.path.join(self.report_dir, f'removal_test_{stamp}')
@@ -840,6 +796,8 @@ def main(args=None):
                            'removed': self.removed,
                            'result': result, 'baseline': self.baseline,
                            'waste': self.waste, 'husky': husky,
+                           'evidence': self.evidence, 'evidence_items': self.evidence_items,
+                           'evidence_score': evidence_score,
                            'waste_sites': self.waste_sites, 'refined': self.refined,
                            'events': self.events}, fh, indent=2, default=str)
             verdict = (f"{'PASS' if result['passed'] else 'FAIL'}: "
@@ -856,7 +814,6 @@ def main(args=None):
     try:
         while rclpy.ok() and not node.done:
             rclpy.spin_once(node, timeout_sec=0.5)
-
         end = time.time() + 2.0
         while rclpy.ok() and time.time() < end:
             rclpy.spin_once(node, timeout_sec=0.2)

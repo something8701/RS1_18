@@ -1,23 +1,4 @@
-# Projects the drone camera onto the world grid from a bag.
-
-"""Project the drone camera onto the world grid from a bag (option A analysis).
-
-usage: camera_species.py BAG WORLD [--bin-s 60] [--out FILE.npz]
-
-Reads /parrot1/camera/image, /parrot1/camera/depth/image, /parrot1/odometry
-and the last /forest_canopy_map. Canopy pixels are placed with
-deforestation_monitoring.camera_species.project (the same code as the live
-camera_species_mapper node) and accumulated per 0.25 m cell (the
-scan_mapper grid) in time bins: pixel count, RGB sums and the per-pixel
-blue/green sum. Also per bin: `high` = canopy pixels at >= --open-height
-and `open` = rays that passed --open-height at the cell without a hit
-(camera_species.open_rays), so high / (high + open) is the fraction of the
-camera's view of a spot that is canopy. The npz feeds camera_eval.py,
-camera_change.py and camera_pines.py.
-
-Printed: camera height minus LiDAR canopy height (a check of the pose and
-altitude) and the median B/G at oak and pine trunks.
-"""
+# camera_species.py: Project the drone camera onto the world grid from a bag (option A analysis)
 import argparse
 
 import numpy as np

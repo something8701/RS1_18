@@ -1,21 +1,5 @@
 #!/usr/bin/env python3
-# A/B tests detector parameter sets against recorded canopy maps.
-
-"""A/B detector parameter variants on recorded live canopy maps.
-
-For every variant (``name:key=value,key=value``, applied on top of
-``config/tree_detection_params.yaml``) this runs ``detect_trees`` on frames
-of the recorded surveys and prints, per world:
-
-* sparse / showcase: TP/FP/FN at 1.0 m (one-to-one), the regression guard;
-* dense: recall per removal tier (``visibility.removal_tier`` on each map)
-  at 1.5 m and 2.0 m, closest-pair-first one-to-one, and the number of
-  detections not paired to any trunk within 2.0 m (false crowns).
-
-    ros2 run deforestation_monitoring eval_detector_variants \\
-        base: lock:seed_lock=True snap:seed_lock=True,seed_snap=0.5
-"""
-
+# eval_detector_variants.py: A/B detector parameter variants on recorded live canopy maps
 from __future__ import annotations
 
 import argparse
@@ -34,7 +18,6 @@ from .visibility import classify_tree, removal_tier
 
 HOME = os.path.expanduser('~/rs1_18_ws')
 SRC = os.path.join(HOME, 'src/RS1_18')
-
 DATASETS = {
     'sparse': [('sparse_survey', 'sparse_trees', None, 15.0),
                ('removal_sparse1', 'sparse_trees', 125.0, 15.0)],
@@ -149,7 +132,6 @@ def main(argv=None) -> int:
         name, _, rest = spec.partition(':')
         ov = dict(kv.split('=', 1) for kv in rest.split(',') if kv)
         jobs.append((name, ov, a.frames, a.cache))
-
     for sets in DATASETS.values():
         for bag, _, t_max, _ in sets:
             _cached_maps(bag, t_max, a.frames, a.cache)

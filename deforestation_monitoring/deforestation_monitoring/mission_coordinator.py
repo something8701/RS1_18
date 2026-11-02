@@ -1,42 +1,16 @@
 #!/usr/bin/env python3
-# Takes suspicious areas and sends the Husky out to inspect each one.
-
-"""
-Mission Coordinator: Receives SuspiciousArea flags and dispatches the
-Husky ground rover to inspect each site via Nav2 NavigateToPose.
-
-Supports multiple priority strategies:
-  - closest:   nearest to the robot first (from /husky1/odometry)
-  - confidence: highest confidence first
-  - area:      largest affected area first
-  - severity:  highest composite severity first
-  - composite: (severity * confidence) / distance: big, certain, nearby first
-
-Behaviour:
-  - Distance-based modes (closest / composite) are re-ranked on every queue
-    tick as the robot moves.
-  - Equal priorities dispatch in arrival order.
-  - Dedup uses distance and a time window (dedup_window).
-  - Rejected or aborted goals are requeued with a priority penalty, up to
-    max_retries.
-  - Evidence is the latest frame of a persistent camera subscription.
-  - Nav2 readiness is checked without blocking the queue timer.
-  - /mission_status shows the decision state on the dashboard.
-  - Active Nav2 goals are cancelled on shutdown.
-  - area_search: each suspected area is swept, not just visited: the box of
-    canopy loss around the flag plus a margin, in lanes (area_search.py),
-    with a photo per waypoint. /mission_queue shows queue, path and photos.
-"""
-
+# mission_coordinator.py: Receives SuspiciousArea flags and dispatches the Husky ground rover to inspect each site via Nav2 …
 import cv2
 import heapq
 import numpy as np
+import json
 import math
 import os
 import csv
 import time
 from collections import deque
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 
 import rclpy
 from rclpy.qos import qos_profile_sensor_data
@@ -52,22 +26,17 @@ from sensor_msgs.msg import Image
 from sensor_msgs.msg import LaserScan, PointCloud2
 from sensor_msgs_py.point_cloud2 import create_cloud_xyz32
 from std_msgs.msg import Header, String
+from deforestation_interfaces.msg import EvidenceArray
 from deforestation_interfaces.msg import (MissionInfo, MissionQueue, SuspiciousArea,
                                           TreeChangeEvent, WasteSiteArray)
 from cv_bridge import CvBridge, CvBridgeError
 from tf2_ros import Buffer, TransformException, TransformListener
 
-from .area_search import free_spot, loss_box, sweep_path
+from .area_search import box_overlap, free_spot, loss_box, sweep_path
 
 
 @dataclass(order=True)
 class Mission:
-    """Prioritised inspection task. Lower priority value = higher urgency.
-
-    Comparison uses (priority, seq): equal priorities are broken FIFO by
-    seq (lower seq = queued earlier). Defaulted fields stay at the end so
-    the dataclass constructor stays positional-compatible.
-    """
     priority: float
     x: float = field(compare=False)
     y: float = field(compare=False)
@@ -79,9 +48,6 @@ class Mission:
     frame_id: str = field(compare=False)
     seq: int = field(default=0)
     attempts: int = field(default=0, compare=False)
-
-
-
     site: tuple = field(default=None, compare=False)
     box: tuple = field(default=None, compare=False)
     path: list = field(default_factory=list, compare=False)
@@ -92,11 +58,11 @@ class Mission:
     result: str = field(default='', compare=False)
     staging: tuple = field(default=None, compare=False)
     hops: int = field(default=0, compare=False)
+    pinned: bool = field(default=False, compare=False)
     second_try: bool = field(default=False, compare=False)
 
 
 class MissionCoordinator(Node):
-    """Receives SuspiciousArea flags, dispatches Husky via Nav2."""
 
     def __init__(self):
         super().__init__('mission_coordinator')
@@ -163,6 +129,11 @@ class MissionCoordinator(Node):
             descriptor=ParameterDescriptor(
                 description='A sweep goal is given up after this many seconds plus 4 s '
                             'per metre to it (Nav2 recoveries can take minutes)'))
+        self.declare_parameter('ask_before_each_area', False,
+            descriptor=ParameterDescriptor(
+                description='Operator in charge: before each area the Husky waits for '
+                            '/mission_command "proceed" (or "choose" another). Also '
+                            'switchable at run time with {"cmd": "ask", "on": true}.'))
         self.declare_parameter('wait_for_drone_baseline', False,
             descriptor=ParameterDescriptor(
                 description='Keep the Husky still until the drone has frozen its tree '
@@ -193,10 +164,8 @@ class MissionCoordinator(Node):
         self.requeue_penalty = self.get_parameter('requeue_penalty').value
         self.inspection_standoff = self.get_parameter('inspection_standoff').value
 
-
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
-
 
         if self.capture_enabled:
             os.makedirs(self.image_dir, exist_ok=True)
@@ -213,17 +182,13 @@ class MissionCoordinator(Node):
         self._seq_counter = 0
         self._goal_handle = None
 
-
         self.robot_x = None
         self.robot_y = None
 
-
         self._recent_sites = deque(maxlen=50)
-
 
         self.bridge = CvBridge()
         self._latest_image = None
-
 
         alert_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
@@ -237,7 +202,6 @@ class MissionCoordinator(Node):
             history=HistoryPolicy.KEEP_LAST,
             depth=5,
         )
-
 
         self.flag_sub = self.create_subscription(
             SuspiciousArea, '/suspicious_areas', self.flag_callback, alert_qos
@@ -266,24 +230,32 @@ class MissionCoordinator(Node):
             self.waste = []
             self.create_subscription(WasteSiteArray, '/waste_sites', lambda m: setattr(
                 self, 'waste', [(w.position.x, w.position.y) for w in m.sites]), latched)
+            self.evidence = []
+            self.create_subscription(EvidenceArray, '/logging_evidence', lambda m: setattr(
+                self, 'evidence', [(e.kind, e.position.x, e.position.y) for e in m.items]), latched)
             self.create_timer(2.0, self._watchdog)
             self.cmd_pub = self.create_publisher(Twist, '/husky1/cmd_vel', 10)
             self.create_timer(0.1, self._escape_tick)
-
             self.hazard_pub = self.create_publisher(PointCloud2, '/husky1/hazards', 10)
             self.create_timer(1.0, self._publish_hazards)
-
-
             self.create_subscription(TreeChangeEvent, '/parrot_tree_change_events',
                                      self._lost_tree_cb, alert_qos)
         self.status_pub = self.create_publisher(
             String, '/mission_status', alert_qos
         )
 
-
         self.nav_client = ActionClient(
             self, NavigateToPose, '/husky1/navigate_to_pose'
         )
+
+        self.ask_first = bool(self.get_parameter('ask_before_each_area').value)
+        self.paused = False
+        self.approved = None
+        latched_ctl = QoSProfile(reliability=ReliabilityPolicy.RELIABLE,
+                                 durability=DurabilityPolicy.TRANSIENT_LOCAL, depth=1)
+        self.control_pub = self.create_publisher(String, '/mission_control', latched_ctl)
+        self.ack_pub = self.create_publisher(String, '/mission_command_ack', alert_qos)
+        self.create_subscription(String, '/mission_command', self._command_cb, alert_qos)
 
         self.create_timer(2.0, self.process_queue)
         self.create_timer(2.0, self._publish_status)
@@ -294,34 +266,22 @@ class MissionCoordinator(Node):
         )
 
 
-
     def _compute_priority_value(self, mode: str, severity: float,
                                 confidence: float, area_m2: float,
                                 dist: float) -> float:
-        """Compute a mission priority value. LOWER value = HIGHER urgency.
-
-        All modes return values where smaller = more urgent.
-        """
         if mode == 'closest':
-
             return dist
 
         elif mode == 'confidence':
-
             return -confidence
 
         elif mode == 'area':
-
             return -area_m2
 
         elif mode == 'severity':
-
             return -severity
 
         elif mode == 'composite':
-
-
-
             score = (severity * confidence) / (dist + 1.0)
             return -score
 
@@ -332,10 +292,6 @@ class MissionCoordinator(Node):
             return dist
 
     def _distance_to(self, gx: float, gy: float) -> float:
-        """Distance from the HUSKY (not the map origin) to a flag.
-
-        Falls back to map origin until Husky odometry arrives.
-        """
         if self.robot_x is not None:
             return math.hypot(gx - self.robot_x, gy - self.robot_y)
         self.get_logger().warn(
@@ -344,25 +300,19 @@ class MissionCoordinator(Node):
         return math.hypot(gx, gy)
 
 
-
     def odom_callback(self, msg: Odometry):
-        """Track the Husky pose for robot-relative priority scoring."""
         self.robot_x = msg.pose.pose.position.x
         self.robot_y = msg.pose.pose.position.y
         q = msg.pose.pose.orientation
         self.robot_yaw = math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
 
     def cam_callback(self, msg: Image):
-        """Keep the latest camera frame for inspection evidence."""
         self._latest_image = msg
 
     def flag_callback(self, msg: SuspiciousArea):
-        """New suspicious area detected. Queue for inspection."""
         gx = msg.position.x
         gy = msg.position.y
         now_ns = self.get_clock().now().nanoseconds
-
-
 
         for sx, sy, st in self._recent_sites:
             if (now_ns - st) < self.dedup_window * 1e9 and \
@@ -373,14 +323,14 @@ class MissionCoordinator(Node):
                     throttle_duration_sec=5.0)
                 return
 
-
-
         if self.area_search:
+            nb = self._area_box(SimpleNamespace(x=gx, y=gy))
             for m in [*self.done, *([self.current_mission] if self.current_mission else []),
                       *self.mission_queue]:
                 b = m.box or self._area_box(m)
-                if b[0] - self.search_margin <= gx <= b[2] + self.search_margin and \
-                        b[1] - self.search_margin <= gy <= b[3] + self.search_margin:
+                inside = b[0] - self.search_margin <= gx <= b[2] + self.search_margin and \
+                    b[1] - self.search_margin <= gy <= b[3] + self.search_margin
+                if inside or max(box_overlap(nb, b), box_overlap(b, nb)) >= 0.5:
                     self.get_logger().info(
                         f'Flag @ ({gx:.1f},{gy:.1f}) is in the area of {m.label}: skipped.')
                     return
@@ -389,7 +339,6 @@ class MissionCoordinator(Node):
 
         self.total += 1
         self._recent_sites.append((gx, gy, now_ns))
-
 
         priority = self._compute_priority_value(
             self.priority_mode, msg.severity, msg.confidence,
@@ -404,7 +353,7 @@ class MissionCoordinator(Node):
             area_m2=msg.area_m2,
             severity=msg.severity,
             label=(msg.description if msg.type == 'TREE_LOST' else
-                   f'[{msg.type}] S={msg.severity:.0f} '
+                   f'[{msg.type} #{self.total}] S={msg.severity:.0f} '
                    f'C={msg.confidence:.0f}% {msg.area_m2:.0f}m²'),
             frame_id=msg.header.frame_id,
         ))
@@ -429,7 +378,6 @@ class MissionCoordinator(Node):
         self.flag_callback(flag)
 
     def process_queue(self):
-        """Process next mission in the queue if idle."""
         if self.active or not self.mission_queue or self._escape_until is not None:
             return
         if not self.drone_ready:
@@ -438,15 +386,10 @@ class MissionCoordinator(Node):
                 throttle_duration_sec=30.0)
             return
 
-
-
         if not self.nav_client.server_is_ready():
             self.get_logger().warn(
                 'Nav2 server not ready — waiting.', throttle_duration_sec=5.0)
             return
-
-
-
 
         if self.robot_x is not None and \
                 self.priority_mode in ('closest', 'composite'):
@@ -456,21 +399,122 @@ class MissionCoordinator(Node):
                 dist = math.hypot(m.x - self.robot_x, m.y - self.robot_y)
                 m.priority = self._compute_priority_value(
                     self.priority_mode, m.severity, m.confidence,
-                    m.area_m2, dist) + (1000.0 if m.second_try else 0.0)
+                    m.area_m2, dist) + (1000.0 if m.second_try else 0.0) - (1e6 if m.pinned else 0.0)
                 re_scored.append(m)
             for m in re_scored:
                 heapq.heappush(self.mission_queue, m)
 
-        mission = heapq.heappop(self.mission_queue)
+        if self.paused:
+            self._publish_status()
+            return
+        if self.ask_first and self.approved is None:
+            self._publish_status()
+            return
+        pick = self.approved or next((m.label for m in self.mission_queue if m.pinned), None)
+        mission = self._take(pick) if pick else None
+        self.approved = None
+        if mission is None:
+            mission = heapq.heappop(self.mission_queue)
+        mission.pinned = False
         self.current_mission = mission
         self.active = True
         self._publish_status()
         self._send_goal(mission)
 
 
+    def _take(self, label):
+        for i, m in enumerate(self.mission_queue):
+            if m.label == label:
+                self.mission_queue.pop(i)
+                heapq.heapify(self.mission_queue)
+                return m
+        return None
+
+    def _next_label(self):
+        pinned = [m for m in self.mission_queue if m.pinned]
+        if pinned:
+            return pinned[0].label
+        return min(self.mission_queue).label if self.mission_queue else ''
+
+    def _publish_control(self):
+        self.control_pub.publish(String(data=json.dumps({
+            'ask_first': self.ask_first, 'paused': self.paused,
+            'next': self._next_label(), 'approved': self.approved or '',
+            'skipped': [m.label for m in self.done if m.status == MissionInfo.CANCELLED],
+        })))
+
+    def _command_cb(self, msg: String):
+        try:
+            c = json.loads(msg.data)
+        except ValueError:
+            c = {}
+        ok, text = self._apply_command(c)
+        self.ack_pub.publish(String(data=json.dumps(
+            {'id': c.get('id', ''), 'cmd': c.get('cmd', ''), 'ok': ok, 'msg': text})))
+        if ok:
+            self.get_logger().info(f'Operator: {text}')
+        self._publish_status()
+
+    def _apply_command(self, c):
+        cmd, label = c.get('cmd', ''), c.get('label', '')
+        queued = {m.label: m for m in self.mission_queue}
+        if cmd == 'ask':
+            self.ask_first = bool(c.get('on'))
+            return True, ('The Husky will ask before each area.' if self.ask_first
+                          else 'The Husky will choose its next area itself.')
+        if cmd == 'pause':
+            self.paused = True
+            return True, (f'The Husky will stop after {self.current_mission.label}.'
+                          if self.active and self.current_mission else 'The Husky is paused.')
+        if cmd == 'resume':
+            self.paused = False
+            return True, 'The Husky carries on.'
+        if cmd == 'proceed':
+            if self.active:
+                return False, f'The Husky is busy with {self.current_mission.label}.'
+            label = label or self._next_label()
+            if label not in queued:
+                return False, f'{label or "That area"} is not waiting to be searched.'
+            self.approved, self.paused = label, False
+            return True, f'The Husky is going to {label}.'
+        if cmd == 'choose':
+            if label not in queued:
+                return False, f'{label or "That area"} is not waiting to be searched.'
+            for m in self.mission_queue:
+                m.pinned = m.label == label
+            if self.ask_first and not self.active:
+                self.approved = label
+            return True, f'{label} is next.'
+        if cmd == 'unpin':
+            for m in self.mission_queue:
+                if m.label == label:
+                    m.pinned = False
+            if self.approved == label and not c.get('keep_approval'):
+                self.approved = None
+            return True, f'{label} is back in the usual order.'
+        if cmd == 'skip':
+            m = self._take(label)
+            if m is None:
+                return False, f'{label or "That area"} is not waiting to be searched.'
+            m.status = MissionInfo.CANCELLED
+            m.result = 'Skipped by the operator'
+            m.pinned = False
+            if self.approved == label:
+                self.approved = None
+            self.done.append(m)
+            return True, f'{label} skipped.'
+        if cmd == 'unskip':
+            for m in list(self.done):
+                if m.label == label and m.status == MissionInfo.CANCELLED:
+                    self.done.remove(m)
+                    m.status, m.result = MissionInfo.QUEUED, ''
+                    heapq.heappush(self.mission_queue, m)
+                    return True, f'{label} is back in the queue.'
+            return False, f'{label or "That area"} was not skipped.'
+        return False, f'Unknown command "{cmd}".'
+
 
     def _requeue(self, mission: Mission, penalty: float):
-        """Re-queue a mission with a priority penalty and a retry counter."""
         mission.priority += penalty
         mission.attempts += 1
         mission.status = MissionInfo.QUEUED
@@ -481,14 +525,6 @@ class MissionCoordinator(Node):
             f'Queue: {len(self.mission_queue)}')
 
     def _send_goal(self, mission: Mission):
-        """Send a NavigateToPose goal to Nav2.
-
-        Flags may arrive in a non-Nav2 frame (e.g. parrot1_odom from the
-        drone's canopy scan mapper). We transform the flag position into
-        the Nav2 map frame via TF when possible; if the TF tree does not
-        cover the flag frame, we assume the frames coincide (both are
-        anchored at the sim world origin) and use the raw coordinates.
-        """
         if not self.nav_client.server_is_ready():
             self.get_logger().warn('Nav2 server went away — requeuing mission.')
             self._requeue(mission, self.requeue_penalty)
@@ -505,7 +541,6 @@ class MissionCoordinator(Node):
                 )
                 t = tf.transform.translation
                 q = tf.transform.rotation
-
                 siny = 2.0 * (q.w * q.z + q.x * q.y)
                 cosy = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
                 yaw = math.atan2(siny, cosy)
@@ -519,9 +554,6 @@ class MissionCoordinator(Node):
                     f'No TF {gframe} → {self.map_frame}; taking the flag in '
                     f'{self.world_frame} (both world-aligned)',
                     throttle_duration_sec=60.0)
-
-
-
                 gframe = self.world_frame
 
         mission.site = (gx, gy)
@@ -529,7 +561,6 @@ class MissionCoordinator(Node):
         if self.area_search:
             self._start_search(mission, gx, gy)
             return
-
 
         inspection_standoff = self.inspection_standoff
 
@@ -594,7 +625,6 @@ class MissionCoordinator(Node):
         future.add_done_callback(self._goal_response)
 
     def _goal_response(self, future):
-        """Handle Nav2 goal acceptance."""
         handle = future.result()
         if handle is None or not handle.accepted:
             self.get_logger().warn('Goal rejected by Nav2')
@@ -617,7 +647,6 @@ class MissionCoordinator(Node):
         handle.get_result_async().add_done_callback(self._result)
 
     def _result(self, future):
-        """Handle Nav2 goal completion; capture evidence on success."""
         self._goal_handle = None
         result = future.result()
         status = result.status
@@ -661,8 +690,6 @@ class MissionCoordinator(Node):
 
         elif status == GoalStatus.STATUS_ABORTED:
             if m.attempts < self.max_retries:
-
-
                 self.get_logger().warn(
                     f'SITE RETRY: {m.label} aborted — requeuing.')
                 if self.area_search and self._stuck():
@@ -673,8 +700,6 @@ class MissionCoordinator(Node):
                 self._publish_status()
                 return
             if self.area_search and not m.second_try:
-
-
                 self.get_logger().warn(f'{m.label}: no way in for now; trying it again last.')
                 m.second_try, m.attempts = True, 0
                 m.path, m.stops = [], []
@@ -702,10 +727,7 @@ class MissionCoordinator(Node):
         self._publish_status()
 
 
-
     def _area_box(self, m, gx=None, gy=None):
-        """The suspected area's box: the canopy loss around the flag on the
-        drone's change map (flag frame), moved to the site in the map frame."""
         gx = m.x if gx is None else gx
         gy = m.y if gy is None else gy
         cm = self.change_map
@@ -719,8 +741,6 @@ class MissionCoordinator(Node):
         return (b[0] + dx, b[1] + dy, b[2] + dx, b[3] + dy)
 
     def _start_search(self, m, gx, gy):
-        """Lay out the sweep over the area (once per mission; a retry reuses
-        it) and drive to its first waypoint, the corner nearest the Husky."""
         if not m.path:
             rx = self.robot_x if self.robot_x is not None else gx
             ry = self.robot_y if self.robot_y is not None else gy
@@ -751,8 +771,6 @@ class MissionCoordinator(Node):
         self._send_waypoint(m, x, y, yaw)
 
     def _off_waste(self, x, y, clear=1.5):
-        """Move a waypoint off known waste: the Husky should not stop on a bag
-        (the camera sees nothing that close)."""
         for wx, wy in self.waste:
             d = math.hypot(x - wx, y - wy)
             if d < clear:
@@ -761,7 +779,6 @@ class MissionCoordinator(Node):
         return x, y
 
     def _map_tf(self):
-        """map <- world (x, y, cos, sin), from the SLAM correction; None without TF."""
         try:
             t = self.tf_buffer.lookup_transform(self.map_frame, self.world_frame, rclpy.time.Time())
         except TransformException:
@@ -786,10 +803,6 @@ class MissionCoordinator(Node):
         return c * dx + s * dy, -s * dx + c * dy
 
     def _staging(self, x, y):
-        """Nav2's global costmap is only as big as the Husky's SLAM map so far,
-        and a goal off it always fails. For such a goal: the point on the way
-        to it 3 m inside the map (None if the goal is on the map, or the
-        Husky is already at the edge)."""
         cm = self.costmap
         if cm is None or self.robot_x is None:
             return None
@@ -809,8 +822,6 @@ class MissionCoordinator(Node):
         return None
 
     def _free_now(self, x, y):
-        """(x, y) moved off trees on the current costmap (the area may have been
-        unknown when the sweep was laid out); unchanged if none is free nearby."""
         if self.costmap is None:
             return x, y
         ci, tf = self.costmap.info, self._map_tf()
@@ -820,7 +831,6 @@ class MissionCoordinator(Node):
         return self._to_world(tf, *spot) if spot is not None else (x, y)
 
     def _send_waypoint(self, m, x, y, yaw):
-        """Send a sweep goal, by way of a staging goal while it is off the map."""
         x, y = self._free_now(x, y)
         stage = self._staging(x, y) if m.hops < 4 else None
         if stage is not None:
@@ -839,15 +849,11 @@ class MissionCoordinator(Node):
         self._send_pose(x, y, yaw)
 
     def _stuck(self) -> bool:
-        """The last goal failed without the Husky moving: wedged (pine branches)."""
         f = self._sent_from
         return f is not None and self.robot_x is not None and \
             math.hypot(self.robot_x - f[0], self.robot_y - f[1]) < 0.5
 
     def _escape(self, then=None):
-        """Back straight out for 4 s (~1.2 m): Nav2's own backup is a few cm and
-        its spin fails when the Husky is caught in branches. What caught it,
-        just ahead, becomes a hazard on Nav2's costmaps."""
         hx = self.robot_x + 0.9 * math.cos(self.robot_yaw)
         hy = self.robot_y + 0.9 * math.sin(self.robot_yaw)
         self.hazards.append((hx, hy))
@@ -877,7 +883,6 @@ class MissionCoordinator(Node):
             then()
 
     def _watchdog(self):
-        """Give up a sweep goal that takes too long (stuck, endless recoveries)."""
         if self._goal_deadline is None or self._goal_handle is None:
             return
         if time.monotonic() > self._goal_deadline:
@@ -887,12 +892,6 @@ class MissionCoordinator(Node):
             self._goal_handle.cancel_goal_async()
 
     def _search_step(self, m, status) -> bool:
-        """After a goal of the sweep finished: True while the sweep goes on.
-
-        The first goal is the approach; if it fails, the mission is retried
-        (from the next waypoint, this one may be in a tree). A later waypoint
-        it cannot reach is skipped. A photo is taken at each one reached.
-        """
         ok = status == GoalStatus.STATUS_SUCCEEDED
         self._goal_deadline = None
         gx, gy = getattr(self, '_goal_xy', (None, None))
@@ -930,7 +929,6 @@ class MissionCoordinator(Node):
     def _send_pose(self, x, y, yaw):
         goal = NavigateToPose.Goal()
         goal.pose = PoseStamped(
-
             header=Header(stamp=rclpy.time.Time().to_msg(), frame_id=self.world_frame),
             pose=Pose(position=Point(x=x, y=y, z=0.0),
                       orientation=Quaternion(z=math.sin(yaw / 2.0), w=math.cos(yaw / 2.0))))
@@ -938,15 +936,7 @@ class MissionCoordinator(Node):
         future.add_done_callback(self._goal_response)
 
 
-
     def _capture_evidence(self, mission=None) -> str:
-        """Save the latest Husky camera frame as inspection evidence.
-
-        Uses the persistent latest-image subscription, so nothing spins
-        inside a callback.
-
-        Returns the file path of the saved image, or empty string on failure.
-        """
         if not self.capture_enabled:
             return ''
 
@@ -971,11 +961,9 @@ class MissionCoordinator(Node):
         return filepath
 
     def _lidar_callback(self, msg):
-        """Keep the most recent Husky laser scan for inspection evidence."""
         self.latest_scan = msg
 
     def _save_lidar_evidence(self, image_path=''):
-        """Save the latest Husky LiDAR scan beside the camera evidence."""
         scan = self.latest_scan
 
         if scan is None:
@@ -1035,7 +1023,13 @@ class MissionCoordinator(Node):
         return lidar_path
 
     def _classify_disturbance(self, mission, evidence_path=''):
-        """Use Husky camera evidence to support the ground inspection decision."""
+        felled = self._felled_evidence(mission)
+        if felled:
+            st = sum(1 for k in felled if k == 'stump')
+            lg = len(felled) - st
+            seen = ', '.join(t for t in (f'{st} stump{"s" * (st != 1)}' if st else '',
+                                         f'{lg} felled log{"s" * (lg != 1)}' if lg else '') if t)
+            return 'CUT', f'the Husky camera (YOLO) saw {seen} in the area'
 
         if not evidence_path or not os.path.exists(evidence_path):
             return 'UNCERTAIN', 'no usable camera evidence available'
@@ -1043,7 +1037,6 @@ class MissionCoordinator(Node):
         frame = cv2.imread(evidence_path)
         if frame is None:
             return 'UNCERTAIN', 'camera evidence could not be loaded'
-
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         gray = cv2.GaussianBlur(gray, (5, 5), 0)
@@ -1071,8 +1064,6 @@ class MissionCoordinator(Node):
 
         alert_type = (mission.type or '').upper()
 
-
-
         if alert_type == 'LINE':
             if line_count >= 3:
                 return (
@@ -1088,8 +1079,6 @@ class MissionCoordinator(Node):
             )
 
         if alert_type == 'GAP':
-
-
             if line_count <= 5:
                 return (
                     'NATURAL',
@@ -1112,6 +1101,13 @@ class MissionCoordinator(Node):
 
         return 'UNCERTAIN', 'camera evidence available but disturbance type is unknown'
 
+    def _felled_evidence(self, mission):
+        ev = [e for e in getattr(self, 'evidence', []) if e[0] in ('stump', 'log')]
+        box = mission.box
+        if box:
+            return [k for k, x, y in ev
+                    if box[0] - 2.0 <= x <= box[2] + 2.0 and box[1] - 2.0 <= y <= box[3] + 2.0]
+        return [k for k, x, y in ev if math.hypot(x - mission.x, y - mission.y) <= 4.0]
 
 
     def _drone_baseline_cb(self, msg):
@@ -1165,9 +1161,14 @@ class MissionCoordinator(Node):
             m = self.current_mission
             state = ('SEARCHING' if self.area_search and m.reached > 0
                      else 'ENROUTE' if self._goal_handle is not None else 'DISPATCHING')
+        elif self.paused and self.mission_queue:
+            state = 'PAUSED'
+        elif self.ask_first and self.mission_queue:
+            state = 'AWAITING_APPROVAL'
         else:
             state = 'IDLE'
         self._publish_queue(state)
+        self._publish_control()
 
     def destroy_node(self):
         self.get_logger().info(
@@ -1188,8 +1189,6 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-
-
         if rclpy.ok():
             node.destroy_node()
             rclpy.shutdown()

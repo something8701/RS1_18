@@ -1,22 +1,4 @@
-# Simulates the tracker's camera see-through rule on a bag.
-
-"""Simulate the tracker's camera see-through rule per frame on a bag (option A).
-
-usage: camera_visits.py BAG WORLD [--log LAUNCH_LOG] [--gap 30] [--min-rays 4]
-                        [--weighted] [--open 0.3] [--radius 0.75]
-
-For every tracker baseline position in the bag (/parrot_tree_baseline) and
-every removed SDF trunk, each camera frame gives a canopy fraction over the
-disc: canopy pixels >= 3 m / (those + rays passing 3 m open), from the same
-camera_species code as the live node. Frames with fewer than --min-rays rays
-in the disc are skipped. Frames closer than --gap s form one visit; a visit's
-mean is ray-weighted (--weighted) or the mean of its frame fractions.
-
-Printed: for removed trees, the visits after the cut and when the second
-low visit in a row ends (the camera evidence time); for standing baseline
-positions, how many ever have two low visits in a row (candidates the
-height-drop and unmatched conditions must still stop).
-"""
+# camera_visits.py: Simulate the tracker's camera see-through rule per frame on a bag (option A)
 import argparse
 import gzip
 import math
@@ -37,7 +19,6 @@ RES, ORIGIN, DIM = 0.25, -40.0, 320
 
 
 def disc_cells(x, y, radius):
-    """Flat [ix, iy] indices of the grid cells whose centres are within radius."""
     xs = ORIGIN + (np.arange(DIM) + 0.5) * RES
     ix = np.nonzero(np.abs(xs - x) <= radius + RES)[0]
     iy = np.nonzero(np.abs(xs - y) <= radius + RES)[0]

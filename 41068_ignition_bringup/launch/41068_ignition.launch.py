@@ -1,5 +1,4 @@
-# Starts Gazebo first, then drops the robot entities in a predictable order.
-
+# 41068_ignition.launch.py: The simulation: Gazebo with a world, then each enabled robot
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
@@ -56,15 +55,6 @@ def add_robot(
     yaw='0.0',
     spawn_delay=0.0,
 ):
-    """Add one robot instance to the launch description.
-
-    Convention used here:
-      - ROS nodes/topics are under /<namespace>/...
-      - Gazebo entity/model is named <gz_model_name>
-      - Gazebo plugin topics are under /model/<gz_model_name>/...
-      - TF topics are under /<namespace>/tf and /<namespace>/tf_static
-      - TF frame ids use <frame_prefix>, e.g. husky1_base_link
-    """
 
     robot_description_content = ParameterValue(
         Command([
@@ -132,7 +122,6 @@ def add_robot(
         ],
     )
 
-
     ld.add_action(TimerAction(
         period=spawn_delay,
         actions=[robot_spawner],
@@ -179,8 +168,6 @@ def add_navigation_instance(
         }.items(),
     )
 
-
-
     ld.add_action(TimerAction(
         period=start_delay,
         actions=[GroupAction(
@@ -201,9 +188,6 @@ def add_rviz_instance(
     rviz_config,
     start_delay,
 ):
-
-
-
     ld.add_action(TimerAction(
         period=start_delay,
         actions=[Node(
@@ -296,9 +280,6 @@ def generate_launch_description():
     )
     ld.add_action(world_launch_arg)
 
-
-
-
     server_config_file = PathJoinSubstitution([
         config_path,
         'ignition_server.config',
@@ -311,7 +292,6 @@ def generate_launch_description():
         name='GZ_SIM_SERVER_CONFIG_PATH',
         value=server_config_file,
     ))
-
 
     ld.add_action(IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -329,12 +309,10 @@ def generate_launch_description():
                     [LaunchConfiguration('world'), '.sdf'],
                 ]),
                 ' -r',
-
                 PythonExpression(["'' if "] + _is_true_expression('gui') + [" else ' -s'"]),
             ]
         }.items(),
     ))
-
 
     ld.add_action(Node(
         package='ros_ign_bridge',
@@ -393,14 +371,6 @@ def generate_launch_description():
         robot_namespace='husky1',
         start_delay=7.0,
     )
-
-
-
-
-
-
-
-
 
 
     add_rviz_instance(

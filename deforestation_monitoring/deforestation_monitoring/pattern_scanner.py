@@ -1,25 +1,5 @@
 #!/usr/bin/env python3
-# Turns canopy gaps into SuspiciousArea flags for the coordinator.
-
-"""
-Pattern Scanner Node: turns deforestation signatures into SuspiciousArea
-flags for the mission coordinator (the drone to Husky link).
-
-Two detection modes (parameter `detection_mode`):
-
-  change (default): connected regions of lost canopy on /canopy_change_map
-      (scan_mapper's diff against its baseline; -100 = lost) become
-      'CLEARING' flags. Height-map noise does not trigger them.
-
-  height: gap / anomaly / line heuristics on /forest_canopy_map. The launch
-      files keep them off (gap_threshold 0, anomaly_height_drop 60,
-      line_min_cells 1000): on the height map any positive gap threshold
-      floods flags.
-
-Flags are deduplicated spatially (grid buckets) and temporally (time + radius
-window) so the queue cannot flood. Markers are published for RViz.
-"""
-
+# pattern_scanner.py: Node: turns deforestation signatures into SuspiciousArea flags for the mission coordinator (the …
 import rclpy
 from rclpy.node import Node
 from rcl_interfaces.msg import ParameterDescriptor
@@ -36,11 +16,9 @@ import math
 
 
 class PatternScanner(Node):
-    """Detects deforestation signatures (canopy loss / gaps / anomalies)."""
 
     def __init__(self):
         super().__init__('pattern_scanner')
-
 
         self.declare_parameter('detection_mode', 'change',
             descriptor=ParameterDescriptor(
@@ -48,7 +26,6 @@ class PatternScanner(Node):
                             "regions on /canopy_change_map; 'height' — legacy "
                             "gap/anomaly/line heuristics on /forest_canopy_map "
                             "(needs retuning for height maps)"))
-
         self.declare_parameter('lost_value_threshold', -50.0,
             descriptor=ParameterDescriptor(
                 description='Change-map value below which a cell counts as '
@@ -59,7 +36,6 @@ class PatternScanner(Node):
         self.declare_parameter('max_change_flags', 5,
             descriptor=ParameterDescriptor(
                 description='Maximum CLEARING flags per scan tick'))
-
         self.declare_parameter('gap_threshold', 15,
             descriptor=ParameterDescriptor(
                 description='Occupancy value (0-100) below which cells are considered gaps'))
@@ -102,7 +78,6 @@ class PatternScanner(Node):
         self.dedup_radius = self.get_parameter('dedup_radius').value
         self.dedup_window = self.get_parameter('dedup_window').value
 
-
         self.latest_map = None
         self.latest_change = None
         self.resolution = None
@@ -110,9 +85,7 @@ class PatternScanner(Node):
         self.origin_y = 0.0
         self.flag_counter = 0
         self.flagged_cells = set()
-
         self._recent_flags = deque(maxlen=500)
-
 
         map_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
@@ -127,7 +100,6 @@ class PatternScanner(Node):
             depth=10,
         )
 
-
         self.map_sub = self.create_subscription(
             OccupancyGrid, '/forest_canopy_map', self.map_callback, map_qos
         )
@@ -135,14 +107,12 @@ class PatternScanner(Node):
             OccupancyGrid, '/canopy_change_map', self.change_callback, map_qos
         )
 
-
         self.flag_pub = self.create_publisher(
             SuspiciousArea, '/suspicious_areas', alert_qos
         )
         self.marker_pub = self.create_publisher(
             MarkerArray, '/suspicious_markers', alert_qos
         )
-
 
         period = 1.0 / max(self.get_parameter('scan_rate').value, 0.1)
         self.timer = self.create_timer(period, self.scan)
@@ -153,35 +123,25 @@ class PatternScanner(Node):
         )
 
     def map_callback(self, msg: OccupancyGrid):
-        """Store the latest canopy map (height mode)."""
         self.latest_map = msg
         self.resolution = msg.info.resolution
         self.origin_x = msg.info.origin.position.x
         self.origin_y = msg.info.origin.position.y
 
     def change_callback(self, msg: OccupancyGrid):
-        """Store the latest canopy change map (change mode)."""
         self.latest_change = msg
         self.resolution = msg.info.resolution
         self.origin_x = msg.info.origin.position.x
         self.origin_y = msg.info.origin.position.y
 
 
-
     def scan(self):
-        """Run the active detection mode."""
         if self.detection_mode == 'change':
             self._scan_change()
         else:
             self._scan_height()
 
     def _scan_change(self):
-        """Flag connected regions of canopy LOSS from the change map.
-
-        Change-map semantics (from scan_mapper): -100 = canopy lost,
-        +100 = new canopy, 0 = unchanged (including unscanned cells), so a
-        threshold well below zero isolates genuine loss.
-        """
         if self.latest_change is None:
             return
 
@@ -207,16 +167,12 @@ class PatternScanner(Node):
             wx = self.origin_x + cx * self.resolution
             wy = self.origin_y + cy * self.resolution
 
-
-
             avg_loss = float(np.mean(-data[region]))
 
             rows, cols = np.where(region)
             bbox_area = (rows.max() - rows.min()) * (cols.max() - cols.min())
             compactness = cells / max(bbox_area, 1)
             area_m2 = cells * self.resolution**2
-
-
 
             confidence = min(95.0, avg_loss * 0.85 * compactness + 15.0)
             severity = max(5.0, min(100.0, area_m2 / 40.0 * (avg_loss / 100.0) * 100.0))
@@ -235,7 +191,6 @@ class PatternScanner(Node):
         self._publish_flags(flags)
 
     def _scan_height(self):
-        """Run the legacy gap/anomaly/line heuristics on the height map."""
         if self.latest_map is None:
             return
 
@@ -253,7 +208,6 @@ class PatternScanner(Node):
         self._publish_flags(all_flags)
 
     def _detect_gaps(self, data, width, height):
-        """Find connected regions where canopy height is below threshold."""
         low_mask = (data >= 0) & (data < self.gap_threshold)
         if not np.any(low_mask):
             return []
@@ -290,7 +244,6 @@ class PatternScanner(Node):
         return flags
 
     def _detect_anomalies(self, data, width, height):
-        """Find cells where height drops sharply compared to local median."""
         flags = []
         if np.sum(~np.isnan(data)) < 100:
             return flags
@@ -332,7 +285,6 @@ class PatternScanner(Node):
         return flags
 
     def _detect_lines(self, data, width, height):
-        """Detect linear features (logging roads) using Sobel edge detection."""
         flags = []
         if np.sum(~np.isnan(data)) < 500:
             return flags
@@ -373,18 +325,10 @@ class PatternScanner(Node):
         return flags
 
     def _publish_flags(self, flags):
-        """Publish flags as SuspiciousArea messages and MarkerArray.
-
-        Applies two levels of deduplication:
-          1. Temporal: skip flags within dedup_radius and dedup_window of a recent flag
-          2. Spatial: skip flags in grid buckets already flagged this session
-        """
         marker_array = MarkerArray()
-
         now_ts = self.get_clock().now().nanoseconds / 1e9
 
         for flag in flags:
-
             too_recent = False
             for rx, ry, rt in self._recent_flags:
                 if now_ts - rt > self.dedup_window:
@@ -395,21 +339,16 @@ class PatternScanner(Node):
             if too_recent:
                 continue
 
-
             cell_ix = int((flag['x'] - self.origin_x) / self.resolution)
             cell_iy = int((flag['y'] - self.origin_y) / self.resolution)
             if (cell_ix // 10, cell_iy // 10) in self.flagged_cells:
                 continue
             self.flagged_cells.add((cell_ix // 10, cell_iy // 10))
 
-
             self._recent_flags.append((flag['x'], flag['y'], now_ts))
 
             self.flag_counter += 1
             now = self.get_clock().now().to_msg()
-
-
-
 
             area_msg = SuspiciousArea()
             area_msg.header = Header(stamp=now, frame_id=flag['frame'])
@@ -420,7 +359,6 @@ class PatternScanner(Node):
             area_msg.severity = float(flag['severity'])
             area_msg.description = flag['desc']
             self.flag_pub.publish(area_msg)
-
 
             marker = Marker()
             marker.header = Header(stamp=now, frame_id=flag['frame'])

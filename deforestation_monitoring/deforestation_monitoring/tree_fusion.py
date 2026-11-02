@@ -1,25 +1,5 @@
 #!/usr/bin/env python3
-# Fuses tree detections from two sensors into one list.
-
-"""
-Tree Fusion Node: Fuses independent tree detections from two sensor modalities.
-
-Inputs:
-  - /all_tree_positions (PointCloud2): Husky 2D lidar → DBSCAN tree clusters
-  - /drone_terrain (PointCloud2):       Drone camera → green pixel canopy points
-
-Outputs:
-  - /fused_tree_map (OccupancyGrid): 0=no tree, 33=lidar-only, 66=camera-only, 100=both
-  - /fusion_markers (MarkerArray):    green=both, yellow=lidar-only, blue=camera-only
-
-Fusion logic:
-  Points from each sensor are accumulated into grids. A cell is "occupied" if
-  it has received enough points from that sensor. The fusion map encodes:
-    - LIDAR_ONLY (33):   tree trunk seen by lidar but not camera (e.g. hidden canopy)
-    - CAMERA_ONLY (66):  canopy seen by camera but lidar missed (e.g. occluded trunk)
-    - BOTH (100):        confirmed by both sensors (highest confidence)
-"""
-
+# tree_fusion.py: Node: Fuses independent tree detections from two sensor modalities
 import rclpy
 from rclpy.node import Node
 from rcl_interfaces.msg import ParameterDescriptor
@@ -32,7 +12,6 @@ from std_msgs.msg import Header
 from visualization_msgs.msg import Marker, MarkerArray
 
 
-
 LIDAR_ONLY = 33
 CAMERA_ONLY = 66
 BOTH = 100
@@ -40,11 +19,9 @@ NO_TREE = 0
 
 
 class TreeFusion(Node):
-    """Fuses lidar and camera tree detections into a single confidence map."""
 
     def __init__(self):
         super().__init__('tree_fusion')
-
 
         self.declare_parameter('resolution', 0.5,
             descriptor=ParameterDescriptor(description='Grid resolution (m)'))
@@ -75,12 +52,10 @@ class TreeFusion(Node):
         self.origin_x = -self.map_x / 2.0
         self.origin_y = -self.map_y / 2.0
 
-
         self.lidar_grid = np.zeros((self.dim_x, self.dim_y), dtype=np.int32)
         self.camera_grid = np.zeros((self.dim_x, self.dim_y), dtype=np.int32)
         self.lidar_points_received = 0
         self.camera_points_received = 0
-
 
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
@@ -101,12 +76,10 @@ class TreeFusion(Node):
             depth=10,
         )
 
-
         self.lidar_sub = self.create_subscription(
             PointCloud2, '/all_tree_positions', self.lidar_cb, sensor_qos)
         self.camera_sub = self.create_subscription(
             PointCloud2, '/drone_terrain', self.camera_cb, sensor_qos)
-
 
         self.fused_pub = self.create_publisher(
             OccupancyGrid, '/fused_tree_map', map_qos)
@@ -123,15 +96,9 @@ class TreeFusion(Node):
         )
 
 
-
     def _cloud_to_cells(self, cloud: PointCloud2):
-        """Extract (x,y) cell indices from a PointCloud2 message.
-
-        Assumes xyz fields: offset 0, 4, 8 as FLOAT32.
-        """
         if cloud is None or cloud.width == 0:
             return np.array([], dtype=np.int32), np.array([], dtype=np.int32)
-
 
         pts = np.frombuffer(cloud.data, dtype=np.float32).reshape(-1, cloud.point_step // 4)
         xs = pts[:, 0]
@@ -144,7 +111,6 @@ class TreeFusion(Node):
         return ix[valid], iy[valid]
 
     def lidar_cb(self, cloud: PointCloud2):
-        """Accumulate lidar tree detections."""
         ix, iy = self._cloud_to_cells(cloud)
         if len(ix) == 0:
             return
@@ -152,11 +118,6 @@ class TreeFusion(Node):
         self.lidar_points_received += len(ix)
 
     def camera_cb(self, cloud: PointCloud2):
-        """Accumulate camera canopy detections.
-
-        The drone_terrain cloud contains all terrain points (tree + ground).
-        We only accumulate points with z > 2.0 (canopy height) as tree indicators.
-        """
         if cloud is None or cloud.width == 0:
             return
 
@@ -164,7 +125,6 @@ class TreeFusion(Node):
         xs = pts[:, 0]
         ys = pts[:, 1]
         zs = pts[:, 2]
-
 
         canopy_mask = zs > 2.0
         xs = xs[canopy_mask]
@@ -181,11 +141,8 @@ class TreeFusion(Node):
         self.camera_points_received += len(ix[valid])
 
 
-
     def publish_fusion(self):
-        """Compute fused map and publish OccupancyGrid + markers."""
         now = self.get_clock().now().to_msg()
-
 
         lidar_trees = self.lidar_grid >= self.lidar_min
         camera_trees = self.camera_grid >= self.camera_min
@@ -194,12 +151,10 @@ class TreeFusion(Node):
         lidar_only_mask = lidar_trees & ~camera_trees
         camera_only_mask = camera_trees & ~lidar_trees
 
-
         fused = np.full((self.dim_x, self.dim_y), NO_TREE, dtype=np.int8)
         fused[lidar_only_mask] = LIDAR_ONLY
         fused[camera_only_mask] = CAMERA_ONLY
         fused[both_mask] = BOTH
-
 
         grid = OccupancyGrid()
         grid.header = Header(stamp=now, frame_id=self.fusion_frame)
@@ -210,26 +165,21 @@ class TreeFusion(Node):
             position=Point(x=self.origin_x, y=self.origin_y, z=0.0),
             orientation=Quaternion(w=1.0),
         )
-
         grid.data = fused.T.flatten().tolist()
         self.fused_pub.publish(grid)
 
-
         markers = MarkerArray()
         mid = 0
-
 
         for ix, iy in np.argwhere(both_mask)[:100]:
             markers.markers.append(self._make_marker(
                 mid, ix, iy, now, 'both', 0.0, 1.0, 0.0))
             mid += 1
 
-
         for ix, iy in np.argwhere(lidar_only_mask)[:100]:
             markers.markers.append(self._make_marker(
                 mid, ix, iy, now, 'lidar_only', 1.0, 1.0, 0.0))
             mid += 1
-
 
         for ix, iy in np.argwhere(camera_only_mask)[:100]:
             markers.markers.append(self._make_marker(
@@ -238,7 +188,6 @@ class TreeFusion(Node):
 
         if markers.markers:
             self.fusion_marker_pub.publish(markers)
-
 
         l_total = np.count_nonzero(lidar_trees)
         c_total = np.count_nonzero(camera_trees)
@@ -252,7 +201,6 @@ class TreeFusion(Node):
         )
 
     def _make_marker(self, mid, ix, iy, stamp, ns, r, g, b):
-        """Create a cylinder marker at cell (ix, iy)."""
         wx = self.origin_x + (ix + 0.5) * self.res
         wy = self.origin_y + (iy + 0.5) * self.res
         m = Marker()

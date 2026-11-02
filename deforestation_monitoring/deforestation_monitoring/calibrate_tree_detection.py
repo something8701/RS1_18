@@ -1,29 +1,5 @@
 #!/usr/bin/env python3
-# Turns the Gazebo world's known tree positions into tuned detector parameters. No hand
-# labels.
-
-"""Offline automatic calibration for the individual tree detector.
-
-The Gazebo world SDF already stores the exact (x, y) position of every tree,
-so manual labeling is unnecessary. This tool:
-
-  1. reads that ground truth from a world file (or uses a named synthetic
-     cluster scenario),
-  2. builds the fused canopy height surface the detector will see,
-  3. random-searches the detector parameters to maximise F1, and
-  4. writes the best parameters as a ROS 2 parameter YAML plus a JSON report.
-
-Examples:
-    # Calibrate against the dense forest world (214 trees, many clusters):
-    ros2 run deforestation_monitoring calibrate_tree_detection \
-        --world /path/to/dense_forest.sdf \
-        --out /tmp/tree_detection_params.yaml
-
-    # Calibrate directly on a recorded drone terrain cloud (x,y,z CSV):
-    ros2 run deforestation_monitoring calibrate_tree_detection \
-        --world /path/to/world.sdf --cloud /tmp/terrain.csv
-"""
-
+# calibrate_tree_detection.py: Offline automatic calibration for the individual tree detector
 from __future__ import annotations
 
 import argparse
@@ -46,7 +22,6 @@ from .tree_detection import (
 
 
 def _load_cloud(path: str) -> np.ndarray:
-    """An (N, 3) x, y, z point array from a .npy file or a CSV."""
     suffix = Path(path).suffix.lower()
     if suffix == ".npy":
         data = np.load(path)
@@ -60,11 +35,6 @@ def _load_cloud(path: str) -> np.ndarray:
 
 
 def _build_calibration_input(args, truth):
-    """The canopy height map and the scanned-cell mask to calibrate on.
-
-    From a recorded cloud when --cloud is given, else synthetic crowns at
-    the ground-truth trees."""
-
     origin_x, origin_y = -40.0, -40.0
     dim_x = dim_y = int(80.0 / args.res)
     if args.cloud:
@@ -72,10 +42,7 @@ def _build_calibration_input(args, truth):
         chm, hits = rasterize_points(
             points, args.res, origin_x, origin_y, dim_x, dim_y)
         scanned = hits > 0
-
-
         return chm, scanned
-
     chm = synthetic_chm(
         truth, args.res, origin_x, origin_y, dim_x, dim_y,
         crown_factor=args.crown_factor, crown_offset=args.crown_offset,
@@ -86,7 +53,6 @@ def _build_calibration_input(args, truth):
 
 
 def main(argv=None) -> int:
-    """Parse the options, calibrate, write the YAML and JSON; exit code."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--world", default=None,
                         help="Gazebo world .sdf to read ground truth from")
@@ -117,7 +83,6 @@ def main(argv=None) -> int:
                         help="Synthetic ground relief amplitude (m)")
     args = parser.parse_args(argv)
 
-
     if args.world and args.scenario:
         parser.error("choose either --world or --scenario, not both")
     if not args.world and not args.scenario:
@@ -138,7 +103,6 @@ def main(argv=None) -> int:
     chm, scanned = _build_calibration_input(args, truth)
     print(f"Calibrating on {len(truth)} ground-truth trees "
           f"({chm.shape[0]}x{chm.shape[1]} grid, {args.trials} trials)")
-
     result = calibrate(
         chm, scanned, truth,
         origin_x=-40.0, origin_y=-40.0,
@@ -159,7 +123,6 @@ def main(argv=None) -> int:
     print("\nMetrics vs ground truth:")
     for key, value in metrics.items():
         print(f"  {key}: {value}")
-
 
     params = DetectionParams.from_dict(best["params"])
     out = Path(args.out)

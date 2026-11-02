@@ -1,20 +1,5 @@
 #!/usr/bin/env python3
-# The node that runs the ground check with the Husky's lidar.
-
-"""Tree refiner: the Husky's LiDAR checks the drone's trees on the ground.
-
-Inputs: the drone tracker's frozen trees (/parrot_tree_baseline_info) and
-LOST events, tree_mapper's per-scan trunk cluster centres
-(/tree_cluster_points) and the Husky's scans with TF for clear views.
-Logic in tree_refine.py.
-
-Publishes /refined_trees (RefinedTreeArray, latched). ``mode``:
-  annotate  the drone's results stay as they are; this is a second layer;
-  correct   consumers apply it: a FALSE_LOST cancels the drone's LOST and a
-            HIDDEN trunk is a tree. Positions stay the drone's: the Husky's
-            trunk positions were no better (oaks) or worse (pines, branches).
-"""
-
+# tree_refiner.py: The Husky's LiDAR checks the drone's trees on the ground
 import json
 import math
 
@@ -40,8 +25,6 @@ class TreeRefiner(Node):
         super().__init__('tree_refiner')
         p = lambda n, d: self.declare_parameter(n, d).value
         self.mode = str(p('mode', 'annotate'))
-
-
         self.frame = str(p('world_frame', 'husky1_odom'))
         self.cfg = RefineConfig(match_radius=float(p('match_radius', 1.5)),
                                 min_hits=int(p('min_hits', 4)),
@@ -63,8 +46,6 @@ class TreeRefiner(Node):
                               durability=DurabilityPolicy.VOLATILE,
                               history=HistoryPolicy.KEEP_LAST, depth=50)
         self.tf_buffer = Buffer()
-
-
         self.tf_listener = TransformListener(self.tf_buffer, None, spin_thread=True)
         self.create_subscription(String, '/parrot_tree_baseline_info', self.info_cb, latched)
         self.create_subscription(TreeChangeEvent, '/parrot_tree_change_events',

@@ -1,7 +1,4 @@
-# Gate tests for parrot_tree_tracker.
-
-"""Node-level gate tests for parrot_tree_tracker."""
-
+# test_tracker_gate.py: Node-level gate tests for parrot_tree_tracker
 import math
 
 import numpy as np
@@ -20,8 +17,6 @@ def ros_ctx():
 
 
 def test_no_change_events_before_baseline_freeze(ros_ctx, monkeypatch):
-    """Before the baseline freezes, lost/gained must stay zero and no
-    change event may be evaluated, even when detections already exist."""
     node = ParrotTreeTracker()
     node.baseline_frozen = False
     node.drone_baseline_ready = False
@@ -47,9 +42,6 @@ def test_no_change_events_before_baseline_freeze(ros_ctx, monkeypatch):
 
 
 def test_baseline_freeze_after_plateau_does_not_crash(ros_ctx, monkeypatch):
-    """Regression: the freeze path runs the crown-coverage check, which
-    uses scipy.ndimage. A missing import killed the node right after the
-    coverage plateau (live sparse run stopped publishing at 99.8%)."""
     node = ParrotTreeTracker()
     chm = np.zeros((node.dim_x, node.dim_y), dtype=np.float32)
     scanned = np.ones((node.dim_x, node.dim_y), dtype=bool)
@@ -66,7 +58,6 @@ def test_baseline_freeze_after_plateau_does_not_crash(ros_ctx, monkeypatch):
                          np.zeros(chm.shape, dtype=np.int32),
                          np.ones(chm.shape, dtype=bool)))
 
-
     node.coverage_pct = 0.998
     node._last_cov = 0.998
     node._cov_stable_ticks = 30
@@ -82,7 +73,6 @@ def test_baseline_freeze_after_plateau_does_not_crash(ros_ctx, monkeypatch):
 
 
 def test_freeze_blocked_reason_is_complete(ros_ctx):
-    """The blocked message must carry the counts, not a truncated prefix."""
     node = ParrotTreeTracker()
     tiny = DetectedTree(id=1, x=0.0, y=0.0, height=5.0, area_m2=0.1,
                         radius_m=0.3)
@@ -93,9 +83,6 @@ def test_freeze_blocked_reason_is_complete(ros_ctx):
 
 
 def test_crown_observed_fraction(ros_ctx):
-    """Full coverage must score 1.0 (not ~0.6 from border erosion), a thin
-    LiDAR stripe inside a flown-over crown is a scan gap, and a crown the
-    drone only half flew over stays below the 0.8 admission gate."""
     node = ParrotTreeTracker()
     tree = DetectedTree(id=1, x=0.0, y=0.0, height=5.0, area_m2=3.0,
                         radius_m=1.0)
@@ -116,9 +103,6 @@ def test_crown_observed_fraction(ros_ctx):
 
 
 def test_plateau_needs_coverage_to_stop_growing(ros_ctx, monkeypatch):
-    """coverage_pct is a 0-1 fraction. Coverage still climbing ~1 pp per
-    tick is NOT a plateau (the old 0.3 threshold = 30 pp said it was, and
-    the baseline froze mid-survey at ~70%)."""
     node = ParrotTreeTracker()
     chm = np.zeros((node.dim_x, node.dim_y), dtype=np.float32)
     scanned = np.ones((node.dim_x, node.dim_y), dtype=bool)
@@ -136,7 +120,6 @@ def test_plateau_needs_coverage_to_stop_growing(ros_ctx, monkeypatch):
         node.publish_status()
     assert node.baseline_frozen is False
     assert node._cov_stable_ticks < node.plateau_ticks
-
     for _ in range(node.plateau_ticks + node.baseline_stable_ticks + 1):
         node.publish_status()
     assert node.baseline_frozen is True
@@ -144,7 +127,6 @@ def test_plateau_needs_coverage_to_stop_growing(ros_ctx, monkeypatch):
 
 
 def test_freeze_requires_min_baseline_trees(ros_ctx):
-    """One admissible tree must not freeze a baseline that needs two."""
     node = ParrotTreeTracker()
     scanned = np.ones((node.dim_x, node.dim_y), dtype=bool)
     good = DetectedTree(id=1, x=0.0, y=0.0, height=5.0, area_m2=2.0,
@@ -170,12 +152,8 @@ def _grid_msg(data_yx, res, origin):
 
 
 def test_fused_chm_fills_grid_from_coarser_map(ros_ctx):
-    """A 100%-scanned 0.25 m canopy map must fill the whole 0.2 m CHM.
-    Forward mapping filled only 64% (an empty row/col every 5 cells), which
-    showed up live as 'scan stripes' and was patched with offset terrain."""
     node = ParrotTreeTracker()
     data = np.zeros((320, 320), dtype=np.int16)
-
     col = int((10.1 + 40.0) / 0.25)
     row = int((-5.1 + 40.0) / 0.25)
     data[row, col] = 50
@@ -215,9 +193,6 @@ PINE = {'id': 2, 'x': 8.0, 'y': -8.0, 'height': 3.1,
 
 
 def test_lobe_jump_inside_crown_is_not_a_gain(ros_ctx, monkeypatch):
-    """Live RUN 3: oak_3's treetop jumped 1.84 m to another lobe of its own
-    5 m crown and was reported GAINED. A detection inside a baseline crown
-    is the same tree."""
     lobe = DetectedTree(id=1, x=-2.0, y=9.2, height=5.4, area_m2=20.0,
                         radius_m=3.0)
     pine = DetectedTree(id=2, x=8.0, y=-8.0, height=3.1, area_m2=1.5,
@@ -231,7 +206,6 @@ def test_lobe_jump_inside_crown_is_not_a_gain(ros_ctx, monkeypatch):
 
 
 def test_new_tree_outside_crowns_is_still_gained(ros_ctx, monkeypatch):
-    """The crown gate must not hide a genuinely new tree in open ground."""
     oak = DetectedTree(id=1, x=-0.7, y=7.9, height=5.6, area_m2=51.0,
                        radius_m=5.1)
     pine = DetectedTree(id=2, x=8.0, y=-8.0, height=3.1, area_m2=1.5,
@@ -247,7 +221,6 @@ def test_new_tree_outside_crowns_is_still_gained(ros_ctx, monkeypatch):
 
 
 def _set_change(node, gained_at=None, lost_at=None, half=0.5):
-    """Fake /canopy_change_map cells (0.25 m grid, origin -40)."""
     res, origin, dim = 0.25, -40.0, 320
     gained = np.zeros((dim, dim), dtype=bool)
     lost = np.zeros((dim, dim), dtype=bool)
@@ -265,9 +238,6 @@ def _set_change(node, gained_at=None, lost_at=None, half=0.5):
 
 def test_flickering_detection_without_new_canopy_is_not_a_gain(
         ros_ctx, monkeypatch):
-    """Removal test 1 (dense): trees missing from the baseline flickered
-    back into detection and were reported GAINED (#19–#25), although the
-    canopy there never changed. A gain needs new-canopy evidence."""
     oak = DetectedTree(id=1, x=-0.7, y=7.9, height=5.6, area_m2=51.0,
                        radius_m=5.1)
     pine = DetectedTree(id=2, x=8.0, y=-8.0, height=3.1, area_m2=1.5,
@@ -284,8 +254,6 @@ def test_flickering_detection_without_new_canopy_is_not_a_gain(
 
 
 def test_lost_evidence_radius_is_capped(ros_ctx, monkeypatch):
-    """cluster RUN 8: a 15 m crown collected change cells far away and
-    fired LOST. Evidence must be searched near the tree only."""
     big = {'id': 1, 'x': 0.0, 'y': 0.0, 'height': 5.6,
            'radius_m': 15.0, 'area_m2': 159.0}
     node = _frozen_node(monkeypatch, [big, PINE], [
@@ -320,9 +288,6 @@ def _five_tree_node(monkeypatch):
 
 
 def test_one_tick_dropout_at_freeze_is_not_left_out(ros_ctx, monkeypatch):
-    """Live RUN 5: candidates reset at the plateau, freeze fires on the 3rd
-    tick; pine_2 missed one of those ticks, had only 2 hits, was frozen out
-    and 6 s later reported GAINED. It must wait and enter the baseline."""
     node, frames, five = _five_tree_node(monkeypatch)
     without_pine = [d for d in five if (d.x, d.y) != (8, -8)]
     for dets in (five, five, without_pine, five):
@@ -339,12 +304,9 @@ def test_one_tick_dropout_at_freeze_is_not_left_out(ros_ctx, monkeypatch):
 
 def test_freeze_does_not_wait_forever_for_a_flickering_candidate(
         ros_ctx, monkeypatch):
-    """A candidate that never reaches 3-of-4 must not block the baseline
-    beyond freeze_max_wait_ticks."""
     node, frames, five = _five_tree_node(monkeypatch)
     without_pine = [d for d in five if (d.x, d.y) != (8, -8)]
     for tick in range(node.freeze_max_wait_ticks + 2):
-
         frames['dets'] = five if tick % 2 == 0 else without_pine
         node.publish_status()
         if node.baseline_frozen:
@@ -355,8 +317,6 @@ def test_freeze_does_not_wait_forever_for_a_flickering_candidate(
 
 
 def test_drop_evidence_counts_only_when_enabled(ros_ctx, monkeypatch):
-    """Height-drop cells (change map -30) are LOST evidence only with
-    lost_drop_evidence; ground cells (-100) always are."""
     oak = {'id': 1, 'x': 0.0, 'y': 0.0, 'height': 5.6,
            'radius_m': 4.0, 'area_m2': 40.0}
     node = _frozen_node(monkeypatch, [oak, PINE], [
@@ -375,10 +335,6 @@ def test_drop_evidence_counts_only_when_enabled(ros_ctx, monkeypatch):
 
 
 def test_lost_needs_the_trees_own_top_to_drop(ros_ctx, monkeypatch):
-    """Dense run 4: standing oak_64 (baseline position offset towards removed
-    oak_78) collected 32 drop cells from oak_78's collapsing crown and was
-    unmatched for 480 ticks. Its own top never dropped, so with
-    lost_top_drop it must not be LOST; a tree whose top did drop is."""
     oak = {'id': 1, 'x': 0.0, 'y': 0.0, 'height': 6.2,
            'radius_m': 4.0, 'area_m2': 40.0}
     node = _frozen_node(monkeypatch, [oak, PINE], [
@@ -405,9 +361,6 @@ def test_lost_needs_the_trees_own_top_to_drop(ros_ctx, monkeypatch):
 
 
 def test_lost_top_frac_needs_most_of_the_top_gone(ros_ctx, monkeypatch):
-    """With lost_top_frac 0.9 a tree whose top cells mostly fell is LOST even
-    if one neighbour cell keeps the disc max up (max condition relaxed to
-    0.3 m); a tree with half its top standing is not."""
     oak = {'id': 1, 'x': 0.0, 'y': 0.0, 'height': 6.2,
            'radius_m': 4.0, 'area_m2': 40.0}
     node = _frozen_node(monkeypatch, [oak, PINE], [
@@ -435,9 +388,6 @@ def test_lost_top_frac_needs_most_of_the_top_gone(ros_ctx, monkeypatch):
 
 
 def _flicker_run(monkeypatch, **params):
-    """pine_2 is seen for 5 ticks (jittering 0.3 m around x=8) and then
-    drops out for the last 3 ticks before the freeze, like a thin pine top
-    that a later pass reads lower (dense run 12, pine_75)."""
     node, frames, five = _five_tree_node(monkeypatch)
     for k, v in params.items():
         setattr(node, k, v)
@@ -466,7 +416,6 @@ def test_majority_admission_keeps_a_flickering_pine(ros_ctx, monkeypatch):
     assert node.baseline_frozen and node.baseline_tree_count == 5
     pine = min(node.baseline_trees,
                key=lambda t: math.hypot(t['x'] - 8.0, t['y'] + 8.0))
-
     assert abs(pine['x'] - 8.06) < 0.01 and abs(pine['y'] + 8.0) < 1e-6
     node.destroy_node()
 
@@ -478,7 +427,6 @@ def test_default_admission_drops_the_flickering_pine(ros_ctx, monkeypatch):
 
 
 def test_time_window_admission_keeps_a_flickering_pine(ros_ctx, monkeypatch):
-    """Same flicker with a window in seconds: 5 hits in 8 ticks >= 50%."""
     node = _flicker_run(monkeypatch, admit_window_s=60.0, admit_fraction=0.5,
                         reset_candidates_at_plateau=False,
                         baseline_mean_position=True)
@@ -490,7 +438,6 @@ def test_time_window_admission_keeps_a_flickering_pine(ros_ctx, monkeypatch):
 
 
 class _Clock:
-    """Stand-in node clock so tests can step time in seconds."""
 
     def __init__(self, t=1000.0):
         self.t = t
@@ -500,7 +447,6 @@ class _Clock:
 
 
 def _colour_msg(spots, half=0.5):
-    """A camera_species_mapper grid: {(x, y): value} squares, -1 elsewhere."""
     res, origin, dim = 0.25, -40.0, 320
     data = np.full((dim, dim), -1, dtype=np.int16)
     for (x, y), value in spots.items():
@@ -511,7 +457,6 @@ def _colour_msg(spots, half=0.5):
 
 
 def _seen_node(monkeypatch, canopy=True, enabled=True):
-    """PINE baselined as pine-coloured canopy, now undetected, no height evidence."""
     node = _frozen_node(monkeypatch, [PINE], [])
     node.baseline_trees[0]['camera_pine'] = canopy
     node.seen_lost = enabled
@@ -522,7 +467,6 @@ def _seen_node(monkeypatch, canopy=True, enabled=True):
 
 
 def _ticks(node, clock, t, fraction=None, n=None):
-    """Ticks at time t; the camera sees PINE's spot at `fraction` (None = not seen)."""
     clock.t = t
     spots = {} if fraction is None else {(PINE['x'], PINE['y']): fraction}
     node.seen_recent_cb(_colour_msg(spots))
@@ -531,7 +475,6 @@ def _ticks(node, clock, t, fraction=None, n=None):
 
 
 def _visits(node, clock, fractions, t=1000.0):
-    """One camera visit per fraction, 60 s apart; then a tick that ends the last."""
     for f in fractions:
         _ticks(node, clock, t, f)
         t += 60.0
@@ -550,9 +493,6 @@ def test_disc_mean_needs_enough_observed_cells(ros_ctx):
 
 
 def test_camera_lost_when_the_camera_sees_through_the_spot(ros_ctx, monkeypatch):
-    """Dense pine_111: cut from under three oak crowns, its LiDAR top stays
-    at 4.2 m (branch tips) and no ground shows, but the camera sees through
-    the spot (canopy fraction 0.89 -> 0.00)."""
     node, clock = _seen_node(monkeypatch)
     _visits(node, clock, [0.0])
     assert node.total_trees_lost == 0
@@ -562,8 +502,6 @@ def test_camera_lost_when_the_camera_sees_through_the_spot(ros_ctx, monkeypatch)
 
 
 def test_camera_judges_whole_visits_not_single_readings(ros_ctx, monkeypatch):
-    """Standing pine_182 (baseline 1 m off its trunk): oblique readings at
-    the crown edge dip to ~0.3 inside passes that average ~0.65."""
     node, clock = _seen_node(monkeypatch)
     t = 1000.0
     for _ in range(3):
@@ -594,9 +532,6 @@ def test_camera_lost_only_for_camera_pines_and_when_enabled(ros_ctx, monkeypatch
 
 
 def test_camera_lost_also_needs_the_top_to_drop(ros_ctx, monkeypatch):
-    """Replays of run 17 / gate3_dense: at phantom crowns (oak branch clumps)
-    the camera sees through the sparse crown edge now and then although
-    nothing was cut. The tree's own top must also have dropped."""
     node, clock = _seen_node(monkeypatch)
     node.lost_top_drop = 0.3
     shape = (node.dim_x, node.dim_y)
@@ -617,9 +552,6 @@ def test_camera_lost_also_needs_the_top_to_drop(ros_ctx, monkeypatch):
 
 
 def test_freeze_marks_pine_coloured_canopy_trees_for_the_camera(ros_ctx, monkeypatch):
-    """Camera LOST applies only to trees the camera saw as canopy and as
-    pine-coloured: every false see-through spot so far was an oak branch
-    clump (blue/green 0.33-0.45), the cut pines read 0.71-0.74."""
     node = ParrotTreeTracker()
     chm = np.zeros((node.dim_x, node.dim_y), dtype=np.float32)
     scanned = np.ones((node.dim_x, node.dim_y), dtype=bool)
@@ -631,7 +563,6 @@ def test_freeze_marks_pine_coloured_canopy_trees_for_the_camera(ros_ctx, monkeyp
         "deforestation_monitoring.parrot_tree_tracker.detect_trees",
         lambda *a, **k: (list(trees), np.zeros(chm.shape, dtype=np.int32),
                          np.ones(chm.shape, dtype=bool)))
-
     node.seen_map_cb(_colour_msg({(0.0, 0.0): 0.95, (8.0, -8.0): 0.95, (-8.0, 8.0): 0.2}))
     node.species_map_cb(_colour_msg({(0.0, 0.0): 0.39, (8.0, -8.0): 0.72, (-8.0, 8.0): 0.72}))
     node.coverage_pct = 0.998
@@ -646,8 +577,6 @@ def test_freeze_marks_pine_coloured_canopy_trees_for_the_camera(ros_ctx, monkeyp
 
 
 def test_colour_spires_only_until_the_baseline_freezes(ros_ctx, monkeypatch):
-    """The colour map is an all-time mean: after pine_117 was cut it still
-    read pine there, and a re-added tip kept the tree matched forever."""
     node = _frozen_node(monkeypatch, [PINE], [])
     node.colour_pines = True
     calls = []
@@ -658,7 +587,6 @@ def test_colour_spires_only_until_the_baseline_freezes(ros_ctx, monkeypatch):
 
 
 def _spire_scene(node, pine_colour):
-    """A 6 m oak crown at (0, 0) and a 4.8 m pine tip at (4, 0) beside it."""
     chm = np.zeros((node.dim_x, node.dim_y), dtype=np.float32)
     gx, gy = np.meshgrid(node.origin_x + (np.arange(node.dim_x) + 0.5) * node.res,
                          node.origin_y + (np.arange(node.dim_y) + 0.5) * node.res,
@@ -694,9 +622,6 @@ def test_colour_spire_needs_pine_colour_and_no_detection_nearby(ros_ctx):
 
 
 def test_baseline_detects_on_the_time_averaged_chm_until_the_freeze(ros_ctx, monkeypatch):
-    """Dense runs 17-22: the latest-reading map reshapes crown edges on every
-    pass, so pines dropped out of the baseline and oak_153 froze 2 m off.
-    Before the freeze the detector sees the average; after it, the latest."""
     node = ParrotTreeTracker()
     node.baseline_mean_chm = True
     shape = (node.dim_x, node.dim_y)
@@ -733,8 +658,6 @@ CLUMP = {'id': 57, 'x': 13.3, 'y': 19.6, 'height': 4.7, 'radius_m': 1.5, 'area_m
 
 
 def test_clump_lost_with_its_oak_is_merged_either_order(ros_ctx, monkeypatch):
-    """Dense replays: a clump of oak_153's crown went LOST 1-17 s before or
-    after oak_153 and was scored as a double count."""
     for first, second in ((CLUMP, OAK_153), (OAK_153, CLUMP)):
         node, events = _merge_node(monkeypatch)
         node._pending_lost = [(100.0, first), (112.0, second)]
@@ -746,9 +669,6 @@ def test_clump_lost_with_its_oak_is_merged_either_order(ros_ctx, monkeypatch):
 
 
 def test_clump_lost_well_after_its_oak_is_still_merged(ros_ctx, monkeypatch):
-    """Live run 24: oak_153's clump went LOST 38 s after oak_153 itself,
-    past the 30 s hold; replay of run 23: oak_60's clump 373 s after (next
-    survey loop). A clump after its oak is merged up to merge_after_s."""
     for gap, merged in ((38.0, True), (373.0, True), (700.0, False)):
         node, events = _merge_node(monkeypatch)
         node._pending_lost = [(100.0, OAK_153)]
@@ -760,11 +680,6 @@ def test_clump_lost_well_after_its_oak_is_still_merged(ros_ctx, monkeypatch):
 
 
 def test_later_half_of_a_split_crown_merges_into_a_smaller_host(ros_ctx, monkeypatch):
-    """Replays 25 and 29 (lost_mean_drop): the baseline split oak_60's crown
-    into #28 (16.5 m2, at the trunk) and #75 (17.8 m2, 3.2 m away); #75 went
-    LOST 560 s after #28 and was not merged because it is the larger one.
-    With merge_after_ratio a later crown merges into a reported host of at
-    least that fraction of its area; held crowns still need a larger host."""
     host = {'id': 28, 'x': -16.5, 'y': -22.6, 'height': 6.0, 'area_m2': 16.5, 'colour': 0.30}
     half = {'id': 75, 'x': -13.8, 'y': -24.3, 'height': 5.9, 'area_m2': 17.8, 'colour': 0.31}
     for ratio, host_area, merged in ((0.0, 16.5, False), (0.8, 16.5, True), (0.8, 12.0, False)):
@@ -776,7 +691,6 @@ def test_later_half_of_a_split_crown_merges_into_a_smaller_host(ros_ctx, monkeyp
         node._flush_pending_lost(690.0)
         assert events == ([28] if merged else [28, 75])
         node.destroy_node()
-
     node, events = _merge_node(monkeypatch)
     node.merge_after_ratio = 0.8
     node._pending_lost = [(100.0, host), (110.0, half)]
@@ -828,8 +742,6 @@ def test_pine_patches_only_where_the_baseline_has_no_tree(ros_ctx):
 
 
 def test_pine_patch_alert_is_a_canopy_lost_event(ros_ctx, monkeypatch):
-    """Crown-shared pine_117 is never in the baseline; the camera saw through
-    its patch 0.91 -> 0.00 after the cut (runs 17, 19, 20)."""
     from deforestation_monitoring.removal_test import parse_canopy_events
     node, clock = _seen_node(monkeypatch, canopy=False)
     node.camera_area_alerts = True
@@ -851,9 +763,6 @@ def test_pine_patch_alert_is_a_canopy_lost_event(ros_ctx, monkeypatch):
 
 
 def test_pine_patch_next_to_an_off_crown_tree_becomes_its_camera_site(ros_ctx):
-    """Dense pine_163: baselined as #68 1.0 m off its trunk, where the disc
-    reads a neighbour's colour (0.46); its own pine patch sat 0.9 m away and
-    was skipped, so neither camera rule watched it (run 23)."""
     for attach, pine_near in ((True, False), (False, False), (True, True)):
         node = ParrotTreeTracker()
         node.camera_area_alerts = True
@@ -893,9 +802,6 @@ def test_tree_with_a_camera_site_goes_lost_when_the_camera_sees_through_it(ros_c
 
 
 def test_patch_loss_is_judged_on_the_disc_mean(ros_ctx, monkeypatch):
-    """Crown-shared pine_117 (run 18): the camera saw through its patch
-    twice, but an oak branch held the disc max (drop 0.0 m); the disc mean
-    fell 2.6 m."""
     node, clock = _seen_node(monkeypatch, canopy=False)
     node.camera_area_alerts = True
     node.lost_top_drop = 0.3
@@ -929,10 +835,6 @@ def test_patch_loss_is_judged_on_the_disc_mean(ros_ctx, monkeypatch):
 
 
 def test_pine_patch_the_lidar_also_saw_joins_the_baseline(ros_ctx):
-    """pine_111 flickers on the pre-freeze map (live run 24: detected in 2
-    of the last 30 ticks, not in the baseline); its 26-cell pine patch is
-    admitted because the LiDAR saw a tree there. Sparse oak-edge patches
-    are 6-8 cells and stay patches."""
     node = ParrotTreeTracker()
     node.camera_area_alerts = True
     node.baseline_trees = [dict(PINE, id=1)]
@@ -950,9 +852,6 @@ def test_pine_patch_the_lidar_also_saw_joins_the_baseline(ros_ctx):
 
 
 def test_large_pine_patch_clear_of_every_tree_joins_as_camera_only(ros_ctx):
-    """pine_111 missed the baseline in replays of runs 22 and 26 (no LiDAR
-    hit near its 26-28 cell patch). Large patches clear of every baseline
-    tree (2 m = the removal test's identity radius) join as camera-only."""
     node = ParrotTreeTracker()
     node.camera_area_alerts = True
     node.area_admit_cells = 0
@@ -969,8 +868,6 @@ def test_large_pine_patch_clear_of_every_tree_joins_as_camera_only(ros_ctx):
 
 
 def test_camera_only_trees_are_left_out_of_matching(ros_ctx):
-    """A camera-only tree must not take a LiDAR detection or shrink its
-    neighbours' match radius (0.4 x nearest-neighbour distance)."""
     node = ParrotTreeTracker()
     lidar = dict(PINE, id=1, x=0.0, y=0.0)
     cam = dict(PINE, id=2, x=2.0, y=0.0, camera_only=True)
@@ -996,11 +893,7 @@ def test_camera_only_tree_goes_lost_only_on_the_camera(ros_ctx, monkeypatch):
     node.destroy_node()
 
 
-
 def test_baseline_pine_loss_counts_on_the_disc_mean_too(ros_ctx, monkeypatch):
-    """Live run 29: pine_111 seen through from 252 s and its disc mean down
-    3.0 m from 282 s, but a neighbour's branch held the disc max until
-    667 s. A baseline pine's height check also passes on the mean."""
     node, clock = _seen_node(monkeypatch)
     node.lost_top_drop = 0.3
     shape = (node.dim_x, node.dim_y)
@@ -1019,8 +912,6 @@ def test_baseline_pine_loss_counts_on_the_disc_mean_too(ros_ctx, monkeypatch):
 
 
 def test_baseline_tree_enters_at_its_median_recent_position(ros_ctx):
-    """Live run 28: oak_153 0.7-0.8 m from its trunk for 27 ticks, then
-    1.8, 2.1, 2.1 m in the last three before the freeze."""
     node = ParrotTreeTracker()
     node.freeze_median_ticks = 10
     det = lambda x: DetectedTree(id=0, x=x, y=0.0, height=6.0, area_m2=40.0, radius_m=4.0)
@@ -1034,12 +925,6 @@ def test_baseline_tree_enters_at_its_median_recent_position(ros_ctx):
 
 
 def test_median_skips_a_past_crown_shared_by_two_freeze_trees(ros_ctx):
-    """Live run 40: oak_153 and oak_168 were detected as one fused crown at
-    (17.8, 22.4) for most of the survey and as two trees at the freeze,
-    (17.0, 21.0) and (19.4, 22.8). The 30-tick / 2 m median pulled both onto
-    the fused spot. With freeze_median_exclusive a past detection within the
-    radius of two freeze trees is skipped; a one-tree jump (run 28) still
-    gets the median."""
     node = ParrotTreeTracker()
     node.freeze_median_ticks, node.freeze_median_radius = 30, 2.0
     det = lambda x, y: DetectedTree(id=0, x=x, y=y, height=6.0, area_m2=40.0, radius_m=3.5)
@@ -1053,7 +938,6 @@ def test_median_skips_a_past_crown_shared_by_two_freeze_trees(ros_ctx):
     node.freeze_median_exclusive = True
     assert node._median_position({'x': 17.0, 'y': 21.0}, final) == (17.0, 21.0)
     assert node._median_position({'x': 19.4, 'y': 22.8}, final) == (19.4, 22.8)
-
     node._recent_dets.clear()
     for x in [0.8] * 27 + [1.8, 2.1, 2.1]:
         node._recent_dets.append([det(x, 0.0)])
@@ -1062,9 +946,6 @@ def test_median_skips_a_past_crown_shared_by_two_freeze_trees(ros_ctx):
 
 
 def test_clump_with_its_oak_still_standing_is_held_for_it(ros_ctx, monkeypatch):
-    """Replays 25 / 28: oak_153's clump went LOST 172-189 s before oak_153.
-    A small non-pine crown next to a larger standing one is held up to
-    merge_hold_s; if the larger one goes LOST meanwhile, they merge."""
     node, _ = _merge_node(monkeypatch)
     node.merge_hold_s = 240.0
     target = dict(CLUMP, area_m2=18.0)
@@ -1113,8 +994,6 @@ def test_dashboard_notes_say_what_caught_a_lost_and_what_was_merged(ros_ctx, mon
 
 
 def test_pine_patches_keep_off_the_survey_edge(ros_ctx):
-    """Edge trees are tracked out to ±37 m, but a pine patch 1.7 m from the
-    world edge raised a false camera alert: patches need area_edge_margin."""
     node = ParrotTreeTracker()
     node.camera_area_alerts = True
     node.survey_x_min = node.survey_y_min = -37.0
@@ -1130,8 +1009,6 @@ def test_pine_patches_keep_off_the_survey_edge(ros_ctx):
 
 
 def test_lost_height_rule_also_passes_on_the_disc_mean(ros_ctx, monkeypatch):
-    """Run 34, oak_69: one branch tip held the disc max (6.2 -> 6.1 m) while
-    the mean within 1 m fell 5.4 -> 2.5 m."""
     node = _frozen_node(monkeypatch, [OAK], [])
     node.lost_top_drop, node.lost_top_frac = 0.3, 0.9
     tree = node.baseline_trees[0]

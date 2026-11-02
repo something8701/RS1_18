@@ -1,14 +1,5 @@
 #!/usr/bin/env python3
-# Static checks on the dense forest world and local models.
-
-"""Static material/world validation for the dense forest and local model set.
-
-This test is intentionally independent of a running Gazebo server. It checks
-that the SDF worlds reference only local model materials that actually exist,
-and that dense_forest contains the expected grass-plane ground tiles and
-Oak/Pine tree population.
-"""
-
+# test_dense_forest_world.py: Static material/world validation for the dense forest and local model set
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
@@ -66,8 +57,6 @@ def test_dense_forest_world_structure():
 
 
 def test_all_world_local_model_materials_resolve():
-    """Every local model:// URI in every world must point to a model whose
-    model.sdf exists and whose referenced local texture files exist."""
     world_paths = sorted(WORLDS_DIR.glob("*.sdf"))
     assert world_paths, "no worlds found"
 
@@ -90,14 +79,10 @@ def test_all_world_local_model_materials_resolve():
                 assert resolved.exists(), f"missing material texture: {resolved}"
                 checked_models.add(model_dir.name)
 
-
-
     assert {"grass_plane", "forest_plane", "forest_wall"} <= checked_models
 
 
 def test_showcase_forest_every_tree_visible_from_above():
-    """Showcase world (option B): oaks >= 7 m apart, pines >= 7 m from every
-    oak and >= 3.5 m from each other (make_showcase_world.py)."""
     import math
     import re
     text = (WORLDS_DIR / "showcase_forest.sdf").read_text()

@@ -1,4 +1,5 @@
 <?xml version="1.0"?>
+<!-- husky.gazebo.xacro -->
 <robot name="husky" xmlns:xacro="http://ros.org/wiki/xacro">
   <xacro:arg name="laser_visual"  default="false" />
   <xacro:arg name="camera_visual" default="false"/>
@@ -76,8 +77,7 @@
     </sensor>
     <material>Gazebo/Grey</material>
   </gazebo>
- 
-  <!-- Move base directly without faffing around with diff drive controllers -->
+
   <gazebo>
     <plugin
       filename="ignition-gazebo-velocity-control-system"
@@ -86,7 +86,6 @@
     </plugin>
   </gazebo>
 
-  <!-- Publish odometry separately -->
   <gazebo>
     <plugin
       filename="ignition-gazebo-odometry-publisher-system"
@@ -150,13 +149,7 @@
           <near>0.1</near>
           <far>40</far>
         </clip>
-        <!-- depth_camera near/far clip seems to be ignored for some reason -->
-        <!--    We're using Ignition Gazebo Fortress, which uses sdf format 1.9: http://sdformat.org/tutorials?tut=roadmap -->
-        <!--    This takes the depth_camera parameter with near / far clip http://sdformat.org/spec?ver=1.4&elem=sensor  -->
-        <!-- We also use ign sensors v6 ( run ls | grep libignition-sensors in /usr/lib/x86_64-linux-gnu)-->
-        <!-- Looking at the source code, the sdf sets HasDepthCamera() and corresponding HasDepthNearClip() & HasDepthFarClip() which are used in RgbdCameraSensor.cc, so this should work? -->
-        <!--    SDF description of Camera: https://github.com/gazebosim/sdformat/blob/sdf9/src/Camera.cc#L598-->
-        <!--    Camera sensor source code: https://github.com/gazebosim/gz-sensors/blob/ign-sensors6/src/RgbdCameraSensor.cc#L311  -->
+
         <depth_camera>
           <clip>
             <near>0.4</near>
@@ -165,7 +158,7 @@
         </depth_camera>
       </camera>
       <always_on>1</always_on>
-      <update_rate>3</update_rate> <!--10-->
+      <update_rate>3</update_rate> 
       <visualize>$(arg camera_visual)</visualize>
       <topic>/model/${gz_model_name}/camera</topic>
       <gz_frame_id>${prefix}camera_link</gz_frame_id>

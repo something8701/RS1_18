@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="forest">
 <head>
+<!-- dashboard.html: RS1_18 dashboard -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no,viewport-fit=cover">
 <meta name="color-scheme" content="dark">
 <title>Canopy Sentinel</title>
 <style>
-/* ── Themes (all dark). Status colors stay semantic; accent and neutrals change. ── */
+
 :root,html[data-theme="forest"]{
   --backdrop:#07100a; --accent:#30d158; --accent-ink:#052e14;
   --green:#30d158; --red:#ff453a; --orange:#ff9f0a; --yellow:#ffd60a; --cyan:#64d2ff;
@@ -33,11 +34,10 @@ html[data-theme="midnight"]{
   --label:rgba(255,255,255,.9); --label2:rgba(235,235,245,.6); --label3:rgba(235,235,245,.38);
 }
 :root{
-  /* Glass material: JS rewrites these from Settings */
+
   --glass-rgb:30,34,32; --glass-alpha:.45; --glass-blur:16px; --glass-sat:1.6;
   --platter-alpha:.10; --legibility:.55;
 
-  /* Layout: --safe-* is the screen area left uncovered by floating glass; JS keeps it current */
   --gap:14px; --sidebar-w:340px; --sheet-peek:78px;
   --safe-left:368px; --safe-top:88px; --safe-bottom:14px;
 
@@ -58,23 +58,23 @@ body{background:var(--backdrop);color:var(--label);overflow:hidden;height:100vh;
 button{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 body:not(.show-husky) .husky-only{display:none!important}
+body:not(.show-radio) .radio-only{display:none!important}
 body:not(.dev) .dev-only{display:none!important}
 
-/* ── Liquid Glass material ──────────────────────────────────────────── */
 .glass{
   position:relative;isolation:isolate;
   background:rgba(var(--glass-rgb),var(--glass-alpha));
   -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-sat));
   backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-sat));
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.24),      /* specular top edge */
-    inset 0 -1px 0 rgba(0,0,0,.32),           /* shaded bottom edge */
-    inset 0 0 22px rgba(0,0,0,.22),           /* darkened rim */
+    inset 0 1px 0 rgba(255,255,255,.24),
+    inset 0 -1px 0 rgba(0,0,0,.32),
+    inset 0 0 22px rgba(0,0,0,.22),
     0 18px 50px -12px rgba(0,0,0,.6),
     0 2px 8px rgba(0,0,0,.28);
   text-shadow:0 1px 2px rgba(0,0,0,calc(.65 * var(--legibility)));
 }
-/* refractive rim: bright where light enters (top-left), faint where it exits */
+
 .glass::before{
   content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;z-index:2;
   background:linear-gradient(150deg,rgba(255,255,255,.55),rgba(255,255,255,.10) 28%,rgba(255,255,255,0) 52%,rgba(255,255,255,.05) 74%,rgba(255,255,255,.30));
@@ -83,14 +83,14 @@ body:not(.dev) .dev-only{display:none!important}
   mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
   mask-composite:exclude;
 }
-/* specular sheen that follows the pointer across the surface */
+
 .glass::after{
   content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:-1;
   background:
     radial-gradient(340px circle at var(--mx,20%) var(--my,-30%),rgba(255,255,255,.13),rgba(255,255,255,0) 62%),
     linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,0) 34%);
 }
-/* Increase contrast: solid outlines instead of soft glass cues */
+
 html.contrast{--label2:rgba(255,255,255,.86);--label3:rgba(255,255,255,.68)}
 html.contrast .glass{text-shadow:none;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55),0 18px 50px -12px rgba(0,0,0,.6)}
 html.contrast .glass::before,html.contrast .glass::after{display:none}
@@ -98,7 +98,6 @@ html.contrast .card,html.contrast .stat{box-shadow:inset 0 0 0 1px rgba(255,255,
 html.contrast .chip.active,html.contrast .segmented .lens{box-shadow:inset 0 0 0 1.5px var(--label)}
 html.contrast .tab:not(.active),html.contrast .chip:not(.active):not(.primary){color:var(--label)}
 
-/* ── Backdrop and views ─────────────────────────────────────────────── */
 #ambient{position:fixed;inset:0;width:100%;height:100%;z-index:0;display:block}
 #view-container{position:fixed;inset:0;z-index:1}
 .view{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .25s var(--ease)}
@@ -106,15 +105,172 @@ html.contrast .tab:not(.active),html.contrast .chip:not(.active):not(.primary){c
 #map-wrap{position:absolute;inset:0}
 #map-canvas{width:100%;height:100%;display:block}
 #terrain-container{position:absolute;inset:0}
-#t3-panel{position:absolute;left:var(--safe-left);bottom:var(--safe-bottom);padding:8px;border-radius:20px;display:flex;flex-direction:column;gap:4px;max-width:calc(100% - var(--safe-left) - var(--gap))}
-#t3-panel .t3-row{display:flex;flex-wrap:wrap;gap:2px}
-#t3-panel .chip{padding:6px 11px;font-size:12px}
-.t3-hint{color:var(--label3);font-size:11px;padding:2px 8px}
+
+#terrain-container{outline:none}
+#terrain-container:focus-visible{box-shadow:inset 0 0 0 2px var(--accent)}
+#t3-labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.t3-label{position:absolute;left:0;top:0;display:inline-flex;align-items:center;gap:6px;padding:4px 10px 4px 8px;
+  border-radius:var(--r-pill);background:rgba(16,20,18,.8);color:var(--label);font:600 12px/1.25 var(--font);white-space:nowrap;
+  box-shadow:0 0 0 .5px rgba(255,255,255,.14),0 4px 12px rgba(0,0,0,.35);will-change:transform}
+.t3-label i{width:8px;height:8px;border-radius:50%;flex:none}
+.t3-label small{font:500 12px/1.25 var(--font);color:var(--label2)}
+#t3-bar{position:absolute;left:var(--safe-left);bottom:var(--safe-bottom);display:flex;align-items:center;gap:2px;padding:4px;border-radius:var(--r-pill);max-width:calc(100% - var(--safe-left) - var(--gap))}
+#t3-bar .t3-seg{display:flex;gap:2px}
+#t3-bar .sep{width:1px;height:20px;background:rgba(255,255,255,.14);margin:0 4px;flex:none}
+#t3-nav{position:absolute;right:var(--gap);top:var(--safe-top);display:flex;flex-direction:column;gap:2px;padding:4px;border-radius:24px}
+#t3-nav button{width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:var(--label);font:600 13px var(--font);
+  cursor:pointer;display:grid;place-items:center;transition:background .2s}
+#t3-nav button:hover{background:rgba(255,255,255,.1)}
+#t3-nav button:active{transform:scale(.94)}
+#t3-nav svg{width:22px;height:22px;display:block}
+#t3-nav button:focus-visible,#t3-bar .chip:focus-visible,#t3-layers .switch:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#t3-layers{position:absolute;left:var(--safe-left);bottom:calc(var(--safe-bottom) + 58px);width:min(300px,calc(100% - var(--safe-left) - var(--gap)));
+  padding:14px 16px 12px;border-radius:var(--r-card);display:flex;flex-direction:column;gap:12px}
+#t3-layers[hidden],#t3-layers .switch-row[hidden]{display:none}
+#t3-layers h4{margin:0;font:600 13px var(--font);color:var(--label2)}
+.t3-legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08);font-size:12px;color:var(--label2)}
+.t3-legend span{display:flex;align-items:center;gap:7px}
+.t3-legend i{width:10px;height:10px;border-radius:50%;flex:none}
+.t3-hint{color:var(--label3);font-size:12px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+@media (prefers-reduced-motion:reduce){#t3-nav button{transition:none}}
 #terrain-container .fallback{position:absolute;left:var(--safe-left);top:var(--safe-top);padding:18px 22px;border-radius:20px;color:var(--label2)}
 .panel{position:absolute;left:var(--safe-left);top:var(--safe-top);right:var(--gap);bottom:var(--safe-bottom);
   border-radius:var(--r-panel);display:flex;flex-direction:column;overflow:hidden;transition:left .55s var(--spring)}
 
-/* ── Sidebar ────────────────────────────────────────────────────────── */
+.focus-scroll{display:none;flex:1;overflow-y:auto;padding:2px 14px 14px;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.18) transparent}
+body.layout-focus .sidebar-scroll{display:none}
+body.layout-focus .focus-scroll{display:block}
+.f-hero{padding:2px 4px 14px}
+
+body.layout-focus .f-hero h2{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.f-hero h2{font:700 22px/26px var(--font-display);letter-spacing:-.3px;color:var(--label);margin:0}
+.f-hero p{font:400 15px/20px var(--font);color:var(--label2);margin:4px 0 0}
+.f-phases{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin:16px 0 0;padding:0;list-style:none}
+.f-phases li{display:flex;flex-direction:column;gap:6px;font:500 11px/13px var(--font);color:var(--label2)}
+.f-phases li::before{content:"";height:4px;border-radius:2px;background:rgba(255,255,255,.14)}
+.f-phases li.done{color:var(--label2)}
+.f-phases li.done::before{background:color-mix(in srgb,var(--accent) 70%,transparent)}
+.f-phases li.now{color:var(--label);font-weight:600}
+.f-phases li.now::before{background:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+.f-phases li.skip{color:var(--label2);text-decoration:line-through;text-decoration-color:rgba(255,255,255,.25)}
+.f-sec{margin:10px 0 0}
+.f-sec h3{font:600 12px/16px var(--font);color:var(--label2);margin:0 4px 6px;display:flex;justify-content:space-between}
+.f-sec h3 small{font-weight:500;color:var(--label2)}
+.f-list{background:rgba(255,255,255,var(--platter-alpha));border-radius:var(--r-card);overflow:hidden}
+.f-row{display:flex;align-items:center;gap:11px;width:100%;min-height:52px;padding:9px 12px;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer;font:inherit}
+.f-row+.f-row{box-shadow:inset 0 .5px 0 rgba(255,255,255,.1)}
+.f-row:hover{background:rgba(255,255,255,.06)}
+.f-row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:12px}
+.f-row .f-ic{width:30px;height:30px;flex:none;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--c,#fff) 18%,transparent)}
+.f-row .f-ic i{width:10px;height:10px;border-radius:50%;background:var(--c,#fff)}
+.f-row .f-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.f-row .f-tx b{font:600 13px/16px var(--font);color:var(--label);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.f-row .f-tx span{font:400 12px/15px var(--font);color:var(--label2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.f-row .f-end{flex:none;font:500 12px var(--font);color:var(--label2);font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:8px}
+.f-row .f-chev{width:7px;height:12px;flex:none;opacity:.45}
+.f-ring{width:24px;height:24px;flex:none;transform:rotate(-90deg)}
+.f-ring circle{fill:none;stroke-width:3}
+.f-ring .bg{stroke:rgba(255,255,255,.14)}
+.f-ring .fg{stroke:var(--c,#fff);stroke-linecap:round;transition:stroke-dashoffset .5s var(--ease)}
+.f-empty{padding:14px;font-size:12px;color:var(--label2)}
+.f-photos{border:0;border-radius:var(--r-pill);padding:4px 9px;background:rgba(255,255,255,.12);color:var(--label);font:600 11px var(--font);cursor:pointer}
+.f-photos:hover{background:rgba(255,255,255,.2)}
+.f-more{display:block;margin:6px 4px 0}
+details.f-details{margin:14px 0 0}
+details.f-details summary{list-style:none;cursor:pointer;font:600 12px/16px var(--font);color:var(--label2);padding:4px;display:flex;align-items:center;gap:6px;border-radius:8px}
+details.f-details summary::-webkit-details-marker{display:none}
+details.f-details summary::before{content:"";width:6px;height:6px;border-right:1.6px solid currentColor;border-bottom:1.6px solid currentColor;transform:rotate(-45deg);transition:transform .2s var(--ease)}
+details.f-details[open] summary::before{transform:rotate(45deg)}
+details.f-details summary:focus-visible{outline:2px solid var(--accent)}
+.f-kv{display:grid;grid-template-columns:1fr auto;gap:6px 12px;padding:10px 12px;font-size:12px;color:var(--label2);background:rgba(255,255,255,var(--platter-alpha));border-radius:var(--r-card);margin-top:6px}
+.f-kv b{font-weight:600;color:var(--label);text-align:right;font-variant-numeric:tabular-nums}
+
+#layers-btn{display:none}
+body.layout-focus #layers-btn{display:grid}
+body.layout-focus #toolbar>.controls{display:none}
+body.layout-focus #map-wrap>#legend{display:none}
+#layers-pop{position:fixed;z-index:8;top:calc(var(--gap) + 58px);right:calc(var(--gap) + 52px);width:260px;padding:12px;border-radius:var(--r-card);display:flex;flex-direction:column;gap:10px}
+#layers-pop[hidden]{display:none}
+#layers-pop h4{margin:0 4px;font:600 12px var(--font);color:var(--label2)}
+#layers-pop .controls{display:flex;flex-direction:column;align-items:stretch;padding:0;background:none;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}
+#layers-pop .controls::before,#layers-pop .controls::after{display:none}
+#layers-pop .controls .chip{justify-content:flex-start;border-radius:12px}
+#layers-pop #legend{position:static;display:block;padding:0 4px;background:none;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;max-height:none}
+#layers-pop #legend::before,#layers-pop #legend::after{display:none}
+@media (prefers-reduced-motion:reduce){.f-ring .fg,details.f-details summary::before{transition:none}}
+
+#area-card{position:absolute;z-index:3;left:0;top:0;width:264px;padding:12px 14px 14px;border-radius:var(--r-card);display:flex;flex-direction:column;gap:9px}
+#area-card[hidden]{display:none}
+#area-card .ac-head{display:flex;align-items:flex-start;gap:10px}
+#area-card .ac-sw{width:12px;height:12px;border-radius:3px;margin-top:4px;flex:none;background:var(--c)}
+#area-card .ac-t{flex:1;min-width:0}
+#area-card h4{margin:0;font:600 15px/20px var(--font-display);color:var(--label)}
+#area-card .ac-t small{display:block;font:400 12px/16px var(--font);color:var(--label2)}
+#area-card .ac-close{width:28px;height:28px;flex:none;border:0;border-radius:50%;background:rgba(255,255,255,.1);color:var(--label);cursor:pointer;display:grid;place-items:center;margin:-2px -4px 0 0}
+#area-card .ac-close:hover{background:rgba(255,255,255,.18)}
+#area-card .ac-status{font:600 13px/17px var(--font);color:var(--label);display:flex;align-items:center;gap:7px}
+#area-card .ac-status i{width:8px;height:8px;border-radius:50%;background:var(--c);flex:none}
+#area-card dl{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;margin:0;font-size:12px}
+#area-card dt{color:var(--label2)}
+#area-card dd{margin:0;color:var(--label);text-align:right;font-variant-numeric:tabular-nums}
+#area-card .ac-actions{display:flex;gap:6px;flex-wrap:wrap}
+#area-card .ac-actions .chip{padding:7px 12px}
+#area-card :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.f-row.sel{background:rgba(255,255,255,.1)}
+.area-key{display:grid;gap:7px;padding:10px 4px 2px;border-top:1px solid rgba(255,255,255,.08)}
+.area-key h4{margin:0 0 2px!important}
+.area-key span{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--label2)}
+.area-key svg{width:22px;height:14px;flex:none}
+#flags-list .flag-item{cursor:pointer}
+#flags-list .flag-item:hover{filter:brightness(1.15)}
+#flags-list .flag-item:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.f-next{margin:2px 0 4px;padding:12px;border-radius:var(--r-card);background:rgba(255,255,255,calc(var(--platter-alpha) + .04));box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.f-next[hidden]{display:none}
+.f-next .fn-eyebrow{font:600 11px/14px var(--font);color:var(--label2);margin:0 0 4px}
+.f-next .fn-title{font:600 15px/20px var(--font-display);color:var(--label);margin:0}
+.f-next .fn-why{font:400 12px/16px var(--font);color:var(--label2);margin:3px 0 0}
+.f-next .fn-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.f-next .fn-actions .chip{padding:7px 12px}
+.f-next .fn-actions .chip[disabled]{opacity:.45;cursor:not-allowed}
+.f-next .fn-menu{display:flex;flex-direction:column;margin-top:8px;border-radius:12px;overflow:hidden;background:rgba(0,0,0,.22)}
+.f-next .fn-menu button{border:0;background:transparent;color:var(--label);text-align:left;padding:9px 11px;font:500 12px/16px var(--font);cursor:pointer}
+.f-next .fn-menu button+button{box-shadow:inset 0 .5px 0 rgba(255,255,255,.1)}
+.f-next .fn-menu button:hover,.f-next .fn-menu button:focus-visible{background:rgba(255,255,255,.1);outline:none}
+.f-next .fn-menu small{display:block;color:var(--label2);font-weight:400}
+.f-next .switch-row{margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08)}
+.f-next .fn-pending{font-size:12px;color:var(--label2);margin-top:8px}
+.f-next.done .fn-title{font-size:17px}
+.f-row.stale .f-ic i{background:var(--orange)}
+.f-row.stale .f-tx span{color:color-mix(in srgb,var(--orange) 70%,white)}
+.f-key{display:flex;flex-wrap:wrap;gap:4px 12px;margin:8px 4px 0;font-size:11px;color:var(--label2)}
+.f-key span{display:inline-flex;align-items:center;gap:5px}
+.f-key svg{width:16px;height:11px}
+#conn-banner{position:fixed;z-index:30;top:calc(var(--gap) + 60px);left:50%;transform:translateX(-50%);max-width:min(560px,calc(100% - 2*var(--gap)));
+  padding:10px 12px 10px 14px;border-radius:16px;display:flex;align-items:center;gap:12px;font-size:13px;color:var(--label)}
+#conn-banner[hidden]{display:none}
+#conn-banner i{width:9px;height:9px;border-radius:50%;background:var(--red);flex:none}
+#conn-banner small{display:block;color:var(--label2);font-size:12px}
+.f-dialog-back{position:fixed;inset:0;z-index:45;background:rgba(0,0,0,.45);display:grid;place-items:center;padding:var(--gap)}
+.f-dialog-back[hidden]{display:none}
+.f-dialog{width:min(420px,100%);padding:18px 18px 14px;border-radius:var(--r-card);display:flex;flex-direction:column;gap:10px}
+.f-dialog h2{margin:0;font:600 17px/22px var(--font-display);color:var(--label)}
+.f-dialog p{margin:0;font-size:13px;line-height:18px;color:var(--label2)}
+.f-dialog .fd-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}
+.f-dialog .chip.danger{background:var(--red);color:#fff;font-weight:600}
+.f-dialog kbd,.f-keys kbd{display:inline-block;min-width:22px;padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.12);box-shadow:inset 0 -1px 0 rgba(0,0,0,.35);font:600 11px/16px var(--font);text-align:center;color:var(--label)}
+.f-keys{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;align-items:center;font-size:13px;color:var(--label2);margin:4px 0 0}
+.f-keys dt{text-align:right;white-space:nowrap}
+.f-keys dd{margin:0;color:var(--label)}
+body:not(.layout-focus) .cam-st{display:none}
+.cam-st{margin-left:auto;font:500 12px var(--font);color:var(--label2);display:inline-flex;align-items:center;gap:6px}
+.cam-st i{width:8px;height:8px;border-radius:50%;background:var(--green)}
+.cam-st.stale i{background:var(--orange)}
+.cam-st.none i{background:var(--label3)}
+#area-card .ac-actions .chip[disabled]{opacity:.45;cursor:not-allowed}
+#area-card .ac-note{font-size:11px;color:var(--label2)}
+
 #sidebar{position:fixed;z-index:5;top:var(--gap);left:var(--gap);bottom:var(--gap);width:var(--sidebar-w);
   border-radius:var(--r-panel);display:flex;flex-direction:column;overflow:hidden;
   transition:transform .55s var(--spring),opacity .3s var(--ease)}
@@ -172,7 +328,6 @@ body.sidebar-collapsed #sidebar{transform:translateX(calc(-100% - var(--gap) - 2
   box-shadow:inset 0 1px 0 rgba(255,255,255,.14);transition:background .2s,transform .15s}
 .btn:hover{background:rgba(255,255,255,.18)} .btn:active{transform:scale(.98)}
 
-/* ── Toolbar ────────────────────────────────────────────────────────── */
 #toolbar{position:fixed;z-index:6;top:var(--gap);right:var(--gap);left:calc(var(--gap) * 2 + var(--sidebar-w));
   display:flex;align-items:center;gap:10px;pointer-events:none;transition:left .55s var(--spring)}
 #toolbar>*{pointer-events:auto}
@@ -205,7 +360,6 @@ body:not([data-view="map"]) #toolbar .controls{display:none}
 .chip.warn{background:color-mix(in srgb,var(--orange) 18%,transparent);color:color-mix(in srgb,var(--orange) 55%,white)}
 .chip svg{width:15px;height:15px}
 
-/* ── Settings panel ─────────────────────────────────────────────────── */
 #settings{position:fixed;z-index:20;top:calc(var(--gap) + 58px);right:var(--gap);width:min(360px,calc(100vw - 2 * var(--gap)));
   max-height:calc(100dvh - var(--gap) * 2 - 58px);overflow-y:auto;overscroll-behavior:contain;
   padding:18px 18px 16px;border-radius:26px;
@@ -255,7 +409,6 @@ body:not([data-view="map"]) #toolbar .controls{display:none}
 .set-foot{display:flex;justify-content:space-between;align-items:center;margin-top:18px}
 .set-foot small{font-size:11px;color:var(--label3)}
 
-/* ── Map legend and view panels ─────────────────────────────────────── */
 #legend{position:absolute;left:var(--safe-left);bottom:var(--safe-bottom);padding:11px 14px 11px 12px;border-radius:18px;font-size:12px;color:var(--label2);
   transition:left .55s var(--spring)}
 #legend summary{list-style:none;cursor:pointer;font-weight:600;color:var(--label);display:flex;align-items:center;justify-content:space-between;gap:14px;border-radius:8px}
@@ -282,7 +435,6 @@ body:not([data-view="map"]) #toolbar .controls{display:none}
   box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 8px 24px rgba(0,0,0,.45);transition:opacity .12s;font-variant-numeric:tabular-nums}
 #tooltip.visible{opacity:1}
 
-/* ── Changes page ───────────────────────────────────────────────────── */
 .panel-head{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;padding:18px 20px 6px}
 .panel-head h2{font:600 20px/1.2 var(--font-display);letter-spacing:-.3px}
 .panel-head .count{color:var(--label2);font-size:13px;font-variant-numeric:tabular-nums}
@@ -307,7 +459,6 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
 .empty-state{max-width:420px;margin:12vh auto 0;text-align:center;color:var(--label2);font-size:14px;line-height:1.55}
 .empty-state b{display:block;color:var(--label);font:600 17px/1.3 var(--font-display);margin-bottom:6px}
 
-/* ── Toasts ─────────────────────────────────────────────────────────── */
 #toasts{position:fixed;z-index:25;bottom:calc(var(--safe-bottom) + 8px);left:calc(var(--safe-left) + (100vw - var(--safe-left) - var(--gap)) / 2);transform:translateX(-50%);
   width:min(440px,calc(100vw - 2 * var(--gap)));display:flex;flex-direction:column;gap:8px;pointer-events:none;transition:left .55s var(--spring)}
 .toast{pointer-events:auto;display:flex;align-items:center;gap:12px;padding:9px 9px 9px 14px;border-radius:20px;animation:toast-in .5s var(--spring)}
@@ -319,7 +470,6 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
 .toast.out{opacity:0;transform:translateY(8px) scale(.97);transition:opacity .25s,transform .25s}
 @keyframes toast-in{from{opacity:0;transform:translateY(14px) scale(.96)}}
 
-/* ── Report page: a paper sheet that prints on its own ──────────────── */
 #report-scroll{position:absolute;left:var(--safe-left);top:var(--safe-top);right:var(--gap);bottom:var(--safe-bottom);overflow:auto;
   border-radius:var(--r-panel);transition:left .55s var(--spring);padding-bottom:10px}
 .report-actions{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:4px;flex-wrap:wrap;padding:5px;border-radius:24px;margin:0 auto 14px;max-width:820px}
@@ -352,9 +502,6 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
 #r-notes:empty::before{content:attr(data-placeholder);color:#8e8e93}
 .r-foot{margin-top:30px;padding-top:12px;border-top:1px solid #e3e3df;font-size:11px;color:#8e8e93;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 
-/* ── Compact screens: sidebar becomes a bottom sheet ────────────────── */
-/* Desktop: with more map layers the toggles move to a second row rather
-   than cover the view tabs when the window is narrow. */
 @media (min-width:821px){
   #toolbar{flex-wrap:wrap;row-gap:8px}
   #toolbar .segmented{flex:0 0 auto}
@@ -398,7 +545,7 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
   #report-sheet h1{font-size:26px}
   #r-map{max-height:130mm;width:auto;max-width:100%;margin:0 auto;object-fit:contain}
 }
-/* Debug maps */
+
 #debug-content{white-space:normal}
 .dbg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px;font:12px/1.45 var(--font)}
 .dbg-card{background:rgba(0,0,0,.28);border-radius:16px;padding:10px 10px 8px;min-width:0}
@@ -453,7 +600,7 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
 .dbg-folder span{display:block;margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dbg-folder b{color:var(--label);font-weight:600;margin-right:6px}
 .dbg-folder:hover img{outline:2px solid var(--accent)}
-/* Photo folder (an area's or a waste find's photos) */
+
 .folder-back{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.45);display:grid;place-items:center;padding:var(--gap)}
 .folder{width:min(980px,100%);max-height:100%;display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:var(--r-panel);overflow:hidden}
 .folder-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
@@ -480,6 +627,7 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
 <div id="view-container">
   <div id="map-view" class="view active" role="tabpanel" aria-label="Map">
     <div id="map-wrap"><canvas id="map-canvas"></canvas>
+      <div id="area-card" class="glass" role="dialog" aria-labelledby="ac-title" hidden></div>
       <details id="legend" class="glass" open>
         <summary>Legend</summary>
         <div id="legend-rows"></div>
@@ -496,8 +644,8 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
           <button class="chip active" role="radio" aria-checked="true" data-filter="all">All</button>
           <button class="chip" role="radio" aria-checked="false" data-filter="trees">Trees</button>
           <button class="chip" role="radio" aria-checked="false" data-filter="canopy">Canopy</button>
-          <button class="chip" role="radio" aria-checked="false" data-filter="suspicious">Suspicious areas</button>
-          <button class="chip" role="radio" aria-checked="false" data-filter="inspections">Inspections</button>
+          <button class="chip" role="radio" aria-checked="false" data-filter="suspicious" data-focus-text="Suspected areas">Suspicious areas</button>
+          <button class="chip" role="radio" aria-checked="false" data-filter="inspections" data-focus-text="Search reports">Inspections</button>
         </div>
         <button class="chip" id="changes-export">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19h14"/></svg>Export CSV
@@ -525,8 +673,8 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
         <div class="r-figures" id="r-figures"></div>
         <section><h2>Survey map</h2><img id="r-map" alt="Canopy map of the surveyed area with detected trees and changes"><div class="r-legend" id="r-legend"></div></section>
         <section><h2>Tree changes</h2><div id="r-trees"></div></section>
-        <section><h2>Suspicious areas</h2><div id="r-flags"></div></section>
-        <section><h2>Inspection reports</h2><div id="r-reports"></div></section>
+        <section><h2 data-focus-text="Suspected areas">Suspicious areas</h2><div id="r-flags"></div></section>
+        <section><h2 data-focus-text="Search reports">Inspection reports</h2><div id="r-reports"></div></section>
         <section class="r-notes-section" id="r-notes-section"><h2>Notes</h2><div id="r-notes" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Report notes" data-placeholder="Add notes for the client. They're saved in this browser and included when you print."></div></section>
         <div class="r-foot"><span id="r-foot-coords"></span><span>Generated by Canopy Sentinel</span></div>
       </article>
@@ -556,6 +704,7 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
       <h3>Position</h3>
       <div class="status-line"><span class="robot-dot"></span><b>Drone</b><span class="val" id="drone-gps">--</span></div>
       <div class="status-line husky-only"><span class="robot-dot" style="--drone:var(--cyan)"></span><b>Husky</b><span class="val" id="husky-gps">--</span></div>
+      <div class="status-line radio-only" title="Simulated radio (radio:=true): the Husky's link to the base station, directly or through the drone"><span class="robot-dot" style="--drone:var(--green)"></span><b>Radio</b><span class="val" id="radio-state">--</span></div>
     </section>
 
     <section class="card">
@@ -627,6 +776,20 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
       <div id="reports-list"><div class="empty">No inspection reports yet.</div></div>
     </section>
   </div>
+  <div class="focus-scroll" id="focus" aria-label="Mission at a glance">
+    <div class="f-hero">
+      <h2 id="f-head" aria-live="polite">Connecting…</h2>
+      <p id="f-sub"></p>
+      <ol class="f-phases" id="f-phases" aria-label="Mission phases"></ol>
+    </div>
+    <section class="f-next" id="f-next" aria-label="Next step" hidden></section>
+    <section class="f-sec"><h3>Robots</h3><div class="f-list" id="f-robots"></div></section>
+    <section class="f-sec"><h3>Areas<small id="f-areas-n"></small></h3><div class="f-list" id="f-areas"></div><div class="f-key" id="f-key" aria-label="Area colours"></div></section>
+    <section class="f-sec"><h3>Latest</h3><div class="f-list" id="f-recent"></div>
+      <button class="link-btn f-more" id="f-all">Show all changes</button></section>
+    <details class="f-details" id="f-details"><summary>Survey details</summary><div class="f-kv" id="f-kv"></div>
+      <button class="btn" id="f-rebaseline">Re-baseline trees</button></details>
+  </div>
 </aside>
 
 <nav id="toolbar" aria-label="Views and map layers">
@@ -649,10 +812,15 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
     <button id="toggle-trees" class="chip active" aria-pressed="true" title="Baseline trees, coloured by the species the camera saw"><span class="dot"></span>Trees</button>
     <button id="toggle-pine" class="chip" aria-pressed="false" title="Canopy the drone camera sees as pine-coloured"><span class="dot"></span>Pine canopy</button>
   </div>
+  <button id="layers-btn" class="icon-btn glass" aria-label="Map layers and legend" aria-expanded="false" aria-controls="layers-pop" title="Layers (L)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 4 3 8.5 12 13l9-4.5z"/><path d="m3 12.5 9 4.5 9-4.5" stroke-linecap="round"/><path d="m3 16.5 9 4.5 9-4.5" stroke-linecap="round" opacity=".55"/></svg>
+  </button>
   <button id="settings-btn" class="icon-btn glass" aria-label="Settings" aria-expanded="false" aria-controls="settings">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/></svg>
   </button>
 </nav>
+
+<div id="layers-pop" class="glass" role="dialog" aria-label="Map layers and legend" hidden><h4>Show on the map</h4></div>
 
 <div id="settings" class="glass" role="dialog" aria-label="Settings">
   <h2>Settings</h2>
@@ -667,6 +835,15 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
       <label class="theme-card"><input type="radio" name="theme" value="midnight"><span class="tc-prev" style="--a:#000;--b:#111113;--c:#64d2ff"></span><em>Midnight</em></label>
     </div>
     <p class="set-hint" id="theme-hint"></p>
+  </div>
+
+  <div class="set-group">
+    <div class="set-title" id="layout-label">Layout</div>
+    <div class="mini-seg" role="radiogroup" aria-labelledby="layout-label" data-setting="layout">
+      <button role="radio" data-val="classic">Classic</button>
+      <button role="radio" data-val="focus">Focus</button>
+    </div>
+    <p class="set-hint">Focus tells the mission as a story: what changed, and what the robots are doing about it.</p>
   </div>
 
   <div class="set-group">
@@ -706,7 +883,7 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
     <button class="switch" role="switch" aria-checked="false" id="set-dev" aria-label="Developer tools"></button>
   </div>
 
-  <div class="set-foot"><small>Saved in this browser</small><button id="settings-reset" class="chip">Reset to defaults</button></div>
+  <div class="set-foot"><small>Saved in this browser</small><button id="settings-keys" class="chip" title="Keyboard shortcuts (?)">Keyboard shortcuts</button><button id="settings-reset" class="chip">Reset to defaults</button></div>
 </div>
 
 <div id="toasts" aria-live="polite"></div>
@@ -715,9 +892,7 @@ table.list td.pos{color:var(--label2);white-space:nowrap}
 <script src="https://cdn.jsdelivr.net/npm/roslib@1/build/roslib.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.149/build/three.min.js"></script>
 <script>
-// ── Config ──
 const ROS_URL='ws://'+location.hostname+':9090';
-// The Husky's UI (sidebar line, camera, map marker) appears once it is running.
 let SHOW_HUSKY=false;
 function huskySeen(){ if(SHOW_HUSKY)return; SHOW_HUSKY=true; document.body.classList.add('show-husky'); }
 const TRACKER_RESET_SERVICE='/parrot_tree_tracker/reset_baseline';
@@ -725,7 +900,6 @@ const REF_LAT=-16.1714, REF_LON=145.4183, MPD=111320;
 const root=document.documentElement;
 const bootTime=Date.now();
 
-// ── Settings (theme, glass, contrast, map colors, units, developer tools) ──
 const THEMES={
   forest:  {glass:'30,34,32', amb:['#143824','#0a1a10','#050b07'], ambAlpha:.95, ambSat:1.35, ambDark:'rgba(3,9,5,.38)',   hint:'Deep green, built around the canopy map.'},
   graphite:{glass:'28,28,30', amb:['#1f1f22','#0e0e10','#000000'], ambAlpha:.5,  ambSat:.55,  ambDark:'rgba(0,0,0,.5)',     hint:'Neutral Apple-style dark gray. Lets the map colors stand out most.'},
@@ -744,8 +918,10 @@ const PALETTES={
             pine:[0,114,178],oak:[235,235,235]},
 };
 const SETTINGS_KEY='canopy-sentinel.settings';
+const isFocus=()=>document.body.classList.contains('layout-focus');
+const W=(classic,focus)=>isFocus()?focus:classic;
 const mq=q=>!!(window.matchMedia&&matchMedia(q).matches);
-const DEFAULTS={theme:'forest',material:mq('(prefers-reduced-transparency: reduce)')?100:45,contrast:mq('(prefers-contrast: more)'),mapColors:'standard',units:'gps',dev:false};
+const DEFAULTS={theme:'forest',material:mq('(prefers-reduced-transparency: reduce)')?100:45,contrast:mq('(prefers-contrast: more)'),mapColors:'standard',units:'gps',dev:false,layout:'classic'};
 let settings={...DEFAULTS};
 try{
   const s=JSON.parse(localStorage.getItem(SETTINGS_KEY)||'null');
@@ -755,12 +931,15 @@ try{
     if(typeof s.contrast==='boolean')settings.contrast=s.contrast;
     if(PALETTES[s.mapColors])settings.mapColors=s.mapColors;
     if(s.units==='gps'||s.units==='local')settings.units=s.units;
+    if(s.layout==='classic'||s.layout==='focus')settings.layout=s.layout;
     if(typeof s.dev==='boolean')settings.dev=s.dev;
   }
 }catch(e){}
 { // ?dev=1 / ?dev=0 in the URL switches developer tools on or off and remembers it
   const q=new URLSearchParams(location.search).get('dev');
   if(q!==null)settings.dev=!(q==='0'||q==='false');
+  const lay=new URLSearchParams(location.search).get('layout');   // ?layout=focus / classic
+  if(lay==='focus'||lay==='classic')settings.layout=lay;
 }
 function saveSettings(){try{localStorage.setItem(SETTINGS_KEY,JSON.stringify(settings));}catch(e){}}
 function pal(){return PALETTES[settings.mapColors]||PALETTES.standard}
@@ -773,7 +952,6 @@ function fmtPos(x,y){
   return settings.units==='local'?`${Number(x).toFixed(1)} m, ${Number(y).toFixed(1)} m`:gps(toGPS(x,y));
 }
 
-// ── Parsing helpers ──
 function parseKV(s){const o={};(s||'').split(/\s+/).forEach(t=>{const i=t.indexOf('=');if(i>0)o[t.slice(0,i)]=t.slice(i+1)});return o;}
 function evText(ev){
   const kind=ev.event_type==='LOST'?'Tree lost':'New tree';
@@ -793,21 +971,15 @@ function prettyState(s){if(!s)return '--';s=String(s).replace(/_/g,' ').toLowerC
 function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function rgb(c,a){return a==null?`rgb(${c[0]},${c[1]},${c[2]})`:`rgba(${c[0]},${c[1]},${c[2]},${a})`;}
 
-// ── State ──
 const S={baselineInfo:null,notes:[],flags:[],reports:[],events:[],treeEvents:[],treeStatus:{baseline_count:0,current_count:0,lost_count:0,gained_count:0},parrotTreeEvents:[],parrotTreeStatus:{baseline_count:0,current_count:0,lost_count:0,gained_count:0},trees:0,drone:{x:0,y:0},husky:{x:0,y:0},
          survey:'',scanCoverage:'',mission:'',baseline:'',droneBaseline:'',eval:'',connected:false,mq:null};
 const lastMsg={};  // topic -> wall-clock ms of last message
 let dc=0, hc=0, lastSnapshotOk=0, hydratedAt=0;
 function mark(topic){ lastMsg[topic]=Date.now(); }
-// The drone's tracker owns tree changes. The Husky's trunk mapper only counts
-// when no drone is running: its trunks drop in and out of its LiDAR view,
-// so its own lost/new events are noise next to the drone (they refine the
-// map instead, see the Debug trunk panel).
 function droneOn(){ return !!lastMsg['/parrot1/odometry']; }
 function treeEventList(){ return S.parrotTreeEvents.length||droneOn()?S.parrotTreeEvents:S.treeEvents; }
 function treeStatus(){ const p=S.parrotTreeStatus,t=droneOn()?{}:S.treeStatus; return {baseline:p.baseline_count||t.baseline_count||0,current:p.current_count||t.current_count||0,lost:p.lost_count||t.lost_count||0,gained:p.gained_count||t.gained_count||0}; }
 
-// ── Layout: the part of the screen not covered by floating glass ──
 const SAFE={left:14,top:80,right:14,bottom:14};
 const compactMQ=window.matchMedia('(max-width:820px)');
 function cssPx(name){return parseFloat(getComputedStyle(root).getPropertyValue(name))||0}
@@ -824,8 +996,6 @@ function updateSafeArea(){
   root.style.setProperty('--safe-top',top+'px');
   root.style.setProperty('--safe-bottom',bottom+'px');
 }
-// Fit a w×h cell grid into the safe area of a cssW×cssH canvas.
-// reserve.bottom is always kept clear; reserve.left only when it costs no map size.
 function fitRect(cssW,cssH,w,h,reserve){
   reserve=reserve||{};
   const B=SAFE.bottom+(reserve.bottom||0);
@@ -839,9 +1009,9 @@ function fitRect(cssW,cssH,w,h,reserve){
   return f;
 }
 function mapFit(cw,ch){
-  return fitRect(cw,ch,grid.w,grid.h,{left:document.getElementById('legend').offsetWidth+cssPx('--gap')});
+  const lg=document.getElementById('legend'), onMap=lg&&!lg.closest('#layers-pop');   // in Focus it lives in the Layers popover
+  return fitRect(cw,ch,grid.w,grid.h,{left:onMap?lg.offsetWidth+cssPx('--gap'):0});
 }
-// Size a canvas for the device pixel ratio; drawing stays in CSS pixels.
 function sizeCanvas(cv,c2d){
   const dpr=Math.min(window.devicePixelRatio||1,2);
   const w=cv.clientWidth||innerWidth, h=cv.clientHeight||innerHeight;
@@ -863,7 +1033,6 @@ function drawWaiting(c,w,h,text){
   c.textAlign='start'; c.textBaseline='alphabetic';
 }
 
-// ── ROS connection ──
 let ros;
 try {
   ros=new ROSLIB.Ros({url:ROS_URL});
@@ -877,7 +1046,6 @@ let grid=null, change=null, fused=null, dx=0, dy=0, hx=0, hy=0, flags=[];
 let changeEnabled=true, fusionEnabled=true, treesEnabled=true, pineEnabled=false;
 let species=null;   // camera blue/green per cell (x100), same grid as the canopy map
 
-// ── Topics ──
 function sub(name,type,cb){
   if(!ros) return;
   try{ new ROSLIB.Topic({ros,name,messageType:type}).subscribe(m=>{mark(name);cb(m)}); }
@@ -887,10 +1055,36 @@ function gridFrom(m){return {w:m.info.width,h:m.info.height,data:new Int8Array(m
 sub('/forest_canopy_map','nav_msgs/OccupancyGrid',m=>{grid=gridFrom(m);if(mapActive())drawMap();});
 sub('/canopy_change_map','nav_msgs/OccupancyGrid',m=>{change=gridFrom(m);if(mapActive())drawMap();});
 sub('/fused_tree_map','nav_msgs/OccupancyGrid',m=>{fused=gridFrom(m);if(mapActive())drawMap();});
+const POSE={drone:[],husky:[]}, POSE_DELAY=100;
+function poseSample(name,x,y,yaw){
+  const a=POSE[name], last=a[a.length-1];
+  if(last&&Math.hypot(last.x-x,last.y-y)>8)a.length=0;      // a jump (respawn): don't slide across the map
+  a.push({t:performance.now(),x,y,yaw}); while(a.length>8)a.shift();
+}
+function poseNow(name){
+  const a=POSE[name]; if(!a.length)return null;
+  const t=performance.now()-POSE_DELAY;
+  if(t<=a[0].t)return a[0];
+  for(let i=a.length-1;i>0;i--){const p=a[i-1],q=a[i];
+    if(t<p.t)continue;
+    if(t>=q.t)return q;                                       // newer than the newest sample: hold it
+    const k=(t-p.t)/Math.max(q.t-p.t,1), dyaw=Math.atan2(Math.sin(q.yaw-p.yaw),Math.cos(q.yaw-p.yaw));
+    return {x:p.x+(q.x-p.x)*k,y:p.y+(q.y-p.y)*k,yaw:p.yaw+dyaw*k};}
+  return a[a.length-1];
+}
+function robotAt(name){
+  const live=lastMsg[name==='drone'?'/parrot1/odometry':'/husky1/odometry'], p=poseNow(name);
+  if(p&&live&&Date.now()-live<1500)return p;
+  return name==='drone'?{x:dx,y:dy,yaw:(S.drone&&S.drone.yaw)||0}:{x:hx,y:hy,yaw:(S.husky&&S.husky.yaw)||0};
+}
+function posesMoving(){const now=performance.now();
+  return ['drone','husky'].some(n=>{const a=POSE[n];return a.length>1&&now-a[a.length-1].t<1000&&Math.hypot(a[a.length-1].x-a[0].x,a[a.length-1].y-a[0].y)>0.02;});}
 sub('/parrot1/odometry','nav_msgs/Odometry',m=>{const q=m.pose.pose.orientation;dx=m.pose.pose.position.x;dy=m.pose.pose.position.y;
-  S.drone={x:dx,y:dy,z:m.pose.pose.position.z,yaw:Math.atan2(2*(q.w*q.z+q.x*q.y),1-2*(q.y*q.y+q.z*q.z))};if(mapActive())drawMap();});
+  S.drone={x:dx,y:dy,z:m.pose.pose.position.z,yaw:Math.atan2(2*(q.w*q.z+q.x*q.y),1-2*(q.y*q.y+q.z*q.z))};poseSample('drone',dx,dy,S.drone.yaw);if(mapActive())drawMap();});
 sub('/husky1/odometry','nav_msgs/Odometry',m=>{huskySeen();const q=m.pose.pose.orientation;
-  hx=m.pose.pose.position.x;hy=m.pose.pose.position.y;S.husky={x:hx,y:hy,yaw:Math.atan2(2*(q.w*q.z+q.x*q.y),1-2*(q.y*q.y+q.z*q.z))};if(mapActive())drawMap();});
+  hx=m.pose.pose.position.x;hy=m.pose.pose.position.y;S.husky={x:hx,y:hy,yaw:Math.atan2(2*(q.w*q.z+q.x*q.y),1-2*(q.y*q.y+q.z*q.z))};poseSample('husky',hx,hy,S.husky.yaw);if(mapActive())drawMap();});
+sub('/radio/links','std_msgs/String',m=>{try{S.radio=JSON.parse(m.data);}catch(e){return;}
+  document.body.classList.add('show-radio');updateRadio();if(mapActive())drawMap();});
 sub('/suspicious_areas','deforestation_interfaces/SuspiciousArea',m=>{
   const p=m.position; flags.push({x:p.x,y:p.y,type:m.type,sev:m.severity,conf:m.confidence,area:m.area_m2});
   if(flags.length>40)flags.shift();
@@ -926,8 +1120,6 @@ sub('/parrot_tree_status','deforestation_interfaces/TreeStatus',m=>{
   S.trees=m.current_count;
   updateUI();
 });
-// Frozen baseline with per-tree source and camera species, and one note per
-// LOST (what caught it) or merged crown piece. Both also arrive in /api/data.
 sub('/parrot_tree_baseline_info','std_msgs/String',m=>{
   try{const info=JSON.parse(m.data); if(JSON.stringify(info)!==JSON.stringify(S.baselineInfo)){S.baselineInfo=info;S.notes=[];renderLegend();}}catch(e){}
   if(mapActive())drawMap(); updateUI();
@@ -939,7 +1131,6 @@ sub('/parrot_tree_change_notes','std_msgs/String',m=>{
 if(ros){ try{ new ROSLIB.Topic({ros,name:'/forest_species_map',messageType:'nav_msgs/OccupancyGrid',throttle_rate:3000})
   .subscribe(m=>{mark('/forest_species_map');species=gridFrom(m);if(mapActive()&&pineEnabled)drawMap();}); }catch(e){} }
 
-// ── Camera-era helpers ──
 function baselineTrees(){ return (S.baselineInfo&&S.baselineInfo.trees)||[]; }
 function lostNote(id){ return S.notes.find(n=>n.type==='LOST'&&n.id===id); }
 function mergedInto(id){ return S.notes.filter(n=>n.type==='MERGED'&&n.into===id); }
@@ -950,11 +1141,9 @@ function caughtBy(id){
   const n=lostNote(id); if(!n)return '';
   return n.by==='camera'?'caught by the camera':'caught by the height map';
 }
-// "... near (x, y)" in a canopy-change alert (scan_mapper and camera alike).
 function alertPos(text){ const m=/near \((-?[\d.]+),\s*(-?[\d.]+)\)/.exec(text||''); return m?{x:+m[1],y:+m[2]}:null; }
 function isCameraAlert(text){ return /camera sees through/.test(text||''); }
 
-// Re-baseline goes to the Parrot tracker (the Husky-era /tree_mapper is disabled).
 {
   const btn=document.getElementById('reset-tree-baseline'), st=document.getElementById('rebaseline-status');
   const resetTreeBaseline=ros?new ROSLIB.Service({ros,name:TRACKER_RESET_SERVICE,serviceType:'std_srvs/srv/Trigger'}):null;
@@ -967,7 +1156,6 @@ function isCameraAlert(text){ return /camera sees through/.test(text||''); }
   });
 }
 
-// ── Change tracking: first-seen times, new-change toasts, unseen badge ──
 const seenAt=new Map();
 let changesVisitedAt=0;
 function evKey(ev){return `t|${ev.event_type}|${ev.tree_id}|${Number(ev.x).toFixed(1)}|${Number(ev.y).toFixed(1)}`;}
@@ -981,7 +1169,7 @@ function trackNewChanges(){
       title:ev.event_type==='LOST'?`Tree #${ev.tree_id} lost`:`New tree #${ev.tree_id}`,sub:fmtPos(ev.x,ev.y),x:ev.x,y:ev.y});
   });
   S.flags.forEach(f=>{
-    if(noteSeen(flagKey(f))&&warm)fresh.push({tone:f.sev>=70?'bad':'warn',title:'Suspicious area found',
+    if(noteSeen(flagKey(f))&&warm)fresh.push({tone:f.sev>=70?'bad':'warn',title:W('Suspicious area found','Suspected area found'),
       sub:`${prettyState(f.type)} at ${fmtPos(f.x,f.y)}`,x:f.x,y:f.y});
   });
   S.events.forEach(e=>noteSeen('c|'+e.text));
@@ -1002,7 +1190,6 @@ function toast({tone,title,sub,action}){
   x.onclick=dismiss; box.appendChild(el); setTimeout(dismiss,8000);
 }
 
-// ── UI update ──
 function updateConn(){
   const el=document.getElementById('conn-state');
   const snap=Date.now()-lastSnapshotOk<8000;
@@ -1015,10 +1202,9 @@ function updateConn(){
 function updateUI(){
   updateConn();
   trackNewChanges();
+  if(document.body.classList.contains('layout-focus'))updateFocus();
   const ts=treeStatus();
   document.getElementById('tree-count').textContent=S.trees||0;
-  // Before the freeze this counts the forest being found; after it, only
-  // what is in view right now (the standing count is in Forest change).
   document.getElementById('tree-count-label').textContent=ts.baseline?'Detected now':'Trees';
   document.getElementById('forest-tree-count').textContent=ts.baseline;
   document.getElementById('forest-lost-count').textContent=ts.lost;
@@ -1036,7 +1222,6 @@ function updateUI(){
   document.getElementById('husky-baseline').textContent=S.baseline||'--';
   document.getElementById('mission-status').textContent=S.mission||'Waiting for coordinator…';
 
-  // Survey
   const sv=parseKV(S.survey);
   const cov=parseInt((sv.coverage||'0').replace('%',''))||0;
   document.getElementById('survey-progress').style.width=Math.min(100,cov)+'%';
@@ -1044,23 +1229,24 @@ function updateUI(){
   document.getElementById('survey-state').textContent='State: '+prettyState(sv.STATE);
   document.getElementById('survey-waypoints').textContent=sv.wp?('Waypoint '+sv.wp+(sv.diverted?(', diverted '+sv.diverted):'')):'';
 
-  // Actual LiDAR map coverage, independent of patrol waypoint progress.
   const sc=scanCov();
   document.getElementById('scan-progress').style.width=Math.min(100,sc.cov)+'%';
   document.getElementById('scan-pct').textContent=sc.cov.toFixed(1)+'%'+(sc.req?(' of '+sc.req+'% needed'):'');
 
-  // Evaluation
   const ev=parseKV(S.eval.replace(/\|/g,' '));
   document.getElementById('eval-tp').textContent=ev.TP!=null?ev.TP:'–';
   document.getElementById('eval-fp').textContent=ev.FP!=null?ev.FP:'–';
   document.getElementById('eval-acc').textContent=ev.accuracy!=null?ev.accuracy:'–';
   document.getElementById('eval-status').textContent=S.eval||'--';
 
-  // Flags + reports
   const fl=document.getElementById('flags-list');
-  fl.innerHTML=S.flags.map((f,i)=>({f,n:i+1})).slice(-6).reverse().map(({f,n})=>'<div class="flag-item'+(f.ok?' inspected':'')+'">'+
-    '<div class="coords">Area '+n+' · '+esc(fmtPos(f.x,f.y))+'</div>'+
-    '<div class="meta">'+esc(prettyState(f.type||'Flag'))+' · severity '+(f.sev!=null?f.sev.toFixed(0):'?')+' · confidence '+(f.conf!=null?f.conf.toFixed(0):'?')+'% · '+Math.round(f.area||0)+' m²</div></div>').join('')||'<div class="empty">No suspicious areas yet.</div>';
+  const areasNow=areaList();
+  fl.innerHTML=areasNow.slice(-8).reverse().map(a=>{
+    const b=a.box, bits=[a.type==='TREE_LOST'?'Lost tree':prettyState(a.type||'Flag'),`${(b[2]-b[0]).toFixed(0)} × ${(b[3]-b[1]).toFixed(0)} m`];
+    if(a.n&&a.sev)bits.push('severity '+a.sev.toFixed(0)); if(a.conf!=null)bits.push('confidence '+a.conf.toFixed(0)+'%');
+    return `<div class="flag-item${a.status==='inspected'?' inspected':''}" role="button" tabindex="0" data-area="${esc(a.name)}">`+
+      `<div class="coords">${esc(a.name)} · ${esc(AREA_STATUS[a.status]||a.status)}</div><div class="meta">${esc(bits.join(' · '))} · ${esc(fmtPos(a.x,a.y))}</div></div>`;
+  }).join('')||'<div class="empty">No suspicious areas yet.</div>';
   const rl=document.getElementById('reports-list');
   rl.innerHTML=S.reports.slice(-4).reverse().map(r=>'<div class="report-item">'+esc(r.text)+'</div>').join('')||'<div class="empty">No inspection reports yet.</div>';
 
@@ -1084,10 +1270,6 @@ function scanCov(){
   return {cov:parseFloat((sc.coverage||'0').replace('%',''))||0,req:parseFloat((sc.required||'0').replace('%',''))||0};
 }
 
-// ── Suspected areas: a box per drone flag, and the Husky's missions ──
-// The box is the canopy loss around the flag on the drone's change map, by
-// the same rule the Husky uses to plan its sweep (area_search.loss_box):
-// loss cells (< 0) connected to the flag's 1.5 m, clipped to 8 m, sides ≥ 4 m.
 const areaBoxCache=new Map();
 function areaBox(x,y){
   const key=x.toFixed(2)+','+y.toFixed(2), hit=areaBoxCache.get(key);
@@ -1113,7 +1295,6 @@ function areaBox(x,y){
   areaBoxCache.set(key,{src:change,box});
   return box;
 }
-// /mission_queue: what the Husky is doing, its queue and finished missions
 const MSTATUS=['queued','active','inspected','unreachable','cancelled'];
 function parseMission(i){
   return {label:i.label,type:i.type,x:i.position.x,y:i.position.y,pri:i.priority,att:i.attempts,status:MSTATUS[i.status]||'queued',
@@ -1126,13 +1307,14 @@ function parseQueue(m){
 }
 sub('/mission_queue','deforestation_interfaces/MissionQueue',m=>{S.mq=parseQueue(m);if(mapActive())drawMap();});
 sub('/waste_sites','deforestation_interfaces/WasteSiteArray',m=>{S.waste=m.sites.map(w=>({id:w.id,x:w.position.x,y:w.position.y,status:w.status,photo:w.photo}));});
+sub('/logging_evidence','deforestation_interfaces/EvidenceArray',m=>{S.evidence=m.items.map(i=>({id:i.id,kind:i.kind,x:i.position.x,y:i.position.y,conf:i.confidence,photo:i.photo}));});
+const EV_NAME={stump:'Stump',log:'Felled log',bag:'Bag'};
+function evidenceIn(b,g,kind){return (S.evidence||[]).filter(e=>(!kind||e.kind===kind)&&e.x>=b[0]-g&&e.x<=b[2]+g&&e.y>=b[1]-g&&e.y<=b[3]+g);}
+function evidenceText(b,g){const st=evidenceIn(b,g,'stump').length, lg=evidenceIn(b,g,'log').length;
+  return [st?fPlural(st,'stump'):'',lg?fPlural(lg,'felled log'):''].filter(Boolean).join(' · ');}
 function allMissions(){const q=S.mq;return q?[...q.done,...(q.current?[q.current]:[]),...q.queue]:[];}
 function missionAt(x,y){return allMissions().find(m=>Math.hypot(m.x-x,m.y-y)<0.3)||null;}
 const photoUrl=p=>'/api/photo/'+encodeURIComponent(String(p).split('/').pop());
-// The drone's flags as areas, numbered in flag order; a flag whose box is the
-// same as an earlier one (the same clearing flagged twice) is not repeated.
-// Missions without a flag (a tree the drone reported LOST) follow, numbered
-// in the order they first appear.
 function areaList(){
   const out=[], same=(a,box)=>Math.abs(a.box[0]-box[0])<0.5&&Math.abs(a.box[1]-box[1])<0.5&&Math.abs(a.box[2]-box[2])<0.5&&Math.abs(a.box[3]-box[3])<0.5;
   const missions=allMissions(), inBox=(m,x,y)=>x>=m.box[0]-2&&x<=m.box[2]+2&&y>=m.box[1]-2&&y<=m.box[3]+2;
@@ -1140,6 +1322,7 @@ function areaList(){
     const ms=missionAt(f.x,f.y), box=ms&&ms.status!=='queued'?ms.box:areaBox(f.x,f.y);
     if(out.some(a=>same(a,box)))return;
     if(!ms&&missions.some(m=>inBox(m,f.x,f.y)))return;   // the Husky took it as part of that area
+    if(!ms&&missions.some(m=>Math.hypot(m.x-f.x,m.y-f.y)<10))return;   // within the coordinator's dedup_radius: the same place seen again
     out.push({n:i+1,name:`Area ${i+1}`,tag:String(i+1),x:f.x,y:f.y,type:f.type||'CLEARING',sev:f.sev||0,conf:f.conf,area:f.area,box,mission:ms,
       status:ms?ms.status:'flagged'});
   });
@@ -1159,7 +1342,6 @@ function areaText(a){
     (m&&m.path.length?` · ${m.reached}/${m.path.length} waypoints`:'')+(m&&m.photos.length?` · ${m.photos.length} photos`:'');
 }
 
-// ── Photo folders: the photos of one area or one waste find ──
 function openFolder(f){
   let el=document.getElementById('folder');
   if(!el){
@@ -1203,16 +1385,28 @@ function areaFolder(a){
   const m=a.mission, ps=[];
   if(m)m.photos.forEach((src,k)=>ps.push({src,caption:k===0?'Start of the sweep':k===m.photos.length-1&&m.status==='inspected'?'Report photo':`Waypoint ${k+1}`}));
   wasteNear(a.box,2.5).forEach(s=>ps.push({src:photoUrl(s.photo),caption:`Waste #${s.id} found by the Husky`}));
+  evidenceIn(a.box,2.5).filter(e=>e.photo&&e.kind!=='bag').forEach(e=>ps.push({src:photoUrl(e.photo),caption:`${EV_NAME[e.kind]} #${e.id} seen by the Husky camera (YOLO, ${Math.round(e.conf*100)}%)`}));
   return {title:a.name+(a.type==='TREE_LOST'?'':' · '+prettyState(a.type)),sub:areaText(a)+(m&&m.result?'\n'+m.result.replace(/ \[image: [^\]]+\]/,''):''),photos:ps};
 }
 function wasteFolder(s){
   return {title:`Waste #${s.id}`,sub:`${['Seen from the air','Found by the Husky','Not found'][s.status]||''} at ${fmtPos(s.x,s.y)}`,
     photos:s.photo?[{src:photoUrl(s.photo),caption:`Waste #${s.id}`}]:[]};
 }
-// Box outline shared by the maps: dashed until the Husky has searched it.
+const toHex=c=>'#'+c.map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
+function areaColor(a){
+  const P=pal();
+  if(!document.body.classList.contains('layout-focus'))
+    return a.status==='inspected'?'#30d158':a.status==='unreachable'?'#8e8e93':(a.sev>=70?P.sev[0]:a.sev>=40?P.sev[1]:P.sev[2]);
+  if(a.status==='inspected')return toHex(P.fused[0]);
+  if(a.status==='active')return toHex(P.gained);
+  if(a.status==='unreachable'||a.status==='cancelled')return '#8e8e93';
+  return P.sev[2];
+}
+let selArea=null;   // Focus: the area whose card is open (its name)
 function drawAreaBox(c,a,L,T,W,H,k,pulse){
-  const P=pal(), col=a.status==='inspected'?'#30d158':a.status==='unreachable'?'#8e8e93':(a.sev>=70?P.sev[0]:a.sev>=40?P.sev[1]:P.sev[2]);
+  const col=areaColor(a);
   c.save();
+  if(a.name===selArea){roundRectPath(c,L-3*k,T-3*k,W+6*k,H+6*k,Math.min(8*k,W/3,H/3)); c.lineWidth=2.5*k; c.strokeStyle='rgba(255,255,255,.9)'; c.stroke();}
   roundRectPath(c,L,T,W,H,Math.min(6*k,W/4,H/4));
   c.fillStyle=col+(a.status==='active'?'38':'22'); c.fill();
   c.setLineDash(a.status==='inspected'||a.status==='active'?[]:[6*k,4*k]);
@@ -1226,7 +1420,6 @@ function drawAreaBox(c,a,L,T,W,H,k,pulse){
   c.restore();
 }
 
-// ── Map drawing ──
 function viewActive(v){return document.getElementById(v+'-view').classList.contains('active')}
 function mapActive(){return viewActive('map')}
 function terrainActive(){return viewActive('terrain')}
@@ -1242,7 +1435,6 @@ function canopyRGB(v){
 function changeColor(v){const P=pal(); if(v<=-50)return [...P.lost,.75]; if(v>=50)return [...P.gained,.55]; return null;}
 function fusedColor(v){const F=pal().fused; if(v>=100)return [...F[0],.65]; if(v>=66)return [...F[1],.55]; if(v>=33)return [...F[2],.55]; return null;}
 
-// Canopy-only image, rebuilt only when the grid or palette changes (labels, ambient).
 let baseCache={src:null,pal:null,cv:null};
 function canopyBase(g){
   if(baseCache.src===g&&baseCache.pal===settings.mapColors&&baseCache.cv)return baseCache.cv;
@@ -1253,7 +1445,6 @@ function canopyBase(g){
   baseCache={src:g,pal:settings.mapColors,cv};
   return cv;
 }
-// Canopy + change + fusion overlays, rebuilt only when a layer, toggle or palette changes.
 let compCache={};
 function mapComposite(){
   const k=compCache;
@@ -1275,7 +1466,6 @@ function mapComposite(){
   if(changeEnabled)overlay(change,changeColor);
   if(fusionEnabled)overlay(fused,fusedColor);
   c.putImageData(img,0,0);
-  // Layers with a different geometry keep the original per-cell drawing.
   pending.forEach(([layer,fn])=>{
     for(let iy=0;iy<layer.h;iy++)for(let ix=0;ix<layer.w;ix++){
       const col=fn(layer.data[iy*layer.w+ix]);
@@ -1285,7 +1475,6 @@ function mapComposite(){
   compCache={g:grid,c:change,f:fused,ce:changeEnabled,fe:fusionEnabled,p:settings.mapColors,sp:species,pe:pineEnabled,cv};
   return cv;
 }
-// Draw a map image as a raised platter.
 function drawPlatter(c,img,f,w,h,gridAlpha){
   const W=w*f.scale,H=h*f.scale,R=16;
   c.save(); c.shadowColor='rgba(0,0,0,.55)'; c.shadowBlur=36; c.shadowOffsetY=14;
@@ -1299,16 +1488,12 @@ function drawPlatter(c,img,f,w,h,gridAlpha){
   c.stroke(); c.restore();
   c.save(); roundRectPath(c,f.mx+.5,f.my+.5,W-1,H-1,R); c.strokeStyle='rgba(255,255,255,.16)'; c.lineWidth=1; c.stroke(); c.restore();
 }
-// Markers shared by the live map and the report image.
 function drawMarkers(c,toScreen,opts){
   const P=pal();
-  // Suspected areas as boxes sized to the canopy loss (dashed until searched).
   if(opts.flags)areaList().forEach(a=>{
     const [x0,y0]=toScreen(a.box[0],a.box[1]), [x1,y1]=toScreen(a.box[2],a.box[3]);
     drawAreaBox(c,a,Math.min(x0,x1),Math.min(y0,y1),Math.abs(x1-x0),Math.abs(y1-y0),opts.k,opts.pulse);
   });
-  // Baseline trees: a ring in the species colour the camera saw (dashed =
-  // a pine only the camera found). Lost ones fade; their LOST dot sits on top.
   if(opts.trees){
     const gone=lostIds();
     baselineTrees().forEach(t=>{
@@ -1325,9 +1510,10 @@ function drawMarkers(c,toScreen,opts){
     c.fillStyle=P.detected; c.fill();
     c.strokeStyle='#111'; c.lineWidth=1.5*opts.k; c.stroke();
   });
-  // Canopy-loss alerts placed where they happened (dashed = seen by the camera).
+  const boxes=opts.flags&&document.body.classList.contains('layout-focus')?areaList().map(a=>a.box):[];
   if(opts.alerts)S.events.forEach(e=>{
     const at=alertPos(e.text); if(!at||!/LOST/.test(e.text))return;
+    if(boxes.some(b=>at.x>=b[0]-1&&at.x<=b[2]+1&&at.y>=b[1]-1&&at.y<=b[3]+1))return;
     const [px,py]=toScreen(at.x,at.y);
     c.save(); c.beginPath(); c.arc(px,py,11*opts.k,0,Math.PI*2);
     c.setLineDash(isCameraAlert(e.text)?[4*opts.k,3*opts.k]:[]);
@@ -1340,7 +1526,35 @@ function drawMarkers(c,toScreen,opts){
     c.strokeStyle='#fff'; c.lineWidth=2*opts.k; c.stroke();
   });
 }
-// The Husky and the sweep it is driving (done part solid, the rest dashed).
+function radioText(r){
+  const hb=r.links&&r.links['husky-base'];
+  if(r.route==='direct')return `Direct to base${hb?` · ${hb.margin>0?'+':''}${hb.margin} dB`:''}`;
+  if(r.route==='relay')return 'Through the drone';
+  const w=(r.waiting.up||0)+(r.waiting.down||0);
+  return `No contact ${Math.round(r.out_of_contact_s)} s${w?` · ${w} waiting`:''}${r.relay&&r.relay.active?' · drone coming':''}`;
+}
+function updateRadio(){const el=document.getElementById('radio-state');if(el&&S.radio)el.textContent=radioText(S.radio);}
+function drawRadio(c,toScreen){
+  const r=S.radio; if(!r||!r.links)return;
+  const hp=robotAt('husky'), dp=robotAt('drone');
+  const at={base:r.base,husky:SHOW_HUSKY?[hp.x,hp.y]:r.husky,drone:S.drone?[dp.x,dp.y]:r.drone};
+  c.save(); c.lineWidth=2;
+  [['husky-base','husky','base'],['husky-drone','husky','drone'],['drone-base','drone','base']].forEach(([k,a,b])=>{
+    const l=r.links[k]; if(!l||!at[a]||!at[b])return;
+    const [x0,y0]=toScreen(at[a][0],at[a][1]),[x1,y1]=toScreen(at[b][0],at[b][1]);
+    c.setLineDash(l.up?[]:[4,5]); c.strokeStyle=l.up?'rgba(48,209,88,.75)':'rgba(255,69,58,.6)';
+    c.beginPath(); c.moveTo(x0,y0); c.lineTo(x1,y1); c.stroke();
+  });
+  c.setLineDash([]);
+  if(r.relay&&r.relay.active){const [x,y]=toScreen(r.relay.x,r.relay.y);
+    c.beginPath(); c.arc(x,y,10,0,Math.PI*2); c.strokeStyle='rgba(255,214,10,.9)'; c.stroke();}
+  const [bx,by]=toScreen(r.base[0],r.base[1]);
+  c.fillStyle='#fff'; c.fillRect(bx-6,by-6,12,12); c.lineWidth=1.5; c.strokeStyle='rgba(0,0,0,.6)'; c.strokeRect(bx-6,by-6,12,12);
+  c.font='600 12px -apple-system,BlinkMacSystemFont,system-ui,sans-serif';
+  c.lineWidth=3; c.strokeStyle='rgba(0,0,0,.55)'; c.strokeText('Base',bx+10,by+4);
+  c.fillStyle='#fff'; c.fillText('Base',bx+10,by+4);
+  c.restore();
+}
 function drawHusky(c,toScreen){
   const cur=S.mq&&S.mq.current, col='#64d2ff';
   if(cur&&cur.path.length>1){
@@ -1351,14 +1565,13 @@ function drawHusky(c,toScreen){
     c.beginPath(); pts.slice(k-1).forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y)); c.stroke();
     c.restore();
   }
-  const [px,py]=toScreen(hx,hy);
+  const hp=robotAt('husky'), [px,py]=toScreen(hp.x,hp.y);
   c.beginPath(); c.arc(px,py,6.5,0,Math.PI*2); c.fillStyle='#fff'; c.fill();
   c.lineWidth=3; c.strokeStyle=col; c.stroke();
   c.font='600 12px -apple-system,BlinkMacSystemFont,system-ui,sans-serif';
   c.lineWidth=3; c.strokeStyle='rgba(0,0,0,.55)'; c.strokeText('H',px+11,py+4);
   c.fillStyle='#fff'; c.fillText('H',px+11,py+4);
 }
-// Coalesce redraws: odometry can arrive many times per second.
 let mapRaf=0, focusPt=null;
 function drawMap(){ if(mapRaf)return; mapRaf=requestAnimationFrame(()=>{mapRaf=0;renderMap();}); }
 function renderMap(){
@@ -1370,15 +1583,15 @@ function renderMap(){
   drawPlatter(ctx,mapComposite(),f,w,h,.05);
   const toScreen=(x,y)=>[f.mx+(x-ox)/res*f.scale,f.my+(y-oy)/res*f.scale];
   drawMarkers(ctx,toScreen,{flags:true,pulse:true,k:1,trees:treesEnabled,alerts:changeEnabled});
+  drawRadio(ctx,toScreen);
   if(SHOW_HUSKY)drawHusky(ctx,toScreen);
-  // Drone last, so it is never hidden under a marker.
-  const [px,py]=toScreen(dx,dy);
+  placeAreaCard(toScreen,cw,ch);
+  const dp=robotAt('drone'), [px,py]=toScreen(dp.x,dp.y);
   ctx.beginPath(); ctx.arc(px,py,6.5,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
   ctx.lineWidth=3; ctx.strokeStyle=pal().drone; ctx.stroke();
   ctx.font='600 12px -apple-system,BlinkMacSystemFont,system-ui,sans-serif';
   ctx.lineWidth=3; ctx.strokeStyle='rgba(0,0,0,.55)'; ctx.strokeText('D',px+11,py+4);
   ctx.fillStyle='#fff'; ctx.fillText('D',px+11,py+4);
-  // "Show on map": expanding rings at the chosen point for a few seconds.
   if(focusPt){
     const el=performance.now()-focusPt.t0;
     if(el<3200){
@@ -1399,7 +1612,6 @@ function focusOn(x,y){
   focusPt={x,y,t0:performance.now()}; drawMap();
 }
 
-// ── Legend (built from the active palette so it always matches the map) ──
 function legendItems(){
   const P=pal();
   return [
@@ -1410,7 +1622,7 @@ function legendItems(){
     ['sw',rgb(P.gained),'New canopy'],
     ['pt',P.detected,'Detected tree'],
     ['pt',`linear-gradient(90deg,${rgb(P.lost)} 50%,${rgb(P.gained)} 50%)`,'Tree lost / gained'],
-    ['pt',P.sev[1],'Suspicious area'],
+    ['pt',P.sev[1],W('Suspicious area','Suspected area')],
     ['ring',P.sev[1],'Canopy-loss alert'],
     ...(baselineTrees().length?[['ring',rgb(P.pine),'Pine (camera colour)'],['ring',rgb(P.oak),'Oak'],['dash',rgb(P.pine),'Pine found by the camera']]:[]),
     ...(pineEnabled?[['sw',rgb(P.pine),'Pine-coloured canopy']]:[]),
@@ -1428,7 +1640,6 @@ function renderLegend(){
   root.style.setProperty('--drone',pal().drone);
 }
 
-// ── Ambient backdrop: a heavily diffused copy of the map for the glass to refract ──
 const amb=document.getElementById('ambient'), actx=amb.getContext('2d');
 let ambKey=undefined;
 function drawAmbient(force){
@@ -1457,7 +1668,6 @@ function drawAmbient(force){
   actx.fillStyle=v; actx.fillRect(0,0,w,h);
 }
 
-// ── Changes page ──
 let changesFilter='all', changesSig='';
 function collectChanges(){
   const rows=[];
@@ -1472,9 +1682,9 @@ function collectChanges(){
     detail:bits.join(' · '),x:ev.x,y:ev.y});});
   S.events.forEach(e=>{const k='c|'+e.text;noteSeen(k);const at=alertPos(e.text);
     rows.push({cat:'canopy',key:k,seen:seenAt.get(k),type:isCameraAlert(e.text)?'Camera: canopy gone':'Canopy change',tone:'warn',detail:e.text,x:at?at.x:null,y:at?at.y:null});});
-  S.flags.forEach(f=>{const k=flagKey(f);noteSeen(k);rows.push({cat:'suspicious',key:k,seen:seenAt.get(k),type:'Suspicious area',tone:f.sev>=70?'bad':'warn',
+  S.flags.forEach(f=>{const k=flagKey(f);noteSeen(k);rows.push({cat:'suspicious',key:k,seen:seenAt.get(k),type:W('Suspicious area','Suspected area'),tone:f.sev>=70?'bad':'warn',
     detail:`${prettyState(f.type||'flag')}, severity ${f.sev!=null?f.sev.toFixed(0):'?'}, confidence ${f.conf!=null?f.conf.toFixed(0):'?'}%, ${Math.round(f.area||0)} m²${f.ok?', inspected':''}`,x:f.x,y:f.y});});
-  S.reports.forEach(r=>{const k='r|'+r.text;noteSeen(k);rows.push({cat:'inspections',key:k,seen:seenAt.get(k),type:'Inspection',tone:'ok',detail:r.text});});
+  S.reports.forEach(r=>{const k='r|'+r.text;noteSeen(k);rows.push({cat:'inspections',key:k,seen:seenAt.get(k),type:W('Inspection','Search report'),tone:'ok',detail:r.text});});
   return rows.sort((a,b)=>b.seen-a.seen);
 }
 function relTime(t){
@@ -1539,7 +1749,6 @@ function downloadCSV(){
 document.getElementById('changes-export').addEventListener('click',downloadCSV);
 document.getElementById('feed-all').addEventListener('click',()=>{selectView(tabFor('changes'));if(isCompact())setSidebar(false);});
 
-// ── Report page ──
 const NOTES_KEY='canopy-sentinel.report-notes';
 const notesEl=document.getElementById('r-notes');
 try{notesEl.textContent=localStorage.getItem(NOTES_KEY)||'';}catch(e){}
@@ -1581,13 +1790,12 @@ function buildReport(){
     return [`#${e.tree_id}`,e.event_type==='LOST'?'Lost':'New',t?speciesName(t):'—',fmtPos(e.x,e.y),`${Number(e.area_m2||0).toFixed(0)} m²`,
       n?(n.by==='camera'?'Camera':'Height map'):'—'];});
   document.getElementById('r-trees').innerHTML=rTable(['Tree','Change','Species','Position','Crown area','Detected by'],treeRows)||'<p class="r-empty">No tree changes since the baseline.</p>';
-  // one row per area (the same clearing flagged twice is one area), sized by its box
   const flagRows=areaList().map(a=>{const m=a.mission, b=a.box;
     return [a.name,fmtPos(a.x,a.y),prettyState(a.type||'flag'),a.sev!=null?Number(a.sev).toFixed(0):'?',a.conf!=null?Number(a.conf).toFixed(0)+'%':'?',
       `${(b[2]-b[0]).toFixed(0)} × ${(b[3]-b[1]).toFixed(0)} m`,
-      AREA_STATUS[a.status].replace(/^./,c=>c.toUpperCase())+(m&&m.path.length?` (${m.reached}/${m.path.length} waypoints, ${m.photos.length} photos)`:'')];});
-  document.getElementById('r-flags').innerHTML=rTable(['Area','Position','Type','Severity','Confidence','Size','Status'],flagRows)||'<p class="r-empty">No suspicious areas found.</p>';
-  document.getElementById('r-reports').innerHTML=S.reports.length?'<ul class="r-list">'+S.reports.map(r=>`<li>${esc(r.text)}</li>`).join('')+'</ul>':'<p class="r-empty">No inspections yet.</p>';
+      (isFocus()?F_AREA[a.status]:AREA_STATUS[a.status].replace(/^./,c=>c.toUpperCase()))+(m&&m.path.length?` (${m.reached}/${m.path.length} waypoints, ${m.photos.length} photos)`:'')];});
+  document.getElementById('r-flags').innerHTML=rTable(['Area','Position','Type','Severity','Confidence','Size','Status'],flagRows)||`<p class="r-empty">${W('No suspicious areas found.','No suspected areas found.')}</p>`;
+  document.getElementById('r-reports').innerHTML=S.reports.length?'<ul class="r-list">'+S.reports.map(r=>`<li>${esc(r.text)}</li>`).join('')+'</ul>':`<p class="r-empty">${W('No inspections yet.','No search reports yet.')}</p>`;
   document.getElementById('r-notes-section').classList.toggle('is-empty',!notesEl.textContent.trim());
   document.getElementById('r-foot-coords').textContent=settings.units==='local'?'Positions in local metres from the survey origin.':'Positions in WGS84 latitude and longitude.';
   document.getElementById('report-updated').textContent=`Data as of ${now.toLocaleTimeString(undefined,{timeStyle:'short'})}`;
@@ -1597,7 +1805,6 @@ document.getElementById('report-csv').addEventListener('click',downloadCSV);
 document.getElementById('report-refresh').addEventListener('click',buildReport);
 window.addEventListener('beforeprint',()=>{buildReport();});
 
-// ── Debug view ──
 function drawDebug(){
   const age=t=>{if(!lastMsg[t])return '—';const s=(Date.now()-lastMsg[t])/1000;return s<2?'<span class="ok">'+s.toFixed(1)+'s</span>':'<span class="warn">'+s.toFixed(0)+'s</span>'};
   const topics=['/forest_canopy_map','/canopy_change_map','/fused_tree_map','/parrot1/odometry',...(SHOW_HUSKY?['/husky1/odometry']:[]),'/drone_terrain_viz','/parrot_tree_change_events','/parrot_tree_status','/tree_change_events','/tree_status','/suspicious_areas','/inspection_reports','/mission_status','/survey_status','/scan_coverage','/baseline_status','/drone_baseline_status','/evaluation_summary'];
@@ -1620,11 +1827,6 @@ function drawDebug(){
   initDebugMaps(); dbgDraw();
 }
 
-// ── Debug: maps of everything the robots know, the run's phase, a timeline ──
-// Panels show the world from -40 to 40 m; click one to open it full size
-// (zoom with the wheel, drag to pan, Esc to close). Grids come throttled and
-// as binary (cbor); the launch raises rosbridge's max_message_size so the
-// Husky's multi-MB SLAM map and costmap arrive in one piece.
 const DBG={wasteTruth:[],wasteSites:[],plan:[],huskyTrail:[],droneTrail:[],trunks:[],husky:null,goal:null,drone:null,
   refined:null,queue:null,events:[],photos:[],
   layers:{trees:true,detections:true,flags:true,lost:true,robots:true,paths:true,waste:true,ground:true}};
@@ -1654,9 +1856,6 @@ function dbgEvent(kind,text,x,y,photo){
   if(dbgInit)dbgSide();
 }
 const dPos=(x,y)=>`(${Number(x).toFixed(1)}, ${Number(y).toFixed(1)})`;
-// Baseline, flags, LOST trees and inspection reports come from the page's own
-// state (live topics plus /api/data), so the timeline also has what happened
-// before the page was opened; those show as "earlier".
 const dbgSeen=new Set(), dbgT0=Date.now();
 function dbgSync(){
   const add=(key,kind,text,x,y,photo)=>{if(dbgSeen.has(key))return;dbgSeen.add(key);
@@ -1709,8 +1908,6 @@ function initDebugMaps(){
   dbgSub('/husky1/global_costmap/costmap','nav_msgs/OccupancyGrid',m=>{DBG.cost=gridFrom(m);},5000,true);
   dbgSub('/forest_trunk_map','nav_msgs/OccupancyGrid',m=>{DBG.trunk=gridFrom(m);},2000,true);
   dbgSub('/forest_red_map','nav_msgs/OccupancyGrid',m=>{DBG.red=gridFrom(m);},2000,true);
-  // The Husky's SLAM map drifts from the world (its odometry does not, in the
-  // sim): layers in husky1_map are drawn through map->odom so they line up.
   dbgSub('/husky1/tf','tf2_msgs/TFMessage',m=>{m.transforms.forEach(t=>{
     if(t.header.frame_id!=='husky1_map'||t.child_frame_id!=='husky1_odom')return;
     const q=t.transform.rotation, yaw=yawOf(q);
@@ -1722,7 +1919,6 @@ function initDebugMaps(){
   dbgSub('/parrot1/odometry','nav_msgs/Odometry',m=>{const p=m.pose.pose.position;DBG.drone={x:p.x,y:p.y,yaw:yawOf(m.pose.pose.orientation)};
     const t=DBG.droneTrail, l=t[t.length-1]; if(!l||Math.hypot(l.x-p.x,l.y-p.y)>0.5){t.push({x:p.x,y:p.y});if(t.length>4000)t.shift();}},300);
   dbgSub('/all_tree_positions','sensor_msgs/PointCloud2',m=>{DBG.trunks=cloudPoints(m,3000);},2000);
-  // spots where the Husky got caught (the coordinator's hazards, ~80 points each)
   dbgSub('/husky1/hazards','sensor_msgs/PointCloud2',m=>{const pts=cloudPoints(m,4000), spots=[];
     pts.forEach(p=>{if(!spots.some(q=>Math.hypot(q.x-p.x,q.y-p.y)<1.1))spots.push(p);});
     const centres=spots.map(q=>{const near=pts.filter(p=>Math.hypot(p.x-q.x,p.y-q.y)<1.1);
@@ -1758,7 +1954,6 @@ function initDebugMaps(){
   setInterval(()=>{dbgSync();if(document.body.dataset.view==='debug'){dbgAges();dbgSide();}},1000);
   setInterval(()=>{if(document.body.dataset.view==='debug')dbgPhotos();},5000);
 }
-// every photo the Husky took this run (sites, loop stops, waste), from the data server
 function dbgPhotos(){
   fetch('/api/photos').then(r=>r.ok?r.json():[]).then(list=>{
     list.forEach(p=>{const src='/api/photo/'+encodeURIComponent(p.name);
@@ -1773,7 +1968,6 @@ function dbgAges(){
     const a=(Date.now()-Math.max(...ts))/1000; el.textContent=a<1.5?'live':a.toFixed(0)+' s ago';
   });
 }
-// phase strip, timeline, mission queue, photos
 function dbgSide(){
   const pill=(tone,title,sub)=>`<div class="dbg-pill ${tone}"><b>${title}</b>${sub||''}</div>`;
   const db=S.droneBaseline||'', frozen=db.startsWith('frozen');
@@ -1813,7 +2007,6 @@ function dbgSide(){
       q.queue.map(row).join('')+q.done.slice().reverse().map(row).join('')+`</table>`:cur?'':'<div class="dbg-empty">No areas yet.</div>')+
     `<div class="dbg-empty">${q.inspected} searched of ${q.total} flagged${q.ready?'':' · holding until the drone baseline is frozen'}</div>`;
   document.querySelectorAll('#dbg-queue [data-area]').forEach(b=>b.onclick=()=>{const a=areas.find(x=>x.name===b.dataset.area);if(a)openFolder(areaFolder(a));});
-  // photos as folders: one per area, one per waste find, the rest together
   const folders=[];
   areas.forEach(a=>{const f=areaFolder(a);if(f.photos.length)folders.push(f);});
   DBG.wasteSites.filter(w=>w.photo&&!areas.some(a=>wasteNear(a.box,2.5).includes(w))).forEach(w=>folders.push(wasteFolder(w)));
@@ -1829,7 +2022,6 @@ function dbgSide(){
     g.querySelectorAll('.dbg-folder').forEach(b=>b.onclick=()=>openFolder(folders[+b.dataset.i]));
   } else g.querySelectorAll('.dbg-folder').forEach(b=>b.onclick=()=>openFolder(folders[+b.dataset.i]));
 }
-// ── drawing ──
 function dbgDraw(){ if(!dbgInit||document.body.dataset.view!=='debug'||dbgRaf)return;
   dbgRaf=requestAnimationFrame(()=>{dbgRaf=0;
     if(dbgBig){const c=document.getElementById('dbg-big-canvas');bigSize(c);dbgPanel(c,DBG_PANELS.find(p=>p.id===dbgBig.id),dbgBig);}
@@ -1855,7 +2047,6 @@ function dbgPanel(c,p,view){
     g.fillStyle='rgba(255,255,255,.75)';g.fillText(step+' m grid',14*d,22*d);}
   if(p.note&&!view){const el=document.getElementById('dbg-note-'+p.id);if(el){const t=p.note()||'';if(p.noteHtml)el.innerHTML=t;else el.textContent=t;}}
 }
-// ── full-size view ──
 function bigSize(c){const r=c.getBoundingClientRect(),d=window.devicePixelRatio||1,w=Math.max(10,Math.round(r.width*d)),h=Math.max(10,Math.round(r.height*d));
   if(c.width!==w||c.height!==h){c.width=w;c.height=h;}}
 function bigFit(){const c=document.getElementById('dbg-big-canvas');bigSize(c);return {cx:0,cy:0,sc:Math.min(c.width,c.height)/(2*DW)};}
@@ -1911,8 +2102,6 @@ function bigReadout(x,y){
   areaList().filter(a=>x>=a.box[0]&&x<=a.box[2]&&y>=a.box[1]&&y<=a.box[3]).forEach(a=>L.push(areaText(a)));
   document.getElementById('dbg-readout').textContent=L.join('\n');
 }
-// a grid as an image, coloured once per message
-// husky1_map -> world (= the Husky's odom frame)
 function m2w(x,y){const t=DBG.m2w;if(!t)return {x,y};const dx=x-t.tx,dy=y-t.ty;return {x:t.c*dx+t.s*dy,y:-t.s*dx+t.c*dy};}
 const inMap=pts=>(pts||[]).map(p=>m2w(p.x,p.y));
 function w2m(x,y){const t=DBG.m2w;if(!t)return {x,y};return {x:t.tx+t.c*x-t.s*y,y:t.ty+t.s*x+t.c*y};}
@@ -1956,7 +2145,6 @@ function dFlags(V){if(!LY.flags)return;
   areaList().forEach(a=>{const b=a.box;
     drawAreaBox(V.g,a,V.X(b[0]),V.Y(b[3]),(b[2]-b[0])*V.sc,(b[3]-b[1])*V.sc,V.k,true);
     if(a.mission&&a.mission.photos.length)dIcon(V,V.X(b[2]),V.Y(b[3]),()=>areaFolder(a));});}
-// the sweep of the area being searched (done part solid) and the finished ones, faint
 function dHazards(V){(DBG.hazards||[]).forEach(h=>{dDot(V,h.x,h.y,6*V.k,'rgba(255,69,58,.35)','#ff453a');dCross(V,h.x,h.y,'#ff453a');});}
 function dSearch(V){dHazards(V);if(!LY.paths)return;const q=S.mq;if(!q)return;
   const g=V.g, line=(pts,col,w,dash)=>{if(pts.length<2)return;g.save();g.setLineDash(dash||[]);g.beginPath();
@@ -1966,7 +2154,6 @@ function dSearch(V){dHazards(V);if(!LY.paths)return;const q=S.mq;if(!q)return;
   const k=Math.max(1,Math.min(c.reached,c.path.length));
   line(c.path.slice(0,k),'#64d2ff',2); line(c.path.slice(k-1),'rgba(100,210,255,.75)',1.5,[5*V.k,5*V.k]);
   c.path.forEach((p,i)=>dDot(V,p.x,p.y,(i===c.reached?4.5:3)*V.k,i<c.reached?'#64d2ff':null,'#64d2ff'));}
-// a photo icon: click it to open the photos of that place
 function dIcon(V,px,py,folder){const g=V.g,k=V.k,w=18*k,h=13*k,x=px-w/2,y=py-h/2;
   g.save();roundRectPath(g,x,y,w,h,3*k);g.fillStyle='rgba(255,255,255,.92)';g.fill();g.strokeStyle='rgba(0,0,0,.6)';g.lineWidth=1*k;g.stroke();
   g.fillRect(x+w*.28,y-2.5*k,w*.3,3*k);
@@ -1974,7 +2161,8 @@ function dIcon(V,px,py,folder){const g=V.g,k=V.k,w=18*k,h=13*k,x=px-w/2,y=py-h/2
   V.icons.push({x:px,y:py,r:12*k,folder});}
 function dWaste(V){if(!LY.waste)return;DBG.wasteTruth.forEach(b=>dDot(V,b.x,b.y,7,null,'#fff'));
   DBG.wasteSites.forEach(s=>{dDot(V,s.x,s.y,4.5,['#ff9f0a','#ff453a','#8e8e93'][s.status]||'#ff9f0a','#000');
-    if(s.photo)dIcon(V,V.X(s.x)+12*V.k,V.Y(s.y)-10*V.k,()=>wasteFolder(s));});}
+    if(s.photo)dIcon(V,V.X(s.x)+12*V.k,V.Y(s.y)-10*V.k,()=>wasteFolder(s));});
+  (S.evidence||[]).filter(e=>e.kind!=='bag').forEach(e=>dDot(V,e.x,e.y,4,e.kind==='stump'?'#ffcc33':'#4da3ff','#000'));}
 function dGround(V){const r=DBG.refined;if(!LY.ground||!r){dTrees(V,true);return;}
   r.trees.forEach(t=>{
     if(t.status===0)dDot(V,t.dx,t.dy,2.5,null,'rgba(255,255,255,.35)');
@@ -2029,7 +2217,6 @@ const DBG_PANELS=[
      dLine(V,DBG.huskyTrail,'rgba(255,214,10,.45)',1.2);dRobot(V,DBG.drone||S.drone,'#64d2ff');dRobot(V,DBG.husky,'#ffd60a');}},
 ];
 
-// ── Tabs (the lens slides to the selected view) ──
 const tabs=[...document.querySelectorAll('.tab[data-view]')];
 const segmented=document.querySelector('.segmented'), lens=segmented.querySelector('.lens');
 function tabFor(view){return tabs.find(t=>t.dataset.view===view)}
@@ -2062,7 +2249,6 @@ segmented.addEventListener('keydown',e=>{
   if(e.key==='ArrowRight'){e.preventDefault();selectView(vis[(i+1)%vis.length],true);}
   else if(e.key==='ArrowLeft'){e.preventDefault();selectView(vis[(i-1+vis.length)%vis.length],true);}
 });
-// Number keys jump to views (1 = Map, 2 = Changes, …) when not typing.
 document.addEventListener('keydown',e=>{
   if(e.metaKey||e.ctrlKey||e.altKey)return;
   const tg=e.target; if(tg&&(tg.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(tg.tagName)))return;
@@ -2091,7 +2277,6 @@ document.getElementById('toggle-pine').addEventListener('click',()=>{
   renderLegend(); if(mapActive())drawMap();
 });
 
-// ── Cameras: refresh every 1s ──
 function refreshCamera(name,imgId,onFrame){
   fetch('/api/camera/'+name).then(r=>r.ok&&r.status===200?r.blob():null).then(b=>{
     if(!b||b.size<200||!/^image\//.test(b.type||'image/'))return; const u=URL.createObjectURL(b); const el=document.getElementById(imgId);
@@ -2103,72 +2288,152 @@ setInterval(()=>{
   refreshCamera('husky','husky-img',()=>{hc++;huskySeen();});
 },1000);
 
-// ── 3D view (Three.js): the forest as the robots know it ──
-// Trees are the drone's baseline (crown size from its area, height from the
-// canopy map; cut ones are stumps), plus the drone and the Husky with their
-// trails, the suspected areas with the Husky's sweep, waste finds, the drone
-// change map on the ground and the drone's raw points. Drag to orbit,
-// right-drag (or shift-drag) to pan, scroll to zoom, double-click to reset.
-let scene=null,cam=null,rend=null,cloud=null,allPts=[],pointTex=null;
-const T3={target:null,az:-0.75,el:0.62,dist:95,follow:null,layers:{trees:true,points:true,areas:true,robots:true,changes:true},
-  groups:{},treeSig:'',areaSig:'',changeSrc:null,trails:{drone:[],husky:[]},drone:null,husky:null};
+let scene=null,cam=null,rend=null,cloud=null,pointTex=null;
+const DRONE_ALT=10;                     // the drone's odometry is 2D (z = 0); it flies at 10 m
+const T3_HOME={az:-0.6,el:0.78,dist:88,tx:0,tz:0};
+const T3={goal:{...T3_HOME},view:{...T3_HOME},follow:'free',
+  layers:{trees:true,points:true,changes:true,areas:true,robots:true,radio:true},
+  groups:{},treeSig:'',areaSig:'',changeSrc:null,radioT:0,trailT:0,
+  trails:{drone:[],husky:[]},trailLines:{},robots:{},labels:new Map(),lastT:0,summaryT:0,
+  reduceMotion:!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)};
 const to3=(x,y,z)=>new THREE.Vector3(x,z||0,-y);
+const T3COL={husky:0x64d2ff,
+  wasteAir:0xff9f0a,wasteFound:0xff453a,wasteNone:0x8e8e93,bark:0x6b4a2f,cutFace:0xe0b97a,searched:0x30d158,unreachable:0x8e8e93};
+const t3Hex=c=>'#'+new THREE.Color(c).getHexString();
+function t3DroneCol(){return new THREE.Color(pal().drone);}
+function t3AreaCol(a){return new THREE.Color(areaColor(a));}
+function t3Jitter(id){const s=Math.sin((id+1)*12.9898)*43758.5453;return (s-Math.floor(s))-.5;}
+function t3Radial(inner,outer){
+  const c=document.createElement('canvas'); c.width=c.height=64; const x=c.getContext('2d');
+  const g=x.createRadialGradient(32,32,0,32,32,32); g.addColorStop(0,inner); g.addColorStop(1,outer);
+  x.fillStyle=g; x.fillRect(0,0,64,64); const t=new THREE.CanvasTexture(c); t.minFilter=THREE.LinearFilter; return t;
+}
+function t3GroundTexture(){
+  const c=document.createElement('canvas'); c.width=c.height=512; const x=c.getContext('2d');
+  const base=new THREE.Color(theme().amb[0]).offsetHSL(0,-.12,.05);
+  x.filter='blur(18px)'; x.fillStyle=t3Hex(base); x.fillRect(40,40,432,432); x.filter='none';
+  const t=new THREE.CanvasTexture(c); t.minFilter=THREE.LinearFilter; return t;
+}
+
 function initTerrain(){
   const el=document.getElementById('terrain-container'); if(!el||el.clientWidth<10||rend)return;
-  if(typeof THREE==='undefined'){ el.innerHTML='<div class="fallback glass">3D view is unavailable because Three.js failed to load. Check the network connection and reload.</div>'; return; }
+  if(typeof THREE==='undefined'){ el.innerHTML='<div class="fallback glass">The 3D view needs Three.js, which did not load. Check the network connection, then reload the page.</div>'; return; }
   el.innerHTML='';
   scene=new THREE.Scene(); scene.background=null;   // transparent: the ambient backdrop shows through
-  scene.add(new THREE.HemisphereLight(0xdfeeff,0x24331f,0.95));
-  const sun=new THREE.DirectionalLight(0xfff4e0,0.75); sun.position.set(-40,80,30); scene.add(sun);
-  const ground=new THREE.Mesh(new THREE.PlaneGeometry(84,84),new THREE.MeshLambertMaterial({color:0x1b2e18}));
-  ground.rotateX(-Math.PI/2); ground.position.y=-0.02; scene.add(ground);
-  const grid=new THREE.GridHelper(80,16,0x3d5a37,0x2b4227); grid.position.y=0.01; scene.add(grid);
-  const box=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([to3(-30,-30,.05),to3(30,-30,.05),to3(30,30,.05),to3(-30,30,.05)]),
-    new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:.35})); scene.add(box);   // survey box
-  ['trees','areas','robots','changes'].forEach(k=>{T3.groups[k]=new THREE.Group();scene.add(T3.groups[k]);});
-  T3.target=new THREE.Vector3(0,0,0);
-  cam=new THREE.PerspectiveCamera(50,el.clientWidth/Math.max(el.clientHeight,1),0.3,500);
+  scene.fog=new THREE.Fog(new THREE.Color(theme().amb[1]),120,260);   // far trees recede into the backdrop
+  scene.add(new THREE.HemisphereLight(0xdfe7f5,0x252e22,0.62));
+  const sun=new THREE.DirectionalLight(0xfff2de,0.6); sun.position.set(-30,90,40); scene.add(sun);
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(96,96),new THREE.MeshBasicMaterial({map:t3GroundTexture(),transparent:true,depthWrite:false}));
+  ground.rotateX(-Math.PI/2); ground.position.y=-0.03; ground.renderOrder=-2; scene.add(ground); T3.ground=ground;
+  const grid=new THREE.GridHelper(80,16,0xffffff,0xffffff); grid.material.transparent=true; grid.material.opacity=.06;
+  grid.material.depthWrite=false; grid.position.y=0; scene.add(grid);
+  const box=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([to3(-30,-30,.04),to3(30,-30,.04),to3(30,30,.04),to3(-30,30,.04)]),
+    new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:.22})); scene.add(box);   // the survey box
+  ['changes','trees','areas','radio','robots'].forEach(k=>{T3.groups[k]=new THREE.Group();scene.add(T3.groups[k]);});
+  cam=new THREE.PerspectiveCamera(42,el.clientWidth/Math.max(el.clientHeight,1),0.3,600);
   rend=new THREE.WebGLRenderer({antialias:true,alpha:true});
   rend.setClearColor(0x000000,0); rend.setPixelRatio(Math.min(window.devicePixelRatio,2));
-  rend.setSize(el.clientWidth,el.clientHeight); el.appendChild(rend.domElement);
-  el.insertAdjacentHTML('beforeend',`<div id="t3-panel" class="glass"><div class="t3-row">`+
-    [['trees','Trees'],['points','Drone points'],['changes','Canopy loss'],['areas','Areas & sweep'],['robots','Robots']].map(([k,l])=>
-      `<button class="chip active" data-layer="${k}">${l}</button>`).join('')+
-    `</div><div class="t3-row"><button class="chip" data-follow="drone">Follow drone</button><button class="chip" data-follow="husky">Follow Husky</button>`+
-    `<button class="chip" data-follow="reset">Reset view</button></div>`+
-    `<div class="t3-hint">Drag to orbit · right-drag to pan · scroll to zoom</div></div>`);
-  el.querySelectorAll('[data-layer]').forEach(b=>b.addEventListener('click',()=>{const k=b.dataset.layer;
-    T3.layers[k]=!T3.layers[k]; b.classList.toggle('active',T3.layers[k]); t3Visibility();}));
-  el.querySelectorAll('[data-follow]').forEach(b=>b.addEventListener('click',()=>{const f=b.dataset.follow;
-    if(f==='reset'){T3.follow=null;T3.target.set(0,0,0);T3.az=-0.75;T3.el=0.62;T3.dist=95;}
-    else T3.follow=T3.follow===f?null:f;
-    el.querySelectorAll('[data-follow]').forEach(x=>x.classList.toggle('active',x.dataset.follow===T3.follow));}));
-  // orbit / pan / zoom
+  el.appendChild(rend.domElement); resizeTerrain();
+  rend.domElement.setAttribute('aria-hidden','true');
+  el.setAttribute('tabindex','0'); el.setAttribute('role','application');
+  el.setAttribute('aria-label','3D view of the forest. Arrow keys orbit, plus and minus zoom, R resets the view.');
+  el.setAttribute('aria-describedby','t3-summary');
+  el.insertAdjacentHTML('beforeend',`
+    <div id="t3-labels" aria-hidden="true"></div>
+    <p id="t3-summary" class="sr-only"></p>
+    <div id="t3-nav" class="glass" role="toolbar" aria-label="View">
+      <button id="t3-compass" title="North up" aria-label="Turn the view north up"><svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="10.2" fill="none" stroke="currentColor" stroke-opacity=".35" stroke-width="1.2"/>
+        <g id="t3-needle"><path d="M12 3.6 15 12h-6z" fill="#ff453a"/><path d="M12 20.4 9 12h6z" fill="currentColor" fill-opacity=".7"/></g></svg></button>
+      <button id="t3-pitch" title="Overhead view" aria-label="Switch to the overhead view">2D</button>
+      <button id="t3-zin" title="Zoom in" aria-label="Zoom in"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      <button id="t3-zout" title="Zoom out" aria-label="Zoom out"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+    </div>
+    <div id="t3-bar" class="glass">
+      <div class="t3-seg" role="radiogroup" aria-label="Follow">
+        ${[['free','Free'],['drone','Drone'],['husky','Husky']].map(([k,l])=>`<button class="chip${k==='free'?' active':''}${k==='husky'?' husky-only':''}" role="radio" aria-checked="${k==='free'}" data-follow="${k}">${l}</button>`).join('')}
+      </div>
+      <span class="sep" aria-hidden="true"></span>
+      <button class="chip" id="t3-layers-btn" aria-expanded="false" aria-controls="t3-layers">Layers</button>
+    </div>
+    <div id="t3-layers" class="glass" hidden>
+      <h4>Show</h4>
+      ${[['trees','Trees',"The drone's tree map"],['robots','Robots and trails',''],['areas','Areas and sweep',"Suspected areas, the Husky's path, waste"],
+         ['changes','Canopy loss',"From the drone's change map"],['points','Drone points','Raw camera depth'],['radio','Radio links','With radio:=true']].map(([k,l,sub])=>
+        `<div class="switch-row" data-row="${k}"${k==='radio'?' hidden':''}><span class="sr-text">${l}${sub?`<small>${sub}</small>`:''}</span>`+
+        `<button class="switch" role="switch" aria-checked="true" data-layer="${k}" aria-label="${l}"></button></div>`).join('')}
+      <div class="t3-legend" aria-label="Legend">
+        <span><i style="background:${pal().drone}"></i>Drone</span><span><i style="background:${t3Hex(T3COL.husky)}"></i>Husky</span>
+        <span><i style="background:${pal().sev[1]}"></i>Suspected area</span><span><i style="background:${t3Hex(T3COL.searched)}"></i>Searched</span>
+        <span><i style="background:${t3Hex(T3COL.wasteFound)}"></i>Waste found</span><span><i style="background:${rgb(pal().lost)}"></i>Cut tree</span>
+      </div>
+      <div class="t3-hint">Drag to orbit · right-drag to pan · scroll to zoom · double-click to reset</div>
+    </div>`);
+  el.querySelectorAll('[data-follow]').forEach(b=>b.addEventListener('click',()=>t3SetFollow(b.dataset.follow)));
+  const lb=document.getElementById('t3-layers-btn'), lp=document.getElementById('t3-layers');
+  const setPop=open=>{lp.hidden=!open; lb.setAttribute('aria-expanded',open); lb.classList.toggle('active',open);};
+  lb.addEventListener('click',e=>{e.stopPropagation();setPop(lp.hidden);});
+  lp.addEventListener('click',e=>e.stopPropagation());
+  document.addEventListener('click',()=>{if(!lp.hidden)setPop(false);});
+  el.addEventListener('keydown',e=>{if(e.key==='Escape'&&!lp.hidden){setPop(false);lb.focus();}});
+  lp.querySelectorAll('[data-layer]').forEach(b=>b.addEventListener('click',()=>{const k=b.dataset.layer;
+    T3.layers[k]=!T3.layers[k]; b.setAttribute('aria-checked',T3.layers[k]); t3Visibility();}));
+  document.getElementById('t3-compass').addEventListener('click',()=>{T3.goal.az=Math.round(T3.goal.az/(2*Math.PI))*2*Math.PI;});
+  document.getElementById('t3-pitch').addEventListener('click',()=>{T3.goal.el=T3.goal.el>1.2?T3_HOME.el:1.5;t3PitchLabel();});
+  document.getElementById('t3-zin').addEventListener('click',()=>{T3.goal.dist=Math.max(6,T3.goal.dist*.75);});
+  document.getElementById('t3-zout').addEventListener('click',()=>{T3.goal.dist=Math.min(220,T3.goal.dist/.75);});
   const cv=rend.domElement; let drag=null;
   cv.addEventListener('contextmenu',e=>e.preventDefault());
-  cv.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,pan:e.button===2||e.shiftKey};cv.setPointerCapture(e.pointerId);});
+  cv.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,pan:e.button===2||e.shiftKey};cv.setPointerCapture(e.pointerId);el.focus({preventScroll:true});});
   cv.addEventListener('pointerup',()=>drag=null);
+  cv.addEventListener('pointercancel',()=>drag=null);
   cv.addEventListener('pointermove',e=>{ if(!drag)return;
-    const dx=e.clientX-drag.x, dy=e.clientY-drag.y; drag.x=e.clientX; drag.y=e.clientY;
-    if(drag.pan){T3.follow=null;const s=T3.dist*0.0016, c=Math.cos(T3.az), n=Math.sin(T3.az);
-      T3.target.x-=(dx*c+dy*n)*s; T3.target.z-=(-dx*n+dy*c)*s;}
-    else{T3.az-=dx*0.006; T3.el=Math.max(0.08,Math.min(1.5,T3.el+dy*0.005));}});
-  cv.addEventListener('wheel',e=>{e.preventDefault();T3.dist=Math.max(4,Math.min(220,T3.dist*Math.exp(e.deltaY*0.0012)));},{passive:false});
-  cv.addEventListener('dblclick',()=>el.querySelector('[data-follow="reset"]').click());
-  (function anim(){ requestAnimationFrame(anim);
+    const mx=e.clientX-drag.x, my=e.clientY-drag.y; drag.x=e.clientX; drag.y=e.clientY; const g=T3.goal;
+    if(drag.pan){if(T3.follow!=='free')t3SetFollow('free');
+      const s=g.dist*0.0016, c=Math.cos(g.az), n=Math.sin(g.az); g.tx-=(mx*c+my*n)*s; g.tz-=(-mx*n+my*c)*s;}
+    else{g.az-=mx*0.006; g.el=Math.max(0.12,Math.min(1.5,g.el+my*0.005)); t3PitchLabel();}});
+  cv.addEventListener('wheel',e=>{e.preventDefault();T3.goal.dist=Math.max(6,Math.min(220,T3.goal.dist*Math.exp(e.deltaY*0.0012)));},{passive:false});
+  cv.addEventListener('dblclick',()=>t3Reset());
+  el.addEventListener('keydown',e=>{
+    if(e.target!==el)return; const g=T3.goal, k=e.key;
+    if(k==='ArrowLeft')g.az+=.15; else if(k==='ArrowRight')g.az-=.15;
+    else if(k==='ArrowUp')g.el=Math.min(1.5,g.el+.1); else if(k==='ArrowDown')g.el=Math.max(.12,g.el-.1);
+    else if(k==='+'||k==='=')g.dist=Math.max(6,g.dist*.8); else if(k==='-'||k==='_')g.dist=Math.min(220,g.dist/.8);
+    else if(k==='r'||k==='R')t3Reset(); else return;
+    e.preventDefault(); e.stopPropagation(); t3PitchLabel();});
+  if(window.matchMedia)matchMedia('(prefers-reduced-motion: reduce)').addEventListener?.('change',e=>{T3.reduceMotion=e.matches;});
+  T3.lastT=performance.now();
+  (function anim(t){ requestAnimationFrame(anim);
     if(!terrainActive())return;   // don't render WebGL behind other views
-    t3Update();
-    const f=T3.follow==='drone'?T3.drone:T3.follow==='husky'?T3.husky:null;
-    if(f)T3.target.lerp(new THREE.Vector3(f.position.x,0,f.position.z),0.15);
-    cam.position.set(T3.target.x+T3.dist*Math.cos(T3.el)*Math.sin(T3.az),T3.target.y+T3.dist*Math.sin(T3.el),T3.target.z+T3.dist*Math.cos(T3.el)*Math.cos(T3.az));
-    cam.lookAt(T3.target); rend.render(scene,cam);
+    const dt=Math.min(.1,Math.max(0,((t||performance.now())-T3.lastT)/1000)); T3.lastT=t||performance.now();
+    t3Update(dt);
+    t3Camera(dt);
+    rend.render(scene,cam);
+    t3Labels();
   })();
+}
+function t3SetFollow(f){
+  T3.follow=f;
+  document.querySelectorAll('#t3-bar [data-follow]').forEach(x=>{const on=x.dataset.follow===f;x.classList.toggle('active',on);x.setAttribute('aria-checked',on);});
+}
+function t3Reset(){Object.assign(T3.goal,T3_HOME); t3SetFollow('free'); t3PitchLabel();}
+function t3PitchLabel(){const b=document.getElementById('t3-pitch'); if(!b)return; const top=T3.goal.el>1.2;
+  b.textContent=top?'3D':'2D'; b.title=top?'Perspective view':'Overhead view';
+  b.setAttribute('aria-label',top?'Switch to the perspective view':'Switch to the overhead view');}
+function t3Camera(dt){
+  const g=T3.goal, v=T3.view;
+  if(T3.follow!=='free'){const r=T3.robots[T3.follow]; if(r&&r.visible){g.tx=r.position.x;g.tz=r.position.z;}}
+  const k=T3.reduceMotion?1:1-Math.exp(-dt*9);
+  for(const key of ['az','el','dist','tx','tz'])v[key]+=(g[key]-v[key])*k;
+  cam.position.set(v.tx+v.dist*Math.cos(v.el)*Math.sin(v.az),v.dist*Math.sin(v.el),v.tz+v.dist*Math.cos(v.el)*Math.cos(v.az));
+  cam.lookAt(v.tx,0,v.tz);
+  const n=document.getElementById('t3-needle'); if(n)n.setAttribute('transform',`rotate(${(v.az*180/Math.PI).toFixed(1)} 12 12)`);
 }
 function t3Visibility(){
   Object.entries(T3.groups).forEach(([k,g])=>g.visible=T3.layers[k]);
   if(cloud)cloud.visible=T3.layers.points;
 }
-function t3Clear(g){while(g.children.length){const o=g.children.pop();o.traverse(x=>{if(x.geometry)x.geometry.dispose();});}}
+function t3Clear(g){while(g.children.length){const o=g.children.pop();o.traverse(x=>{if(x.geometry&&!x.geometry.userData.shared)x.geometry.dispose();if(x.isInstancedMesh&&x.dispose)x.dispose();});}}
 const T3M={};   // shared materials
 function t3Mat(key,make){return T3M[key]||(T3M[key]=make());}
 function canopyAt(x,y,r){
@@ -2178,147 +2443,262 @@ function canopyAt(x,y,r){
     if(ix<0||iy<0||ix>=grid.w||iy>=grid.h)continue; const v=grid.data[iy*grid.w+ix]; if(v>best)best=v;}
   return best/10;
 }
+function t3Instanced(geo,mat,items){
+  const m=new THREE.InstancedMesh(geo,mat,Math.max(items.length,1)); m.count=items.length;
+  items.forEach(([mx,col],i)=>{m.setMatrixAt(i,mx); if(col)m.setColorAt(i,col);});
+  m.instanceMatrix.needsUpdate=true; if(m.instanceColor)m.instanceColor.needsUpdate=true; return m;
+}
+function t3Merge(parts){
+  const geos=parts.map(g=>g.index?g.toNonIndexed():g); let n=0; geos.forEach(g=>n+=g.attributes.position.count);
+  const pos=new Float32Array(n*3), nor=new Float32Array(n*3); let o=0;
+  geos.forEach(g=>{pos.set(g.attributes.position.array,o*3); nor.set(g.attributes.normal.array,o*3); o+=g.attributes.position.count; g.dispose();});
+  const m=new THREE.BufferGeometry(); m.setAttribute('position',new THREE.BufferAttribute(pos,3)); m.setAttribute('normal',new THREE.BufferAttribute(nor,3));
+  return m;
+}
+function t3Shade(geo,lo,hi,curve){
+  const p=geo.attributes.position, c=new Float32Array(p.count*3), a=new THREE.Color(lo), z=new THREE.Color(hi), t=new THREE.Color();
+  geo.computeBoundingBox(); const b=geo.boundingBox;
+  for(let i=0;i<p.count;i++){const h=(p.getY(i)-b.min.y)/Math.max(b.max.y-b.min.y,1e-6); t.copy(a).lerp(z,Math.pow(h,curve||1)); c.set([t.r,t.g,t.b],i*3);}
+  geo.setAttribute('color',new THREE.BufferAttribute(c,3)); geo.userData.shared=true; return geo;
+}
+const T3G={};   // shared geometries (t3Clear leaves them alone)
+function t3TreeGeos(){
+  if(T3G.oak)return T3G;
+  const lobe=(x,y,z,r)=>{const g=new THREE.IcosahedronGeometry(r,2); g.translate(x,y,z); return g;};
+  T3G.oak=t3Shade(t3Merge([lobe(0,.5,0,.58),lobe(.42,.42,.12,.46),lobe(-.4,.45,-.16,.46),lobe(.06,.47,-.44,.42),
+    lobe(-.12,.4,.42,.42),lobe(.08,.72,.04,.36)]),0x2f4a29,0x88a666,.8);
+  const tier=(r,h,y)=>{const g=new THREE.ConeGeometry(r,h,9,1); g.translate(0,y+h/2,0); return g;};
+  T3G.pine=t3Shade(t3Merge([tier(1,.5,0),tier(.76,.44,.3),tier(.5,.4,.58)]),0x1d3d31,0x5e8e6c,.9);
+  const trunk=new THREE.CylinderGeometry(.11,.2,1,7,1); trunk.translate(0,.5,0);
+  T3G.trunk=t3Shade(trunk.toNonIndexed(),0x3a2c22,0x6e5644);
+  const stump=new THREE.CylinderGeometry(.27,.33,.32,10,1); stump.translate(0,.16,0);
+  T3G.stump=t3Shade(stump.toNonIndexed(),0x4a3a2c,0x8a7056);
+  const shadow=new THREE.PlaneGeometry(1,1); shadow.rotateX(-Math.PI/2); shadow.userData.shared=true; T3G.shadow=shadow;
+  return T3G;
+}
 function t3Trees(){
-  // before the baseline freezes: the drone's current detections, species unknown
   const trees=baselineTrees().length?baselineTrees():(autoTrees||[]).map((t,i)=>({id:-1-i,x:t.x,y:t.y,species:'?'})), gone=lostIds();
   const sig=trees.length+'|'+[...gone].join(',')+'|'+(grid?grid.w:0)+'|'+Math.floor(Date.now()/10000);
   if(sig===T3.treeSig)return; T3.treeSig=sig;
-  const g=T3.groups.trees; t3Clear(g);
-  const bark=t3Mat('bark',()=>new THREE.MeshLambertMaterial({color:0x6b4a2f}));
-  const oak=t3Mat('oak',()=>new THREE.MeshLambertMaterial({color:0x7fa83a}));
-  const pine=t3Mat('pine',()=>new THREE.MeshLambertMaterial({color:0x2f6b4f}));
-  const unknown=t3Mat('tree?',()=>new THREE.MeshLambertMaterial({color:0x8fa080,transparent:true,opacity:.8}));
-  const cut=t3Mat('cut',()=>new THREE.MeshBasicMaterial({color:0xff453a}));
+  const g=T3.groups.trees; t3Clear(g); const G=t3TreeGeos();
+  const q=new THREE.Quaternion(), up=new THREE.Vector3(0,1,0);
+  const M=(x,y,z,sx,sy,sz,turn)=>new THREE.Matrix4().compose(to3(x,y,z),q.setFromAxisAngle(up,turn||0).clone(),new THREE.Vector3(sx,sy,sz));
+  const tint=(id,hue)=>new THREE.Color(1,1,1).offsetHSL(t3Jitter(id*7)*hue,0,t3Jitter(id)*.16);
+  const trunks=[],oaks=[],pines=[],stumps=[],shadows=[],cuts=[];
   trees.forEach(t=>{
-    const isPine=t.species==='pine', r=Math.max(1.2,Math.min(4,Math.sqrt((t.area_m2||12)/Math.PI)));
-    if(gone.has(t.id)){
-      const stump=new THREE.Mesh(new THREE.CylinderGeometry(.28,.32,.35,10),bark); stump.position.copy(to3(t.x,t.y,.17)); g.add(stump);
-      const ring=new THREE.Mesh(new THREE.RingGeometry(r*.85,r,40),cut); ring.rotation.x=-Math.PI/2; ring.position.copy(to3(t.x,t.y,.04)); g.add(ring);
-      return;
-    }
+    const isPine=t.species==='pine', r=Math.max(1.2,Math.min(4,Math.sqrt((t.area_m2||12)/Math.PI))), turn=t3Jitter(t.id*3)*6.28;
+    if(gone.has(t.id)){stumps.push([M(t.x,t.y,0,1,1,1,turn)]);cuts.push([t,r]);shadows.push([M(t.x,t.y,.01,1.4,1,1.4)]);return;}
     const h=Math.max(isPine?4:4.5,Math.min(12,canopyAt(t.x,t.y,Math.min(r,1.5))||(isPine?5:6)));
-    const trunkH=isPine?h*.35:h*.5;
-    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.16,.24,trunkH,8),bark); trunk.position.copy(to3(t.x,t.y,trunkH/2)); g.add(trunk);
-    if(isPine){const cone=new THREE.Mesh(new THREE.ConeGeometry(Math.min(r,2.2),h-trunkH*.6,10),pine);
-      cone.position.copy(to3(t.x,t.y,trunkH*.6+(h-trunkH*.6)/2)); g.add(cone);}
-    else{const crown=new THREE.Mesh(new THREE.SphereGeometry(1,14,10),t.species==='?'?unknown:oak); const cr=h-trunkH*.8;
-      crown.scale.set(r,cr/2,r); crown.position.copy(to3(t.x,t.y,h-cr/2)); g.add(crown);}
+    if(isPine){const cr=Math.min(r,2.1), base=h*.18;
+      trunks.push([M(t.x,t.y,0,1,base+.6,1,turn),tint(t.id,0)]);
+      pines.push([M(t.x,t.y,base,cr,h-base,cr,turn),tint(t.id,.015)]);}
+    else{const crownH=Math.max(2.6,h*.62), base=h-crownH;
+      trunks.push([M(t.x,t.y,0,1.25,base+crownH*.35,1.25,turn),tint(t.id,0)]);
+      oaks.push([M(t.x,t.y,base,r,crownH,r,turn),t.species==='?'?new THREE.Color(.8,.8,.82):tint(t.id,.02)]);}
+    shadows.push([M(t.x,t.y,.01,r*2.4,1,r*2.4)]);
   });
+  const shaded=k=>t3Mat(k,()=>new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true}));
+  const shadowMat=t3Mat('shadow',()=>new THREE.MeshBasicMaterial({map:t3Radial('rgba(0,0,0,.42)','rgba(0,0,0,0)'),transparent:true,depthWrite:false}));
+  const sh=t3Instanced(G.shadow,shadowMat,shadows); sh.renderOrder=-1; g.add(sh);
+  g.add(t3Instanced(G.trunk,shaded('trunk'),trunks));
+  g.add(t3Instanced(G.oak,shaded('oak'),oaks));
+  g.add(t3Instanced(G.pine,shaded('pine'),pines));
+  g.add(t3Instanced(G.stump,shaded('stump'),stumps));
+  const ringMat=t3Mat('cut',()=>new THREE.MeshBasicMaterial({color:new THREE.Color(rgb(pal().lost)),transparent:true,opacity:.9,depthWrite:false}));
+  cuts.forEach(([t,r])=>{const ring=new THREE.Mesh(new THREE.RingGeometry(r*.88,r,48),ringMat); ring.rotation.x=-Math.PI/2; ring.position.copy(to3(t.x,t.y,.04)); g.add(ring);});
+}
+function t3RoundRect(x0,y0,x1,y1,rad){
+  const s=new THREE.Shape(), r=Math.min(rad,(x1-x0)/2,(y1-y0)/2);
+  s.moveTo(x0+r,y0); s.lineTo(x1-r,y0); s.quadraticCurveTo(x1,y0,x1,y0+r); s.lineTo(x1,y1-r); s.quadraticCurveTo(x1,y1,x1-r,y1);
+  s.lineTo(x0+r,y1); s.quadraticCurveTo(x0,y1,x0,y1-r); s.lineTo(x0,y0+r); s.quadraticCurveTo(x0,y0,x0+r,y0); return s;
 }
 function t3Areas(){
-  const areas=areaList(), cur=S.mq&&S.mq.current, sig=JSON.stringify(areas.map(a=>[a.name,a.status,a.box.map(v=>v.toFixed(1))]))+(cur?cur.reached+'/'+cur.path.length:'')+(S.waste||[]).length;
+  const areas=areaList(), cur=S.mq&&S.mq.current;
+  const sig=settings.layout+JSON.stringify(areas.map(a=>[a.name,a.status,a.box.map(v=>v.toFixed(1))]))+(cur?cur.reached+'/'+cur.path.length:'')+JSON.stringify((S.waste||[]).map(w=>[w.id,w.status]))+JSON.stringify((S.evidence||[]).map(e=>[e.id,e.x.toFixed(1),e.y.toFixed(1)]));
   if(sig===T3.areaSig)return; T3.areaSig=sig;
-  const g=T3.groups.areas; t3Clear(g);
+  const g=T3.groups.areas; t3Clear(g); t3DropLabels('area');
   areas.forEach(a=>{
-    const col=a.status==='inspected'?0x30d158:a.status==='unreachable'?0x8e8e93:a.sev>=70?0xff453a:a.sev>=40?0xff9f0a:0xffd60a;
-    const [x0,y0,x1,y1]=a.box, h=1.6, w=x1-x0, d=y1-y0;
-    const fill=new THREE.Mesh(new THREE.PlaneGeometry(w,d),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.18,depthWrite:false}));
-    fill.rotation.x=-Math.PI/2; fill.position.copy(to3((x0+x1)/2,(y0+y1)/2,.06)); g.add(fill);
-    const edges=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(w,h,d)),
-      new THREE.LineBasicMaterial({color:col,transparent:true,opacity:a.status==='inspected'?.9:.6}));
-    edges.position.copy(to3((x0+x1)/2,(y0+y1)/2,h/2)); g.add(edges);
-    const tag=t3Label(a.name+(a.status==='inspected'?' ✓':''),col); tag.position.copy(to3(x0,y1,h+.6)); g.add(tag);
+    const col=t3AreaCol(a), [x0,y0,x1,y1]=a.box, shape=t3RoundRect(x0,y0,x1,y1,1.2);
+    const geo=new THREE.ShapeGeometry(shape,6); geo.rotateX(-Math.PI/2);
+    const fill=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:a.status==='active'?.24:.13,depthWrite:false}));
+    fill.position.y=.05; g.add(fill);
+    const pts=shape.getPoints(10).map(p=>to3(p.x,p.y,.07));
+    const done=a.status==='inspected'||a.status==='unreachable';
+    const line=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),
+      done?new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.9}):new THREE.LineDashedMaterial({color:col,dashSize:.7,gapSize:.45,transparent:true,opacity:.95}));
+    if(!done)line.computeLineDistances(); g.add(line);
+    const status=(F_AREA[a.status]||a.status).toLowerCase();
+    t3Label('area:'+a.name,`<i style="background:${t3Hex(col)}"></i>${esc(a.name)} <small>${status}</small>`,to3((x0+x1)/2,(y0+y1)/2,1.2),'areas');
   });
-  const path=(pts,col,op)=>{if(pts.length<2)return;g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(p=>to3(p.x,p.y,.15))),
-    new THREE.LineBasicMaterial({color:col,transparent:true,opacity:op})));};
-  if(S.mq)S.mq.done.forEach(m=>path(m.path,0x64d2ff,.35));
-  if(cur&&cur.path.length){path(cur.path,0x64d2ff,.95);
-    cur.path.forEach((p,i)=>{const s=new THREE.Mesh(new THREE.SphereGeometry(i<cur.reached?.22:.16,10,8),
-      new THREE.MeshBasicMaterial({color:i<cur.reached?0x64d2ff:0xffffff}));s.position.copy(to3(p.x,p.y,.2));g.add(s);});}
-  const bag=t3Mat('bag',()=>new THREE.MeshLambertMaterial({color:0xe02020}));
-  (S.waste||[]).forEach(w=>{const b=new THREE.Mesh(new THREE.SphereGeometry(1,14,10),bag); b.scale.set(.42,.32,.32);
-    b.position.copy(to3(w.x,w.y,.3)); g.add(b);
-    const tag=t3Label(`Waste #${w.id}`,0xff453a); tag.position.copy(to3(w.x,w.y,1.4)); g.add(tag);});
-}
-function t3Label(text,col){
-  const c=document.createElement('canvas'), x=c.getContext('2d'); x.font='600 34px -apple-system,system-ui,sans-serif';
-  const w=Math.ceil(x.measureText(text).width)+28; c.width=w; c.height=50;
-  x.font='600 34px -apple-system,system-ui,sans-serif'; x.fillStyle='rgba(0,0,0,.6)';
-  x.beginPath(); x.roundRect?x.roundRect(0,0,w,50,25):x.rect(0,0,w,50); x.fill();
-  x.fillStyle='#'+col.toString(16).padStart(6,'0'); x.fillText(text,14,37);
-  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false,transparent:true}));
-  sp.scale.set(w/50*1.1,1.1,1); return sp;
+  const path=(pts,col,op,dashed)=>{if(pts.length<2)return;
+    const l=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(p=>to3(p.x,p.y,.12))),
+      dashed?new THREE.LineDashedMaterial({color:col,dashSize:.5,gapSize:.4,transparent:true,opacity:op}):new THREE.LineBasicMaterial({color:col,transparent:true,opacity:op}));
+    if(dashed)l.computeLineDistances(); g.add(l);};
+  if(S.mq)S.mq.done.forEach(m=>path(m.path,T3COL.husky,.28,false));
+  if(cur&&cur.path.length){const k=Math.max(1,Math.min(cur.reached,cur.path.length));
+    path(cur.path.slice(0,k),T3COL.husky,.95,false); path(cur.path.slice(k-1),T3COL.husky,.7,true);
+    const dot=t3Mat('wp',()=>new THREE.MeshBasicMaterial({color:T3COL.husky})), next=t3Mat('wpnext',()=>new THREE.MeshBasicMaterial({color:0xffffff}));
+    cur.path.forEach((p,i)=>{const s=new THREE.Mesh(new THREE.SphereGeometry(i<cur.reached?.2:.14,10,8),i<cur.reached?dot:next);s.position.copy(to3(p.x,p.y,.18));g.add(s);});}
+  (S.waste||[]).forEach(w=>{
+    const col=[T3COL.wasteAir,T3COL.wasteFound,T3COL.wasteNone][w.status]??T3COL.wasteAir;
+    const b=new THREE.Mesh(new THREE.SphereGeometry(1,16,12),t3Mat('bag'+col,()=>new THREE.MeshLambertMaterial({color:col})));
+    b.scale.set(.42,.32,.34); b.position.copy(to3(w.x,w.y,.3)); g.add(b);
+    t3Label('area:waste'+w.id,`<i style="background:${t3Hex(col)}"></i>Waste #${w.id}`,to3(w.x,w.y,1.1),'areas');
+  });
+  (S.evidence||[]).filter(e=>e.kind!=='bag').forEach(e=>{
+    const bark=t3Mat('evbark',()=>new THREE.MeshLambertMaterial({color:T3COL.bark})), cut=t3Mat('evcut',()=>new THREE.MeshLambertMaterial({color:T3COL.cutFace}));
+    if(e.kind==='stump'){const m=new THREE.Mesh(new THREE.CylinderGeometry(.32,.38,.5,14),bark); m.position.copy(to3(e.x,e.y,.25)); g.add(m);
+      const t=new THREE.Mesh(new THREE.CylinderGeometry(.29,.29,.03,14),cut); t.position.copy(to3(e.x,e.y,.51)); g.add(t);}
+    else{const m=new THREE.Mesh(new THREE.CylinderGeometry(.2,.2,2.6,12),bark); m.rotation.z=Math.PI/2; m.position.copy(to3(e.x,e.y,.2)); g.add(m);}
+    t3Label('area:ev'+e.id,`<i style="background:${t3Hex(T3COL.cutFace)}"></i>${EV_NAME[e.kind]} #${e.id}`,to3(e.x,e.y,1.0),'areas');
+  });
 }
 function t3Changes(){
   if(!change||change===T3.changeSrc)return; T3.changeSrc=change;
   const g=T3.groups.changes; t3Clear(g);
   const c=document.createElement('canvas'); c.width=change.w; c.height=change.h;
-  const x=c.getContext('2d'), im=x.createImageData(change.w,change.h);
+  const x=c.getContext('2d'), im=x.createImageData(change.w,change.h), L=pal().lost;
   for(let iy=0;iy<change.h;iy++)for(let ix=0;ix<change.w;ix++){const v=change.data[iy*change.w+ix];
-    if(v>=0)continue; const o=((change.h-1-iy)*change.w+ix)*4;
-    im.data[o]=255;im.data[o+1]=v<=-100?69:v===-40?159:214;im.data[o+2]=v<=-100?58:10;im.data[o+3]=170;}
+    if(v>=0||v===-1)continue; const o=((change.h-1-iy)*change.w+ix)*4;
+    im.data[o]=L[0];im.data[o+1]=L[1];im.data[o+2]=L[2];im.data[o+3]=v<=-100?150:80;}
   x.putImageData(im,0,0);
   const tex=new THREE.CanvasTexture(c); tex.magFilter=THREE.NearestFilter;
   const W=change.w*change.res, H=change.h*change.res;
   const m=new THREE.Mesh(new THREE.PlaneGeometry(W,H),new THREE.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false}));
-  m.rotation.x=-Math.PI/2; m.position.copy(to3(change.ox+W/2,change.oy+H/2,.03)); g.add(m);
+  m.rotation.x=-Math.PI/2; m.position.copy(to3(change.ox+W/2,change.oy+H/2,.02)); g.add(m);
 }
 function t3Robot(kind){
-  const o=new THREE.Group();
+  const o=new THREE.Group(), model=new THREE.Group(), extras=new THREE.Group();   // model: the robot, drawn larger than life
   if(kind==='drone'){
-    const body=t3Mat('dbody',()=>new THREE.MeshLambertMaterial({color:0xffffff}));
-    o.add(new THREE.Mesh(new THREE.BoxGeometry(.7,.18,.7),body));
-    const rot=t3Mat('rotor',()=>new THREE.MeshBasicMaterial({color:0x64d2ff,transparent:true,opacity:.55}));
-    [[.55,.55],[-.55,.55],[.55,-.55],[-.55,-.55]].forEach(([a,b])=>{const r=new THREE.Mesh(new THREE.CylinderGeometry(.38,.38,.04,18),rot);r.position.set(a,.12,b);o.add(r);});
-    o.scale.setScalar(1.6);
+    const col=t3DroneCol();
+    const body=new THREE.Mesh(new THREE.SphereGeometry(.34,18,12),new THREE.MeshLambertMaterial({color:col})); body.scale.set(1,.42,1); model.add(body);
+    const arm=new THREE.MeshLambertMaterial({color:0xe9ecef});
+    [Math.PI/4,-Math.PI/4].forEach(a=>{const b=new THREE.Mesh(new THREE.BoxGeometry(1.5,.05,.08),arm);b.rotation.y=a;model.add(b);});
+    const rotorMat=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.42,depthWrite:false});
+    o.userData.rotors=[];
+    [[.53,.53],[-.53,.53],[.53,-.53],[-.53,-.53]].forEach(([a,b])=>{const r=new THREE.Mesh(new THREE.CircleGeometry(.3,24),rotorMat);
+      r.rotation.x=-Math.PI/2; r.position.set(a,.06,b); model.add(r); o.userData.rotors.push(r);});
+    model.scale.setScalar(1.7);
+    const stem=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,-DRONE_ALT,0)]),
+      new THREE.LineDashedMaterial({color:col,dashSize:.35,gapSize:.35,transparent:true,opacity:.55})); stem.computeLineDistances(); extras.add(stem);
+    const shadow=new THREE.Mesh(new THREE.PlaneGeometry(2.6,2.6),t3Mat('shadow',()=>new THREE.MeshBasicMaterial({map:t3Radial('rgba(0,0,0,.42)','rgba(0,0,0,0)'),transparent:true,depthWrite:false})));
+    shadow.rotation.x=-Math.PI/2; shadow.position.y=-DRONE_ALT+.02; extras.add(shadow);
+    const W=11, fan=new THREE.BufferGeometry();
+    fan.setAttribute('position',new THREE.BufferAttribute(new Float32Array([0,0,0, 0,-DRONE_ALT,-W, 0,-DRONE_ALT,W]),3));
+    fan.setAttribute('color',new THREE.BufferAttribute(new Float32Array([col.r,col.g,col.b,.24, col.r,col.g,col.b,.03, col.r,col.g,col.b,.03]),4));
+    const curtain=new THREE.Mesh(fan,new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,side:THREE.DoubleSide,
+      blending:THREE.AdditiveBlending,depthWrite:false}));
+    extras.add(curtain); o.userData.scan=curtain;
   } else {
-    const body=t3Mat('hbody',()=>new THREE.MeshLambertMaterial({color:0xffd60a}));
-    const wheel=t3Mat('wheel',()=>new THREE.MeshLambertMaterial({color:0x202020}));
-    const b=new THREE.Mesh(new THREE.BoxGeometry(1.0,.38,.68),body); b.position.y=.38; o.add(b);
-    [[.33,.4],[-.33,.4],[.33,-.4],[-.33,-.4]].forEach(([a,c])=>{const w=new THREE.Mesh(new THREE.CylinderGeometry(.18,.18,.12,14),wheel);
-      w.rotation.x=Math.PI/2; w.position.set(a,.18,c); o.add(w);});
-    const cam3=new THREE.Mesh(new THREE.BoxGeometry(.12,.12,.2),wheel); cam3.position.set(.45,.63,0); o.add(cam3);
+    const body=new THREE.Mesh(new THREE.BoxGeometry(1.0,.36,.68),new THREE.MeshLambertMaterial({color:T3COL.husky})); body.position.y=.38; model.add(body);
+    const top=new THREE.Mesh(new THREE.BoxGeometry(.8,.04,.56),new THREE.MeshLambertMaterial({color:0x1d2b33})); top.position.y=.58; model.add(top);
+    const wheel=new THREE.MeshLambertMaterial({color:0x1b1d1f});
+    [[.33,.38],[-.33,.38],[.33,-.38],[-.33,-.38]].forEach(([a,c])=>{const w=new THREE.Mesh(new THREE.CylinderGeometry(.18,.18,.12,16),wheel);
+      w.rotation.x=Math.PI/2; w.position.set(a,.18,c); model.add(w);});
+    const mast=new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,.22,10),wheel); mast.position.set(.2,.71,0); model.add(mast);
+    const shadow=new THREE.Mesh(new THREE.PlaneGeometry(2,1.6),t3Mat('shadow',()=>new THREE.MeshBasicMaterial({map:t3Radial('rgba(0,0,0,.42)','rgba(0,0,0,0)'),transparent:true,depthWrite:false})));
+    shadow.rotation.x=-Math.PI/2; shadow.position.y=.02; model.add(shadow);
+    model.scale.setScalar(1.35);
   }
-  T3.groups.robots.add(o); return o;
+  o.add(model,extras); T3.groups.robots.add(o); return o;
 }
-function t3TrailLine(name,col){
-  const pts=T3.trails[name]; if(T3[name+'Trail']){T3.groups.robots.remove(T3[name+'Trail']);T3[name+'Trail'].geometry.dispose();}
+function t3Trail(name,col){
+  const pts=T3.trails[name], old=T3.trailLines[name];
+  if(old){T3.groups.robots.remove(old);old.geometry.dispose();}
   if(pts.length<2)return;
-  T3[name+'Trail']=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.6}));
-  T3.groups.robots.add(T3[name+'Trail']);
+  const c=new THREE.Color(col), pos=new Float32Array(pts.length*3), rgba=new Float32Array(pts.length*4);
+  pts.forEach((p,i)=>{pos.set([p.x,p.y,p.z],i*3); rgba.set([c.r,c.g,c.b,.08+.62*(i/(pts.length-1))],i*4);});
+  const geo=new THREE.BufferGeometry(); geo.setAttribute('position',new THREE.BufferAttribute(pos,3)); geo.setAttribute('color',new THREE.BufferAttribute(rgba,4));
+  const l=new THREE.Line(geo,t3Mat('trail',()=>new THREE.LineBasicMaterial({vertexColors:true,transparent:true,depthWrite:false})));
+  T3.trailLines[name]=l; T3.groups.robots.add(l);
 }
-let t3Last=0;
-function t3Update(){
+function t3Radio(){
+  const r=S.radio, g=T3.groups.radio; t3Clear(g);
+  const row=document.querySelector('#t3-layers [data-row="radio"]'); if(row)row.hidden=!r;
+  if(!r||!r.links){t3DropLabels('radio');return;}
+  const hp=robotAt('husky'), dp=robotAt('drone');
+  const at={base:to3(r.base[0],r.base[1],2),husky:to3(hp.x,hp.y,.8),drone:S.drone?to3(dp.x,dp.y,DRONE_ALT):null};
+  [['husky-base','husky','base'],['husky-drone','husky','drone'],['drone-base','drone','base']].forEach(([k,a,b])=>{
+    const l=r.links[k]; if(!l||!at[a]||!at[b])return;
+    const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([at[a],at[b]]),
+      l.up?new THREE.LineBasicMaterial({color:0x30d158,transparent:true,opacity:.75}):new THREE.LineDashedMaterial({color:0xff453a,dashSize:.6,gapSize:.5,transparent:true,opacity:.6}));
+    if(!l.up)line.computeLineDistances(); g.add(line);});
+  const mast=new THREE.Mesh(new THREE.CylinderGeometry(.06,.1,2,8),t3Mat('mast',()=>new THREE.MeshLambertMaterial({color:0xdfe3e6})));
+  mast.position.copy(to3(r.base[0],r.base[1],1)); g.add(mast);
+  t3Label('radio:base',`<i style="background:#fff"></i>Base <small>${esc(radioText(r))}</small>`,to3(r.base[0],r.base[1],2.6),'radio');
+}
+function t3Update(dt){
   t3Changes(); t3Trees(); t3Areas();
-  const now=performance.now(); if(now-t3Last<100)return; t3Last=now;
-  if(S.drone&&droneOn()){ if(!T3.drone)T3.drone=t3Robot('drone');
-    const p=to3(S.drone.x,S.drone.y,S.drone.z!=null?S.drone.z:10); T3.drone.position.copy(p); T3.drone.rotation.y=S.drone.yaw||0;
-    const tr=T3.trails.drone, l=tr[tr.length-1]; if(!l||l.distanceTo(p)>0.6){tr.push(p.clone());if(tr.length>3000)tr.shift();t3TrailLine('drone',0x64d2ff);} }
-  if(SHOW_HUSKY){ if(!T3.husky)T3.husky=t3Robot('husky');
-    const p=to3(hx,hy,0); T3.husky.position.copy(p); T3.husky.rotation.y=S.husky.yaw||0;
-    const tr=T3.trails.husky, q=to3(hx,hy,.08), l=tr[tr.length-1]; if(!l||l.distanceTo(q)>0.3){tr.push(q);if(tr.length>3000)tr.shift();t3TrailLine('husky',0xffd60a);} }
+  const now=performance.now();
+  if(S.drone&&droneOn()){ const d=T3.robots.drone||(T3.robots.drone=t3Robot('drone')), p=robotAt('drone');
+    d.visible=true; d.position.copy(to3(p.x,p.y,DRONE_ALT)); d.rotation.y=p.yaw||0;
+    if(!T3.reduceMotion)d.userData.rotors.forEach((r,i)=>r.rotation.z+=dt*(i%2?14:-14));
+    t3Label('robot:drone',`<i style="background:${pal().drone}"></i>Drone <small>${DRONE_ALT} m</small>`,to3(p.x,p.y,DRONE_ALT+1.8),'robots'); }
+  if(SHOW_HUSKY){ const h=T3.robots.husky||(T3.robots.husky=t3Robot('husky')), p=robotAt('husky');
+    h.visible=true; h.position.copy(to3(p.x,p.y,0)); h.rotation.y=p.yaw||0;
+    const st=!S.mq?'':S.mq.current&&S.mq.current.label?S.mq.current.label:prettyState(S.mq.state);
+    t3Label('robot:husky',`<i style="background:${t3Hex(T3COL.husky)}"></i>Husky <small>${esc(st||'')}</small>`,to3(p.x,p.y,1.7),'robots'); }
+  if(now-T3.trailT>150){T3.trailT=now;
+    [['drone',T3.robots.drone,.4,pal().drone],['husky',T3.robots.husky,.25,T3COL.husky]].forEach(([n,o,step,col])=>{
+      if(!o||!o.visible)return; const tr=T3.trails[n], p=o.position.clone(); if(n==='husky')p.y=.08;
+      const l=tr[tr.length-1]; if(!l||l.distanceTo(p)>step){tr.push(p);if(tr.length>2500)tr.shift();t3Trail(n,col);}});}
+  if(now-T3.radioT>500){T3.radioT=now;t3Radio();}
+  if(now-T3.summaryT>5000){T3.summaryT=now;t3Summary();}
 }
-function makePointTexture(){
-  const c=document.createElement('canvas'); c.width=c.height=32;
-  const pctx=c.getContext('2d');
-  const g=pctx.createRadialGradient(16,16,0,16,16,16);
-  g.addColorStop(0,'rgba(255,255,255,1)');
-  g.addColorStop(0.45,'rgba(255,255,255,0.85)');
-  g.addColorStop(1,'rgba(255,255,255,0)');
-  pctx.fillStyle=g; pctx.fillRect(0,0,32,32);
-  const tex=new THREE.CanvasTexture(c);
-  tex.minFilter=THREE.LinearFilter;
-  return tex;
+function t3Label(key,html,pos,layer){
+  let L=T3.labels.get(key);
+  if(!L){const el=document.createElement('div'); el.className='t3-label'; document.getElementById('t3-labels').appendChild(el);
+    L={el,html:'',pos:new THREE.Vector3(),layer,w:0,h:0,rank:key.startsWith('robot:')?0:key.startsWith('area:waste')?1:key.startsWith('area:')?2:3};
+    T3.labels.set(key,L);}
+  if(L.html!==html){L.el.innerHTML=html;L.html=html;L.w=0;}
+  L.pos.copy(pos); L.layer=layer;
+}
+function t3DropLabels(prefix){for(const [k,L] of T3.labels)if(k.startsWith(prefix+':')){L.el.remove();T3.labels.delete(k);}}
+function t3Labels(){
+  const el=rend.domElement, W=el.clientWidth, H=el.clientHeight, v=new THREE.Vector3(), placed=[];
+  [...T3.labels.values()].sort((a,b)=>a.rank-b.rank).forEach(L=>{
+    v.copy(L.pos).project(cam);
+    let show=T3.layers[L.layer]&&v.z<1&&v.x>-1.05&&v.x<1.05&&v.y>-1.05&&v.y<1.05;
+    const x=(v.x+1)/2*W, y=(1-v.y)/2*H;
+    if(show){
+      if(!L.w){L.el.style.display='';L.w=L.el.offsetWidth;L.h=L.el.offsetHeight;}
+      const r=[x-L.w/2-3,y-L.h-3,x+L.w/2+3,y+3];
+      if(placed.some(p=>r[0]<p[2]&&r[2]>p[0]&&r[1]<p[3]&&r[3]>p[1]))show=false; else placed.push(r);
+    }
+    L.el.style.display=show?'':'none';
+    if(show)L.el.style.transform=`translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
+  });
+}
+function t3Summary(){
+  const el=document.getElementById('t3-summary'); if(!el)return;
+  const trees=baselineTrees().length, cut=lostIds().size, areas=areaList(), done=areas.filter(a=>a.status==='inspected').length;
+  const parts=[`${trees} trees in the drone's map${cut?`, ${cut} cut`:''}`,`${areas.length} suspected areas, ${done} searched`];
+  if(S.drone&&droneOn())parts.push(`the drone at ${fmtPos(dx,dy)}`);
+  if(SHOW_HUSKY)parts.push(`the Husky at ${fmtPos(hx,hy)}`);
+  if(S.waste&&S.waste.length)parts.push(`${S.waste.length} waste finds`);
+  const ev=(S.evidence||[]).filter(e=>e.kind!=='bag').length;
+  if(ev)parts.push(`${ev} stumps and logs found by the Husky camera`);
+  el.textContent='Showing '+parts.join('; ')+'.';
 }
 function updateTerrain(pts){
   if(!scene)return;
-  allPts=pts.slice();
-  if(cloud){scene.remove(cloud);cloud.geometry.dispose();cloud.material.dispose();}
-  const g=new THREE.BufferGeometry(), p=new Float32Array(allPts.length*3), c=new Float32Array(allPts.length*3);
-  for(let i=0;i<allPts.length;i++){
-    const z=allPts[i].z||0.2;
-    p[i*3]=allPts[i].x; p[i*3+1]=z; p[i*3+2]=-allPts[i].y;
-    const h=Math.min(z/10,1);
-    c[i*3]=0.55*(1-h)+0.2; c[i*3+1]=0.6+0.35*h; c[i*3+2]=0.35*(1-h)+0.15;
+  if(cloud){scene.remove(cloud);cloud.geometry.dispose();}
+  const g=new THREE.BufferGeometry(), p=new Float32Array(pts.length*3), c=new Float32Array(pts.length*3);
+  const lo=new THREE.Color(0x6f6650), hi=new THREE.Color(0x9fc48a), tmp=new THREE.Color();
+  for(let i=0;i<pts.length;i++){
+    const z=pts[i].z||0.2; p[i*3]=pts[i].x; p[i*3+1]=z; p[i*3+2]=-pts[i].y;
+    tmp.copy(lo).lerp(hi,Math.min(z/7,1)); c[i*3]=tmp.r; c[i*3+1]=tmp.g; c[i*3+2]=tmp.b;
   }
   g.setAttribute('position',new THREE.BufferAttribute(p,3));
   g.setAttribute('color',new THREE.BufferAttribute(c,3));
-  if(!pointTex)pointTex=makePointTexture();
-  cloud=new THREE.Points(g,new THREE.PointsMaterial({size:0.34,map:pointTex,vertexColors:true,transparent:true,opacity:.9,depthWrite:false,alphaTest:0.05}));
+  if(!pointTex)pointTex=t3Radial('rgba(255,255,255,1)','rgba(255,255,255,0)');
+  cloud=new THREE.Points(g,t3Mat('points',()=>new THREE.PointsMaterial({size:0.3,map:pointTex,vertexColors:true,transparent:true,opacity:.6,depthWrite:false,alphaTest:0.05})));
   cloud.visible=T3.layers.points;
   scene.add(cloud);
 }
-function resizeTerrain(){const el=document.getElementById('terrain-container'); if(rend&&el&&cam){rend.setSize(el.clientWidth,el.clientHeight);cam.aspect=el.clientWidth/Math.max(el.clientHeight,1);cam.updateProjectionMatrix();}}
+function resizeTerrain(){const el=document.getElementById('terrain-container'); if(rend&&el&&cam){
+  const W=el.clientWidth, H=Math.max(el.clientHeight,1), shift=Math.max(0,(cssPx('--safe-left')-cssPx('--gap'))/2);
+  rend.setSize(W,H); cam.aspect=W/H; cam.setViewOffset(W,H,-shift,0,W,H); cam.updateProjectionMatrix();}}
 
 let lastTerrainUpdate=0;
 sub('/drone_terrain_viz','sensor_msgs/PointCloud2',msg=>{
@@ -2331,7 +2711,6 @@ sub('/drone_terrain_viz','sensor_msgs/PointCloud2',msg=>{
   if(pts.length)updateTerrain(pts);
 });
 
-// ── Map tooltip ──
 const tip=document.getElementById('tooltip');
 function showTip(e,text){tip.textContent=text;tip.style.left=(e.clientX+14)+'px';tip.style.top=(e.clientY-30)+'px';tip.classList.add('visible');}
 canvas.addEventListener('pointermove',e=>{
@@ -2351,14 +2730,14 @@ canvas.addEventListener('pointermove',e=>{
   if(changeEnabled)S.events.forEach(ev=>{const at=alertPos(ev.text);if(at&&near(at.x,at.y,13))alertHit=ev;});
   if(alertHit){showTip(e,alertHit.text);return;}
   const area=areaUnder(e);
-  if(area){showTip(e,areaText(area)+(area.mission&&area.mission.photos.length?' · click for photos':''));canvas.style.cursor=area.mission&&area.mission.photos.length?'pointer':'';return;}
+  if(area){const fc=document.body.classList.contains('layout-focus'), ph=area.mission&&area.mission.photos.length;
+    showTip(e,areaText(area)+(fc?' · click for details':ph?' · click for photos':''));canvas.style.cursor=fc||ph?'pointer':'';return;}
   canvas.style.cursor='';
   const ix=Math.floor((e.offsetX-f.mx)/f.scale), iy=Math.floor((e.offsetY-f.my)/f.scale);
   if(ix>=0&&ix<w&&iy>=0&&iy<h){const v=data[iy*w+ix];showTip(e,fmtPos(ox+ix*res,oy+iy*res)+' · '+(v<0?'unexplored':(v/10).toFixed(1)+' m canopy'));}
   else tip.classList.remove('visible');
 });
 canvas.addEventListener('pointerleave',()=>tip.classList.remove('visible'));
-// the suspected area under the pointer (smallest box first)
 function areaUnder(e){
   if(!grid)return null;
   const f=mapFit(canvas.clientWidth,canvas.clientHeight), {res,ox,oy}=grid;
@@ -2366,23 +2745,23 @@ function areaUnder(e){
   return areaList().filter(a=>wx>=a.box[0]&&wx<=a.box[2]&&wy>=a.box[1]&&wy<=a.box[3])
     .sort((a,b)=>(a.box[2]-a.box[0])*(a.box[3]-a.box[1])-(b.box[2]-b.box[0])*(b.box[3]-b.box[1]))[0]||null;
 }
-canvas.addEventListener('click',e=>{const a=areaUnder(e);if(a&&a.mission&&a.mission.photos.length)openFolder(areaFolder(a));});
+canvas.addEventListener('click',e=>{const a=areaUnder(e);
+  if(document.body.classList.contains('layout-focus')){selectArea(a?a.name:null);return;}
+  if(a&&a.mission&&a.mission.photos.length)openFolder(areaFolder(a));});
 
-// Trees the drone detects right now (from /api/data)
 let autoTrees=[];
 
-// ── Instant refresh: hydrate from /api/data so the page is populated
-// immediately on load/reload instead of waiting for ROS subscriptions. ──
 async function loadSnapshot(){
   try{
     const r=await fetch('/api/data'); if(!r.ok)return;
     const d=await r.json();
     lastSnapshotOk=Date.now(); if(!hydratedAt)hydratedAt=Date.now();
+    const quiet=t=>!lastMsg[t]||Date.now()-lastMsg[t]>3000;
     S.treeStatus=(d.tree_status&&typeof d.tree_status==='object')?d.tree_status:{baseline_count:0,current_count:0,lost_count:0,gained_count:0};
     S.parrotTreeStatus=(d.parrot_tree_status&&typeof d.parrot_tree_status==='object')?d.parrot_tree_status:{baseline_count:0,current_count:0,lost_count:0,gained_count:0};
     S.trees=S.parrotTreeStatus.current_count||S.treeStatus.current_count||d.tree_count||0;
-    if(d.drone_pos)S.drone={...S.drone,x:d.drone_pos.x,y:d.drone_pos.y};
-    if(d.husky_pos){huskySeen();S.husky={...S.husky,x:d.husky_pos.x,y:d.husky_pos.y};hx=d.husky_pos.x;hy=d.husky_pos.y;}
+    if(d.drone_pos&&quiet('/parrot1/odometry'))S.drone={...S.drone,x:d.drone_pos.x,y:d.drone_pos.y};
+    if(d.husky_pos){huskySeen();if(quiet('/husky1/odometry')){S.husky={...S.husky,x:d.husky_pos.x,y:d.husky_pos.y};hx=d.husky_pos.x;hy=d.husky_pos.y;}}
     S.survey=d.survey_status||''; S.scanCoverage=d.scan_coverage||''; S.mission=d.mission_status||'';
     S.baseline=d.baseline_status||''; S.droneBaseline=d.drone_baseline_status||'';
     S.eval=d.evaluation||'';
@@ -2391,14 +2770,11 @@ async function loadSnapshot(){
     S.events=(d.change_events||[]).map(e=>({text:e.text||''}));
     S.treeEvents=(d.tree_events||[]).map(e=>({event_type:e.event_type,tree_id:e.tree_id,x:e.x,y:e.y,area_m2:e.area_m2}));
     S.parrotTreeEvents=(d.parrot_tree_events||[]).map(e=>({event_type:e.event_type,tree_id:e.tree_id,x:e.x,y:e.y,area_m2:e.area_m2}));
-    // Populate the map + change grids from the HTTP snapshot (the data_server
-    // subscribes over rosbridge, so this path already works even if the
-    // browser's direct ROSLIB subscription has a QoS mismatch).
-    if(d.canopy_map){
+    if(d.canopy_map&&quiet('/forest_canopy_map')){
       grid={w:d.canopy_map.width,h:d.canopy_map.height,data:new Int8Array(d.canopy_map.data),
             res:d.canopy_map.resolution,ox:d.canopy_map.ox,oy:d.canopy_map.oy};
     }
-    if(d.canopy_change_map){
+    if(d.canopy_change_map&&quiet('/canopy_change_map')){
       change={w:d.canopy_change_map.width,h:d.canopy_change_map.height,data:new Int8Array(d.canopy_change_map.data),
               res:d.canopy_change_map.resolution,ox:d.canopy_change_map.ox,oy:d.canopy_change_map.oy};
     }
@@ -2409,22 +2785,18 @@ async function loadSnapshot(){
       species={w:d.species_map.width,h:d.species_map.height,data:new Int8Array(d.species_map.data),
                res:d.species_map.resolution,ox:d.species_map.ox,oy:d.species_map.oy};
     }
-    // Robot positions fall back to the HTTP snapshot when the direct ROSLIB
-    // odometry subscription is not delivering (QoS/discovery edge cases).
-    if(d.drone_pos){dx=d.drone_pos.x;dy=d.drone_pos.y;S.drone={...S.drone,x:dx,y:dy};}
+    if(d.drone_pos&&quiet('/parrot1/odometry')){dx=d.drone_pos.x;dy=d.drone_pos.y;S.drone={...S.drone,x:dx,y:dy};}
     if(mapActive())drawMap();
     updateUI();
   }catch(e){}
 }
 
-// ── Settings panel ──
 const matSlider=document.getElementById('material'), matName=document.getElementById('material-name');
 function materialName(v){return v<12?'Clear':v<38?'Light':v<65?'Frosted':v<92?'Dense':'Solid'}
 function applySettings(save){
   const T=theme();
   root.dataset.theme=settings.theme;
   root.classList.toggle('contrast',settings.contrast);
-  // Increase contrast keeps panels near-opaque so text never sits on busy map.
   const v=settings.contrast?Math.max(settings.material,88):settings.material, t=v/100, st=root.style;
   st.setProperty('--glass-alpha',(0.05+0.9*t).toFixed(3));
   st.setProperty('--glass-blur',(v>=96?0:Math.round(3+29*t))+'px');
@@ -2444,6 +2816,7 @@ function applySettings(save){
     g.querySelectorAll('button').forEach(b=>b.setAttribute('aria-checked',b.dataset.val===cur));
   });
   document.body.classList.toggle('dev',settings.dev);
+  document.body.classList.toggle('layout-focus',settings.layout==='focus'); placeLayers(); applyFocusWords(); fBanner();
   const active=tabs.find(t=>t.classList.contains('active'));
   if(active&&active.offsetParent===null)selectView(tabFor('map'));
   renderLegend();
@@ -2476,7 +2849,6 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&setPanel.classList.contains('open')){setSettingsOpen(false);setBtn.focus();}
 });
 
-// Specular highlight follows the pointer across each glass surface.
 function wireSheen(el){
   el.addEventListener('pointermove',e=>{
     const r=el.getBoundingClientRect();
@@ -2486,7 +2858,6 @@ function wireSheen(el){
 }
 document.querySelectorAll('.glass').forEach(wireSheen);
 
-// ── Sidebar: floating panel on wide screens, bottom sheet on narrow ones ──
 const sidebarEl=document.getElementById('sidebar'), sidebarBtn=document.getElementById('sidebar-toggle'), sidebarHeader=document.getElementById('sidebar-header');
 function relayout(){
   updateSafeArea(); moveLens();
@@ -2514,13 +2885,381 @@ function applyCompactMode(){
 document.getElementById('legend').addEventListener('toggle',()=>{if(mapActive())drawMap();});
 if(compactMQ.addEventListener)compactMQ.addEventListener('change',applyCompactMode);
 
-// ── Init ──
+const F_AREA={flagged:'Flagged by the drone',queued:'Waiting for the Husky',active:'Searching now',
+  inspected:'Searched',unreachable:'Could not reach',cancelled:'Cancelled'};
+const fPlural=(n,w)=>`${n} ${w}${n===1?'':'s'}`;
+function fRing(frac,col){
+  const r=9.5, c=2*Math.PI*r, f=Math.max(0,Math.min(1,frac||0));
+  return `<svg class="f-ring" viewBox="0 0 24 24" style="--c:${col}" aria-hidden="true"><circle class="bg" cx="12" cy="12" r="${r}"/>`+
+    `<circle class="fg" cx="12" cy="12" r="${r}" stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${(c*(1-f)).toFixed(2)}"/></svg>`;
+}
+const F_CHEV='<svg class="f-chev" viewBox="0 0 7 12" aria-hidden="true"><path d="M1 1l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+function fStale(r,topic){const t=lastMsg[topic]; if(!t||!S.connected)return r; const age=(Date.now()-t)/1000;
+  return age>5?{...r,sub:`Not heard from for ${Math.round(age)} s`,ring:null,stale:true}:r;}
+function fRow({id,col,title,sub,end,ring,label,photos,stale}){
+  return `<div class="f-row${stale?' stale':''}" role="button" tabindex="0" data-row="${esc(id)}" aria-label="${esc(label||title+', '+sub)}" style="--c:${col}">`+
+    `<span class="f-ic"><i></i></span><span class="f-tx"><b>${esc(title)}</b><span>${esc(sub)}</span></span>`+
+    `<span class="f-end">${end?esc(end):''}${photos?`<button class="f-photos" data-photos="${esc(id)}">${fPlural(photos,'photo')}</button>`:''}${ring!=null?fRing(ring,col):''}${F_CHEV}</span></div>`;
+}
+function fDrone(){
+  if(!droneOn())return {sub:'Not running',ring:0};
+  const st=/STATE=(\w+)/.exec(S.survey||''), wp=/wp=(\d+)\/(\d+)/.exec(S.survey||''), c=scanCov();
+  if(!String(S.droneBaseline).startsWith('frozen'))return {sub:`Mapping · ${Math.round(c.cov)}% of ${Math.round(c.req||90)}% needed`,ring:c.cov/Math.max(c.req||90,1)};
+  const k=st?st[1]:'';
+  const sub=k==='PATROL'?(wp?`Watching · waypoint ${wp[1]} of ${wp[2]}`:'Watching'):k==='FLYING_TO_FLAG'?'Flying to a flagged spot':
+    k==='ORBITING'?'Circling a flagged spot':k==='RETURNING'?'Returning to the survey':k==='RELAY'?"Relaying the Husky's radio":(k?prettyState(k):'Watching');
+  return {sub,ring:wp?wp[1]/wp[2]:null};
+}
+function fHusky(){
+  const q=S.mq, off=S.radio&&!S.radio.route;   // radio:=true and out of contact: what we know is old
+  if(!q)return {sub:off?'Out of radio contact':'Waiting for its first report',ring:null,name:null};
+  const r=fHuskyNow(q); if(off)r.sub+=` · not heard for ${Math.round(S.radio.out_of_contact_s)} s`; return r;
+}
+function fHuskyNow(q){
+  const c=q.current, name=c?(areaNameAt(c.x,c.y)||c.label):null;
+  if(q.state==='WAITING_FOR_DRONE')return {sub:"Waiting for the drone's tree map",ring:null,name};
+  if(c&&q.state==='SEARCHING')return {sub:`Searching ${name} · ${c.reached} of ${c.path.length}`,ring:c.path.length?c.reached/c.path.length:0,name,verb:'searching'};
+  if(c&&(q.state==='ENROUTE'||q.state==='DISPATCHING'))return {sub:`On the way to ${name}`,ring:0,name,verb:'on the way to'};
+  if(q.queue.length)return {sub:`${fPlural(q.queue.length,'area')} waiting`,ring:null,name};
+  return {sub:q.done.length?'Done · all areas checked':'Ready',ring:q.done.length?1:null,name};
+}
+function fPhase(){
+  const frozen=String(S.droneBaseline).startsWith('frozen'), areas=areaList(), lost=lostIds().size;
+  const open=areas.filter(a=>['flagged','queued','active'].includes(a.status)).length;
+  const found=lost>0||areas.length>0;
+  const steps=[{k:'Map',done:frozen},{k:'Watch',done:frozen&&found},
+    {k:'Check',done:frozen&&found&&SHOW_HUSKY&&open===0,skip:!SHOW_HUSKY},{k:'Report',done:false}];
+  let now=steps.findIndex(s=>!s.done&&!s.skip); if(now<0)now=3;
+  return {steps,now,frozen,areas,lost,open};
+}
+function updateFocus(){
+  const P=fPhase(), c=scanCov(), h=fHusky(), ts=treeStatus();
+  let head,sub;
+  if(!S.connected&&!lastSnapshotOk){head='Connecting…';sub='Waiting for the robots.';}
+  else if(!P.frozen){head='Mapping the forest';sub=`The drone has mapped ${Math.round(c.cov)}% of the ${Math.round(c.req||90)}% it needs before it can watch for changes.`;}
+  else if(!P.lost&&!P.areas.length){head='No changes';sub=`The drone is watching ${fPlural(ts.baseline_count||baselineTrees().length,'tree')}.`;}
+  else if(P.now===2){head=P.lost?`${fPlural(P.lost,'tree')} cut`:fPlural(P.areas.length,'suspected area');
+    sub=h.verb?`The Husky is ${h.verb} ${h.name}. ${fPlural(P.open,'area')} left to check.`:`${fPlural(P.open,'area')} left to check.`;}
+  else{const waste=(S.waste||[]).filter(w=>w.status===1).length;
+    head=P.lost?`${fPlural(P.lost,'tree')} cut`:'Areas checked';
+    sub=SHOW_HUSKY?`All ${fPlural(P.areas.length,'area')} checked${waste?` · ${fPlural(waste,'waste find')}`:''}. The report is ready.`:'The drone flagged the areas. No ground robot in this run to check them.';}
+  const hd=document.getElementById('f-head'); if(hd.textContent!==head)hd.textContent=head;
+  const h1=document.querySelector('#sidebar-header h1'), sb=document.querySelector('#sidebar-header .sub');
+  if(h1&&h1.textContent!==head)h1.textContent=head; if(sb)sb.textContent='Canopy Sentinel';
+  document.getElementById('f-sub').textContent=sub;
+  document.getElementById('f-phases').innerHTML=P.steps.map((s,i)=>
+    `<li class="${s.skip?'skip':s.done?'done':i===P.now?'now':''}"${i===P.now?' aria-current="step"':''}>${s.k}</li>`).join('');
+  fNext(P); fBanner(); fCams();
+  const key=document.getElementById('f-key'), kh=areaKeyHTML().replace(/<h4>.*?<\/h4>/,'');
+  if(key._h!==kh){key._h=kh;key.innerHTML=kh;}
+  const d=fStale(fDrone(),'/parrot1/odometry'), hs=fStale(h,'/husky1/odometry');
+  const rows=[fRow({id:'drone',col:pal().drone,title:'Drone',sub:d.sub,ring:d.ring,stale:d.stale})];
+  if(SHOW_HUSKY)rows.push(fRow({id:'husky',col:'#64d2ff',title:'Husky',sub:hs.sub,ring:hs.ring,stale:hs.stale}));
+  if(S.radio)rows.push(fRow({id:'radio',col:S.radio.route?'#30d158':'#ff453a',title:'Radio',sub:radioText(S.radio)}));
+  fSet('f-robots',rows.join(''));
+  const order={active:0,queued:1,flagged:2,unreachable:3,inspected:4,cancelled:5};
+  const areas=[...P.areas].sort((a,b)=>(order[a.status]??9)-(order[b.status]??9));
+  document.getElementById('f-areas-n').textContent=P.areas.length?`${P.areas.length-P.open} of ${P.areas.length} checked`:'';
+  fSet('f-areas',areas.length?areas.map(a=>{
+    const col=areaColor(a);
+    const waste=(S.waste||[]).filter(w=>w.status===1&&w.x>=a.box[0]-2.5&&w.x<=a.box[2]+2.5&&w.y>=a.box[1]-2.5&&w.y<=a.box[3]+2.5).length;
+    const m=a.mission, going=a.status==='active'&&S.mq&&S.mq.state!=='SEARCHING';   // the current mission: driving there, or searching it
+    const bits=[going?'The Husky is on its way':F_AREA[a.status]||prettyState(a.status)];
+    if(a.status==='active'&&!going&&m&&m.path.length)bits.push(`${m.reached} of ${m.path.length}`);
+    if(waste)bits.push(fPlural(waste,'waste find'));
+    const ev=evidenceText(a.box,2.5); if(ev)bits.push(ev);
+    return fRow({id:'area:'+a.name,col,title:a.name,sub:bits.join(' · '),photos:m&&m.photos.length?m.photos.length:0});
+  }).join(''):`<div class="f-empty">${P.frozen?'Nothing suspected so far.':'Areas appear here once the drone has a tree map to compare with.'}</div>`);
+  if(selArea)fillAreaCard();
+  document.querySelectorAll('#f-areas .f-row').forEach(r=>r.classList.toggle('sel',r.dataset.row==='area:'+selArea));
+  const recent=collectChanges().slice(0,4);
+  const tone={bad:'#ff453a',warn:'#ff9f0a',info:'#64d2ff',ok:'#30d158'};
+  fSet('f-recent',recent.length?recent.map((r,i)=>fRow({id:'recent:'+i,col:tone[r.tone]||'#fff',title:r.type,sub:r.detail,end:r.seen?relTime(r.seen):''})).join('')
+    :'<div class="f-empty">No changes yet.</div>');
+  const pines=baselineTrees().filter(t=>t.species==='pine').length;
+  document.getElementById('f-kv').innerHTML=[
+    ['Trees the drone sees now',S.trees||0],['Trees in the map',ts.baseline_count||0],['Trees lost',ts.lost_count||0],
+    ['Forest mapped',`${Math.round(c.cov)}%`],['Pines (camera)',S.baselineInfo?pines:'–'],
+    ['Drone',fmtPos(dx,dy)],...(SHOW_HUSKY?[['Husky',fmtPos(hx,hy)]]:[])].map(([k,v])=>`<span>${esc(k)}</span><b>${esc(v)}</b>`).join('');
+}
+function fSet(id,html){const el=document.getElementById(id); if(el._h!==html){el._h=html; const f=document.activeElement&&el.contains(document.activeElement)?document.activeElement.dataset.row:null;
+  el.innerHTML=html; if(f){const n=el.querySelector(`[data-row="${CSS.escape(f)}"]`); if(n)n.focus({preventScroll:true});}}}
+function fActivate(row){
+  const id=row.dataset.row;
+  if(id==='drone'){focusOn(dx,dy);return;}
+  if(id==='husky'){focusOn(hx,hy);return;}
+  if(id==='radio'){if(S.radio)focusOn(S.radio.base[0],S.radio.base[1]);return;}
+  if(id.startsWith('area:')){const a=areaList().find(a=>'area:'+a.name===id); if(a){focusOn(a.x,a.y);selectArea(a.name);}return;}
+  if(id.startsWith('recent:')){const r=collectChanges()[+id.slice(7)]; if(r&&r.x!=null)focusOn(r.x,r.y); else selectView(tabFor('changes'));}
+}
+document.getElementById('focus').addEventListener('click',e=>{
+  const p=e.target.closest('[data-photos]');
+  if(p){e.stopPropagation(); const a=areaList().find(a=>'area:'+a.name===p.dataset.photos); if(a)openFolder(areaFolder(a)); return;}
+  const row=e.target.closest('.f-row'); if(row)fActivate(row);
+});
+document.getElementById('focus').addEventListener('keydown',e=>{
+  const row=e.target.closest('.f-row'); if(row&&e.target===row&&(e.key==='Enter'||e.key===' ')){e.preventDefault();fActivate(row);}
+});
+document.getElementById('f-all').addEventListener('click',()=>selectView(tabFor('changes')));
+document.getElementById('f-rebaseline').addEventListener('click',()=>document.getElementById('reset-tree-baseline').click());
+function placeLayers(){
+  const pop=document.getElementById('layers-pop'), ctrl=document.querySelector('.controls[aria-label="Map layers"]'), lg=document.getElementById('legend');
+  if(!pop||!ctrl||!lg)return;
+  let key=document.getElementById('area-key'); if(!key){key=document.createElement('div');key.id='area-key';key.className='area-key';}
+  key.innerHTML=areaKeyHTML();
+  if(settings.layout==='focus'){if(!pop.contains(key))pop.appendChild(key);
+  if(!pop.contains(ctrl)){pop.insertBefore(ctrl,key);pop.insertBefore(lg,key);lg.open=true;
+    const fz=document.getElementById('toggle-fusion'); if(fz&&fz.getAttribute('aria-pressed')==='true')fz.click();}}
+  else{if(pop.contains(ctrl)){document.getElementById('settings-btn').before(ctrl);document.getElementById('map-wrap').appendChild(lg);}setLayersOpen(false);
+    key.remove(); if(selArea)selectArea(null);
+    const h1=document.querySelector('#sidebar-header h1'), sb=document.querySelector('#sidebar-header .sub');   // the classic title back
+    if(h1)h1.textContent='Canopy Sentinel'; if(sb)sb.textContent='Operator console';}
+}
+function setLayersOpen(open){
+  const pop=document.getElementById('layers-pop'), b=document.getElementById('layers-btn'); if(!pop)return;
+  pop.hidden=!open; b.setAttribute('aria-expanded',open);
+  if(open){setSettingsOpen(false); const f=pop.querySelector('.chip'); if(f)setTimeout(()=>f.focus({preventScroll:true}),40);}
+}
+document.getElementById('layers-btn').addEventListener('click',e=>{e.stopPropagation();setLayersOpen(document.getElementById('layers-pop').hidden);});
+document.getElementById('layers-pop').addEventListener('click',e=>e.stopPropagation());
+document.addEventListener('click',()=>setLayersOpen(false));
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!document.getElementById('layers-pop').hidden){setLayersOpen(false);document.getElementById('layers-btn').focus();}});
+
+function selectArea(name){
+  selArea=name||null;
+  const card=document.getElementById('area-card');
+  if(!selArea){card.hidden=true;}
+  else{fillAreaCard(); card.hidden=false; const c=card.querySelector('.ac-close'); if(c)setTimeout(()=>c.focus({preventScroll:true}),30);}
+  document.querySelectorAll('#f-areas .f-row').forEach(r=>{const on=r.dataset.row==='area:'+selArea; r.classList.toggle('sel',on); r.setAttribute('aria-current',on?'true':'false');});
+  drawMap();
+}
+function fillAreaCard(){
+  const a=areaList().find(x=>x.name===selArea), card=document.getElementById('area-card');
+  if(!a){selectArea(null);return;}
+  const col=areaColor(a), m=a.mission, b=a.box, inBox=(x,y,g)=>x>=b[0]-g&&x<=b[2]+g&&y>=b[1]-g&&y<=b[3]+g;
+  const going=a.status==='active'&&S.mq&&S.mq.state!=='SEARCHING';
+  const status=going?'The Husky is on its way':F_AREA[a.status]||prettyState(a.status);
+  const waste=(S.waste||[]).filter(w=>inBox(w.x,w.y,2.5)), found=waste.filter(w=>w.status===1).length;
+  const lost=treeEventList().filter(e=>e.event_type==='LOST'&&inBox(e.x,e.y,1)).length;
+  const rows=[];
+  if(m&&m.path.length)rows.push(['Search',`${m.reached} of ${m.path.length} waypoints`]);
+  rows.push(['Trees lost here',String(lost)]);
+  rows.push(['Waste',found?fPlural(found,'find'):waste.length?'Seen from the air':a.status==='inspected'?'None found':'Not checked yet']);
+  if((S.evidence||[]).length)rows.push(['Husky camera (YOLO)',evidenceText(b,2.5)||(a.status==='inspected'?'No stumps or logs':'Not seen yet')]);
+  rows.push(['Size',`${(b[2]-b[0]).toFixed(0)} × ${(b[3]-b[1]).toFixed(0)} m`]);
+  if(m&&m.photos.length)rows.push(['Photos',String(m.photos.length)]);
+  const kind=a.type==='TREE_LOST'?'Where the drone lost a tree':prettyState(a.type||'Clearing');   // the status line says who did what
+  const html=`<div class="ac-head" style="--c:${col}"><span class="ac-sw" aria-hidden="true"></span><div class="ac-t"><h4 id="ac-title">${esc(a.name)}</h4><small>${esc(kind)}</small></div>`+
+    `<button class="ac-close" aria-label="Close"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1l8 8M9 1 1 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div>`+
+    `<div class="ac-status" style="--c:${col}"><i aria-hidden="true"></i>${esc(status)}</div>`+
+    `<dl>${rows.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`+
+    `<div class="ac-actions">${m&&m.photos.length?`<button class="chip primary" data-ac="photos">View ${fPlural(m.photos.length,'photo')}</button>`:''}`+
+    (m&&m.status==='queued'&&S.ctl?`<button class="chip" data-ac="next">Search next</button><button class="chip" data-ac="skip">Skip</button>`:'')+
+    (m&&m.status==='cancelled'&&S.ctl?`<button class="chip" data-ac="unskip">Search again</button>`:'')+
+    `<button class="chip" data-ac="3d">Show in 3D</button></div>`+
+    (m&&m.status==='active'?'<p class="ac-note">The Husky is on this area now.</p>':!m&&SHOW_HUSKY?'<p class="ac-note">The Husky has not taken this area on yet.</p>':'');
+  if(card._h!==html){const f=document.activeElement&&card.contains(document.activeElement)?document.activeElement.dataset.ac||'close':null;
+    card._h=html; card.innerHTML=html;
+    if(f){const n=f==='close'?card.querySelector('.ac-close'):card.querySelector(`[data-ac="${f}"]`); if(n)n.focus({preventScroll:true});}}
+  card.setAttribute('aria-label',`${a.name}: ${status}`);
+}
+function placeAreaCard(toScreen,cw,ch){
+  const card=document.getElementById('area-card'); if(!card||card.hidden||!selArea)return;
+  const a=areaList().find(x=>x.name===selArea); if(!a){selectArea(null);return;}
+  const [x0,y0]=toScreen(a.box[0],a.box[1]), [x1,y1]=toScreen(a.box[2],a.box[3]);
+  const L=Math.min(x0,x1), R=Math.max(x0,x1), T=Math.min(y0,y1), w=card.offsetWidth||264, h=card.offsetHeight||200, g=14;
+  let x=R+g; if(x+w>cw-SAFE.right)x=L-g-w;
+  x=Math.max(SAFE.left,Math.min(x,cw-SAFE.right-w)); const y=Math.max(SAFE.top,Math.min(T-8,ch-SAFE.bottom-h));
+  card.style.transform=`translate(${Math.round(x)}px,${Math.round(y)}px)`;
+}
+document.getElementById('area-card').addEventListener('click',e=>{
+  e.stopPropagation();
+  if(e.target.closest('.ac-close')){const n=selArea; selectArea(null); const r=document.querySelector(`#f-areas [data-row="${CSS.escape('area:'+n)}"]`); if(r)r.focus(); return;}
+  const b=e.target.closest('[data-ac]'); if(!b)return; const a=areaList().find(x=>x.name===selArea); if(!a)return;
+  if(b.dataset.ac==='photos')openFolder(areaFolder(a));
+  if(a.mission&&b.dataset.ac==='next')C.choose(a.mission.label);
+  if(a.mission&&b.dataset.ac==='skip')C.skip(a.mission.label);
+  if(a.mission&&b.dataset.ac==='unskip')C.unskip(a.mission.label);
+  if(b.dataset.ac==='3d'){selectView(tabFor('terrain')); if(T3&&T3.goal){t3SetFollow('free'); Object.assign(T3.goal,{tx:a.x,tz:-a.y,dist:30,el:.75});}}
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&selArea&&!document.getElementById('area-card').hidden&&(!document.getElementById('folder')||document.getElementById('folder').hidden))selectArea(null);});
+function areaKeyHTML(){
+  const st=[['To search',{status:'flagged'},true,''],['Searching now',{status:'active'},false,''],['Searched',{status:'inspected'},false,'✓'],['Could not reach',{status:'unreachable'},false,'✕']];
+  return '<h4>Suspected areas</h4>'+st.map(([l,a,dash,sym])=>{const c=areaColor(a);
+    return `<span><svg viewBox="0 0 22 14" aria-hidden="true"><rect x="1" y="1" width="20" height="12" rx="3" fill="${c}" fill-opacity=".2" stroke="${c}" stroke-width="1.6"${dash?' stroke-dasharray="3 2"':''}/>`+
+      (sym?`<text x="11" y="10.5" text-anchor="middle" font-size="9" font-weight="700" fill="${c}">${sym}</text>`:'')+`</svg>${l}</span>`;}).join('');
+}
+document.getElementById('flags-list').addEventListener('click',e=>{const r=e.target.closest('[data-area]'); if(!r)return; const a=areaList().find(x=>x.name===r.dataset.area); if(a)focusOn(a.x,a.y);});
+document.getElementById('flags-list').addEventListener('keydown',e=>{const r=e.target.closest('[data-area]'); if(r&&(e.key==='Enter'||e.key===' ')){e.preventDefault();r.click();}});
+
+S.ctl=null;                                   // /mission_control: who decides, and what is next
+sub('/mission_control','std_msgs/String',m=>{try{S.ctl=JSON.parse(m.data);}catch(e){return;} updateUI();});
+const pendingCmds=new Map(), undoStack=[]; let cmdTopic=null, cmdSeq=0;
+function areaForLabel(l){return areaList().find(a=>a.mission&&a.mission.label===l)||null;}
+const areaNameOf=l=>{const a=areaForLabel(l);return a?a.name:l;};
+function sendCommand(c,{doing,undo}={}){
+  if(!ros||!S.connected){toast({tone:'bad',title:"Can't send that",sub:'The dashboard has lost its connection to the robots. Reload once the simulation is running.'});return;}
+  if(!cmdTopic)cmdTopic=new ROSLIB.Topic({ros,name:'/mission_command',messageType:'std_msgs/String'});
+  const id=`c${++cmdSeq}-${Date.now()}`;
+  cmdTopic.publish({data:JSON.stringify({...c,id})});
+  const off=S.radio&&!S.radio.route, p={c,doing,undo,timer:0};
+  pendingCmds.set(id,p);
+  if(undo)undoStack.push(undo);
+  toast({tone:'info',title:doing||'Sent to the Husky',sub:off?'Waiting for radio contact: the Husky gets this as soon as it is back in range.':'Waiting for the Husky to answer…'});
+  p.timer=setTimeout(()=>{if(!pendingCmds.has(id)||(S.radio&&!S.radio.route))return; pendingCmds.delete(id);
+    if(undo){const i=undoStack.indexOf(undo); if(i>=0)undoStack.splice(i,1);}
+    toast({tone:'bad',title:'No answer from the Husky',sub:'Check that the simulation is running, then try again.',action:['Try again',()=>sendCommand(c,{doing,undo})]}); updateUI();},15000);
+  updateUI();
+}
+sub('/mission_command_ack','std_msgs/String',m=>{let a;try{a=JSON.parse(m.data);}catch(e){return;}
+  const p=pendingCmds.get(a.id); if(!p)return; pendingCmds.delete(a.id); clearTimeout(p.timer);
+  if(a.ok)toast({tone:'ok',title:a.msg,action:p.undo&&undoStack.includes(p.undo)?['Undo',()=>runUndo(p.undo)]:null});
+  else{if(p.undo){const i=undoStack.indexOf(p.undo); if(i>=0)undoStack.splice(i,1);} toast({tone:'warn',title:"That didn't happen",sub:a.msg});}
+  updateUI();
+});
+function runUndo(u){const i=undoStack.indexOf(u); if(i>=0)undoStack.splice(i,1); u.run();}
+const C={
+  proceed:l=>sendCommand({cmd:'proceed',label:l},{doing:`Sending the Husky to ${areaNameOf(l)}…`}),
+  choose:l=>sendCommand({cmd:'choose',label:l},{doing:`Making ${areaNameOf(l)} next…`,undo:{name:`choosing ${areaNameOf(l)}`,run:()=>sendCommand({cmd:'unpin',label:l},{doing:`Putting ${areaNameOf(l)} back in order…`})}}),
+  skip:l=>sendCommand({cmd:'skip',label:l},{doing:`Skipping ${areaNameOf(l)}…`,undo:{name:`skipping ${areaNameOf(l)}`,run:()=>sendCommand({cmd:'unskip',label:l},{doing:`Putting ${areaNameOf(l)} back…`})}}),
+  unskip:l=>sendCommand({cmd:'unskip',label:l},{doing:`Putting ${areaNameOf(l)} back…`,undo:{name:`searching ${areaNameOf(l)} again`,run:()=>sendCommand({cmd:'skip',label:l},{doing:`Skipping ${areaNameOf(l)}…`})}}),
+  pause:()=>sendCommand({cmd:'pause'},{doing:'Pausing the Husky after this area…',undo:{name:'pausing',run:()=>sendCommand({cmd:'resume'},{doing:'Resuming…'})}}),
+  resume:()=>sendCommand({cmd:'resume'},{doing:'Resuming…',undo:{name:'resuming',run:()=>sendCommand({cmd:'pause'},{doing:'Pausing again…'})}}),
+  ask:on=>sendCommand({cmd:'ask',on},{doing:on?'Asking before each area from now on…':'Letting the Husky choose…',undo:{name:on?'asking first':'letting it choose',run:()=>sendCommand({cmd:'ask',on:!on},{doing:'Switching back…'})}}),
+};
+function fWhy(a){if(!a)return '';
+  const b=a.box, lost=treeEventList().filter(e=>e.event_type==='LOST'&&e.x>=b[0]-1&&e.x<=b[2]+1&&e.y>=b[1]-1&&e.y<=b[3]+1).length;
+  const h=robotAt('husky'), d=Math.hypot(a.x-h.x,a.y-h.y);
+  return [a.type==='TREE_LOST'?'Where a tree was lost':prettyState(a.type||'Clearing'),lost?fPlural(lost,'tree')+' lost':'',SHOW_HUSKY?`${Math.round(d)} m from the Husky`:''].filter(Boolean).join(' · ');
+}
+let fnMenu=false, lastPhase=-1;
+function fNextHTML(P){
+  const waste=(S.waste||[]).filter(w=>w.status===1).length;
+  if(P.now===3&&P.frozen&&(P.lost||P.areas.length)){                     // Rule 4: closure
+    const photos=allMissions().reduce((n,m)=>n+m.photos.length,0);
+    return `<p class="fn-eyebrow">Mission complete</p><p class="fn-title">${fPlural(P.lost,'tree')} cut · ${fPlural(P.areas.length,'area')} checked</p>`+
+      `<p class="fn-why">${fPlural(waste,'waste find')}${photos?` · ${fPlural(photos,'photo')}`:''}</p>`+
+      `<div class="fn-actions"><button class="chip primary" data-fn="report">View report</button><button class="chip" data-fn="csv">Download CSV</button></div>`;
+  }
+  const q=S.mq, ctl=S.ctl; if(!SHOW_HUSKY||!q||!ctl)return '';
+  const queued=q.queue||[], nextL=ctl.next||(queued[0]&&queued[0].label)||'', nextA=areaForLabel(nextL), nm=nextA?nextA.name:nextL;
+  const cur=q.current, curN=cur?(areaNameAt(cur.x,cur.y)||cur.label):'';
+  const ask=`<div class="switch-row"><span class="sr-text">Ask me before each area<small>The Husky waits for you to say go.</small></span>`+
+    `<button class="switch" role="switch" aria-checked="${!!ctl.ask_first}" data-fn="ask" aria-label="Ask me before each area"></button></div>`;
+  const others=queued.filter(m=>m.label!==nextL);
+  const menu=fnMenu&&others.length?`<div class="fn-menu" role="menu" aria-label="Choose another area">${others.map(m=>{const a=areaForLabel(m.label);
+    return `<button role="menuitem" data-fn="choose" data-label="${esc(m.label)}">${esc(a?a.name:m.label)}<small>${esc(fWhy(a))}</small></button>`;}).join('')}</div>`:'';
+  const chooseBtn=others.length?`<button class="chip" data-fn="menu" aria-expanded="${fnMenu}">Choose another area</button>`:'';
+  const pending=pendingCmds.size?`<p class="fn-pending" role="status">${esc([...pendingCmds.values()].map(p=>p.doing).filter(Boolean).slice(-1)[0]||'Waiting for the Husky…')}</p>`:'';
+  if(q.state==='AWAITING_APPROVAL'&&nextL)
+    return `<p class="fn-eyebrow">The Husky is waiting for you</p><p class="fn-title">Proceed with ${esc(nm)}?</p><p class="fn-why">${esc(fWhy(nextA))}</p>`+
+      `<div class="fn-actions"><button class="chip primary" data-fn="proceed" data-label="${esc(nextL)}" title="Proceed (P)">Proceed with ${esc(nm)}</button>${chooseBtn}`+
+      `<button class="chip" data-fn="skip" data-label="${esc(nextL)}">Skip</button></div>${menu}${pending}${ask}`;
+  if(q.state==='PAUSED')
+    return `<p class="fn-eyebrow">Paused</p><p class="fn-title">${fPlural(queued.length,'area')} waiting</p><p class="fn-why">Next would be ${esc(nm)}.</p>`+
+      `<div class="fn-actions"><button class="chip primary" data-fn="resume">Resume</button></div>${pending}${ask}`;
+  if(cur&&ctl.paused)
+    return `<p class="fn-eyebrow">Now: ${esc(curN)}</p><p class="fn-title">The Husky will stop after ${esc(curN)}</p>`+
+      `<div class="fn-actions"><button class="chip" data-fn="resume">Don't stop</button></div>${pending}${ask}`;
+  if(cur||queued.length){
+    const then=!nextL?'Then it is done':ctl.ask_first?`Then it asks you about ${nm}`:`Next: ${nm}`;
+    return `<p class="fn-eyebrow">${cur?`Now: ${esc(curN)}`:'Starting'}</p><p class="fn-title">${esc(then)}</p><p class="fn-why">${nextL?esc(fWhy(nextA)):''}</p>`+
+      `<div class="fn-actions">${chooseBtn}${queued.length||cur?`<button class="chip" data-fn="pause">Pause ${cur?'after this area':''}</button>`:''}</div>${menu}${pending}${ask}`;
+  }
+  return `<p class="fn-eyebrow">${q.state==='WAITING_FOR_DRONE'?"Waiting for the drone's tree map":'Waiting for areas'}</p>`+
+    `<p class="fn-title">The Husky starts when the drone flags an area</p>${pending}${ask}`;
+}
+function fNext(P){
+  const el=document.getElementById('f-next'), html=fNextHTML(P);
+  el.hidden=!html; el.classList.toggle('done',P.now===3);
+  if(el._h!==html){const f=document.activeElement&&el.contains(document.activeElement)?(document.activeElement.dataset.fn||'')+'|'+(document.activeElement.dataset.label||''):null;
+    el._h=html; el.innerHTML=html;
+    if(f){const [fn,l]=f.split('|'); const n=el.querySelector(`[data-fn="${fn}"]${l?`[data-label="${CSS.escape(l)}"]`:''}`)||el.querySelector('[data-fn]'); if(n)n.focus({preventScroll:true});}}
+  if(lastPhase!==-1&&P.now===3&&lastPhase!==3)toast({tone:'ok',title:'Mission complete',sub:'Every area has been checked. The report is ready.',action:['View report',()=>selectView(tabFor('report'))]});
+  lastPhase=P.now;
+}
+document.getElementById('f-next').addEventListener('click',e=>{
+  const b=e.target.closest('[data-fn]'); if(!b||b.disabled)return; const fn=b.dataset.fn, l=b.dataset.label;
+  if(fn==='menu'){fnMenu=!fnMenu; updateFocus(); const first=document.querySelector('#f-next .fn-menu button'); if(fnMenu&&first)first.focus(); return;}
+  if(fn==='report'){selectView(tabFor('report'));return;}
+  if(fn==='csv'){downloadCSV();return;}
+  fnMenu=false;
+  if(fn==='ask')C.ask(!(S.ctl&&S.ctl.ask_first)); else if(C[fn])C[fn](l);
+});
+function fConfirm({title,text,ok,danger,onOk}){
+  let back=document.getElementById('f-confirm');
+  if(!back){back=document.createElement('div');back.id='f-confirm';back.className='f-dialog-back';back.hidden=true;document.body.appendChild(back);}
+  back.innerHTML=`<div class="f-dialog glass" role="alertdialog" aria-modal="true" aria-labelledby="fc-t" aria-describedby="fc-d"><h2 id="fc-t">${esc(title)}</h2><p id="fc-d">${esc(text)}</p>`+
+    `<div class="fd-actions"><button class="chip active" data-c="no">Cancel</button><button class="chip ${danger?'danger':'primary'}" data-c="yes">${esc(ok)}</button></div></div>`;
+  const prev=document.activeElement, close=()=>{back.hidden=true;back.onkeydown=null;if(prev&&prev.focus)prev.focus();};
+  back.hidden=false; back.querySelector('[data-c="no"]').focus();
+  back.onclick=e=>{const c=e.target.closest('[data-c]'); if(e.target===back||(c&&c.dataset.c==='no'))close(); else if(c){close();onOk();}};
+  back.onkeydown=e=>{if(e.key==='Escape'){e.stopPropagation();close();}
+    if(e.key==='Tab'){const bs=[...back.querySelectorAll('button')], i=bs.indexOf(document.activeElement); e.preventDefault(); bs[(i+(e.shiftKey?bs.length-1:1))%bs.length].focus();}};
+}
+document.getElementById('f-rebaseline').onclick=null;
+document.getElementById('f-rebaseline').replaceWith(document.getElementById('f-rebaseline').cloneNode(true));
+document.getElementById('f-rebaseline').addEventListener('click',()=>fConfirm({title:'Replace the tree map?',
+  text:"The drone takes the trees it sees now as its new map. Changes found so far stay in the list, but new changes are measured against the new map. This can't be undone.",
+  ok:'Replace map',danger:true,onOk:()=>{const st=document.getElementById('rebaseline-status'), before=st.textContent;
+    document.getElementById('reset-tree-baseline').click(); toast({tone:'info',title:'Replacing the tree map…'});
+    let n=0; const t=setInterval(()=>{if(st.textContent&&st.textContent!==before){clearInterval(t);toast({tone:/fail|cannot|no /i.test(st.textContent)?'warn':'ok',title:st.textContent});}else if(++n>20)clearInterval(t);},500);}}));
+function fBanner(){
+  let b=document.getElementById('conn-banner');
+  if(!b){b=document.createElement('div');b.id='conn-banner';b.className='glass';b.setAttribute('role','status');b.hidden=true;document.body.appendChild(b);}
+  const off=isFocus()&&!S.connected&&Date.now()-bootTime>4000;
+  if(!off){b.hidden=true;return;}
+  const snap=Date.now()-lastSnapshotOk<8000;
+  const html=`<i aria-hidden="true"></i><div><b>Lost connection to the robots</b><small>${snap?"The map still updates from the dashboard server, but commands can't reach the Husky.":'Showing the last data received. Check that the simulation (and rosbridge on port 9090) is running.'}</small></div><button class="chip active" data-reload>Reload</button>`;
+  if(b._h!==html){b._h=html;b.innerHTML=html;b.querySelector('[data-reload]').onclick=()=>location.reload();}
+  b.hidden=false;
+}
+function fKeys(){
+  fConfirm({title:'Keyboard shortcuts',text:'',ok:'Done',onOk:()=>{}});
+  const d=document.querySelector('#f-confirm .f-dialog'); d.setAttribute('role','dialog');
+  d.querySelector('p').outerHTML=`<dl class="f-keys">${[['1 – 6','Switch pages (Map, Changes, Report, …)'],['L','Layers and legend'],['[  ]','Previous / next area'],['P','Proceed with the next area'],
+    ['⌘Z / Ctrl Z','Undo the last command'],['Esc','Close a card or dialog'],['?','This list'],['Arrows, + −, R','Orbit, zoom, reset (3D view)']].map(([k,v])=>`<dt>${k.split(' / ').map(x=>`<kbd>${esc(x)}</kbd>`).join(' / ')}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`;
+  d.querySelector('[data-c="no"]').remove(); d.querySelector('[data-c="yes"]').focus();
+}
+document.getElementById('settings-keys').addEventListener('click',()=>{setSettingsOpen(false);fKeys();});
+document.addEventListener('keydown',e=>{
+  if(!isFocus())return;
+  const t=e.target, typing=t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+  const dlg=document.getElementById('f-confirm'); if(typing||(dlg&&!dlg.hidden))return;   // a dialog takes the keys
+  if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key.toLowerCase()==='z'){
+    e.preventDefault(); const u=undoStack.pop();
+    if(u){toast({tone:'info',title:`Undoing ${u.name}…`}); u.run();} else toast({tone:'info',title:'Nothing to undo'});
+    return;}
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  if(document.getElementById('terrain-container')?.contains(t))return;   // the 3D view has its own keys
+  const k=e.key;
+  if(k==='?'){e.preventDefault();fKeys();}
+  else if(k==='l'||k==='L'){e.preventDefault();setLayersOpen(document.getElementById('layers-pop').hidden);}
+  else if(k==='['||k===']'){
+    const rows=[...document.querySelectorAll('#f-areas .f-row')]; if(!rows.length)return;
+    const i=rows.findIndex(r=>r.dataset.row==='area:'+selArea), j=i<0?(k===']'?0:rows.length-1):(i+(k===']'?1:rows.length-1))%rows.length;
+    e.preventDefault(); fActivate(rows[j]);}
+  else if((k==='p'||k==='P')&&S.mq&&S.mq.state==='AWAITING_APPROVAL'){e.preventDefault(); const l=(S.ctl&&S.ctl.next)||(S.mq.queue[0]&&S.mq.queue[0].label); if(l)C.proceed(l);}
+});
+const camT={drone:0,husky:0};
+[['drone','drone-img'],['husky','husky-img']].forEach(([n,id])=>{const img=document.getElementById(id); if(!img)return;
+  img.addEventListener('load',()=>camT[n]=Date.now());
+  const st=document.createElement('span'); st.className='cam-st'; st.id=n+'-cam-st'; img.parentElement.querySelector('.lbl').appendChild(st);});
+function fCams(){['drone','husky'].forEach(n=>{const el=document.getElementById(n+'-cam-st'); if(!el)return; const age=(Date.now()-camT[n])/1000;
+  const [cls,txt]=!camT[n]?['none','No picture yet']:age<4?['','Live']:['stale',`No new picture for ${Math.round(age)} s`];
+  el.className='cam-st '+cls; el.innerHTML=`<i aria-hidden="true"></i>${txt}`;});}
+function applyFocusWords(){document.querySelectorAll('[data-focus-text]').forEach(el=>{
+  if(el.dataset.classicText==null)el.dataset.classicText=el.textContent;
+  el.textContent=isFocus()?el.dataset.focusText:el.dataset.classicText;});}
+
 applySettings(false);
 applyCompactMode();
 requestAnimationFrame(()=>{moveLens();requestAnimationFrame(()=>segmented.classList.remove('no-anim'));});
 setTimeout(()=>{ initTerrain(); },400);
 setInterval(()=>{ updateUI(); },1000);
 setInterval(()=>{ if(mapActive())drawMap(); },1000);
+(function mapTick(){ requestAnimationFrame(mapTick);
+  if(mapActive()&&posesMoving()){ if(mapRaf){cancelAnimationFrame(mapRaf);mapRaf=0;} renderMap(); } })();
 setInterval(()=>drawAmbient(false),2000);
 setInterval(drawDebug,1000);
 loadSnapshot();

@@ -1,17 +1,4 @@
-# One figure showing how dense-forest results moved.
-
-"""How the dense-forest results moved: one figure from the live removal-test reports.
-
-usage: model_progress.py --out model_progress.png [--extra REPORT.md LABEL]
-
-Every live dense-forest removal test with the default target set cuts the
-same 10 trees (pine_75, pine_111, oak_78, oak_137, pine_117, oak_60, pine_53,
-oak_153, oak_37, pine_163). Left: per run, the cut trees reported LOST as a
-tree and those flagged by a canopy-loss alert (report rows "LOST ✓" and
-"AREA ALERT ✓"; "not observable" is not counted as reported), with the test
-verdict and the false reports. Right: the first run against the latest.
-Reports are read from test_evidence/; the replay pass rates are set below.
-"""
+# model_progress.py: How the dense-forest results moved: one figure from the live removal-test reports
 import argparse
 import os
 import re

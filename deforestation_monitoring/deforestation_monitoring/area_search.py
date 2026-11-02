@@ -1,15 +1,4 @@
-# Pure geometry for the Husky's area search: box size, sweep path, which waypoints to hit.
-
-"""Husky area search (pure geometry): how big a suspected area is, and the
-path that sweeps it.
-
-The drone's flag is a point; the area is the canopy loss around it on the
-drone's change map (cells below zero: lost, lost after a late baseline,
-dropped). The Husky sweeps that box grown by a margin in lanes, starting at
-the corner nearest to it, so the camera and LiDAR see the whole area and a
-bit around it (where waste gets dumped and stumps are).
-"""
-
+# area_search.py: Husky area search (pure geometry): how big a suspected area is, and the path that sweeps it
 import math
 from typing import List, Optional, Sequence, Tuple
 
@@ -21,10 +10,6 @@ Box = Tuple[float, float, float, float]
 
 def loss_box(grid: np.ndarray, res: float, ox: float, oy: float, x: float, y: float,
              seed: float = 1.5, reach: float = 8.0, min_side: float = 4.0) -> Box:
-    """The box of the canopy loss at (x, y) on a change map (grid[iy, ix],
-    < 0 = loss): every loss region with a cell within ``seed`` m of the point,
-    clipped to ``reach`` m around it. Sides are at least ``min_side`` m; with
-    no loss there it is that square on the point."""
     h, w = grid.shape
     r = int(math.ceil(reach / res))
     cx, cy = int((x - ox) / res), int((y - oy) / res)
@@ -50,13 +35,9 @@ def loss_box(grid: np.ndarray, res: float, ox: float, oy: float, x: float, y: fl
 
 def sweep_path(box: Box, start: Tuple[float, float], margin: float = 2.0,
                spacing: float = 3.0) -> List[Tuple[float, float, float]]:
-    """Lawnmower over ``box`` grown by ``margin``: lanes along its longer side,
-    at most ``spacing`` m apart, starting at the corner nearest ``start``.
-    Returns the lane ends as (x, y, heading along the lane)."""
     xmin, ymin = box[0] - margin, box[1] - margin
     xmax, ymax = box[2] + margin, box[3] + margin
     along_x = (xmax - xmin) >= (ymax - ymin)
-
     u0, u1, v0, v1 = (xmin, xmax, ymin, ymax) if along_x else (ymin, ymax, xmin, xmax)
     su, sv = (start[0], start[1]) if along_x else (start[1], start[0])
     n = max(2, math.ceil((v1 - v0) / spacing) + 1)
@@ -78,9 +59,6 @@ def sweep_path(box: Box, start: Tuple[float, float], margin: float = 2.0,
 def free_spot(cost: Optional[np.ndarray], res: float, ox: float, oy: float,
               x: float, y: float, max_shift: float = 1.5,
               free_below: int = 70) -> Optional[Tuple[float, float]]:
-    """(x, y), or the nearest point within ``max_shift`` m that is free on a
-    Nav2 costmap (cost[iy, ix] 0-100, -1 unknown counts as free; outside the
-    map too). None if there is none: the waypoint is in a tree."""
     if cost is None:
         return x, y
     h, w = cost.shape
@@ -102,3 +80,12 @@ def free_spot(cost: Optional[np.ndarray], res: float, ox: float, oy: float,
 
 def inside(box: Sequence[float], x: float, y: float, margin: float = 0.0) -> bool:
     return box[0] - margin <= x <= box[2] + margin and box[1] - margin <= y <= box[3] + margin
+
+
+def box_overlap(a: Sequence[float], b: Sequence[float]) -> float:
+    w = min(a[2], b[2]) - max(a[0], b[0])
+    h = min(a[3], b[3]) - max(a[1], b[1])
+    area = (a[2] - a[0]) * (a[3] - a[1])
+    if w <= 0 or h <= 0 or area <= 0:
+        return 0.0
+    return w * h / area

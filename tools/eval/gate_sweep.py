@@ -1,12 +1,4 @@
-# Sweeps LOST-gate persistence rules over dumps and replays.
-
-"""Sweep LOST-gate persistence rules over live dumps and replay measurements.
-
-Rule: top frac >= 0.9 & max drop >= 0.3 & ground+drop >= 6 [& nearest
-detection >= ND m], held continuously for >= T seconds (and >= 3 ticks).
-Live dumps come from live_gate_eval.py --dump; replays from offline_replay
-runs with alerts disabled (lost_gate rows). EVAL_DIR as in the other scripts.
-"""
+# gate_sweep.py: Sweep LOST-gate persistence rules over live dumps and replay measurements
 import json
 import math
 import os

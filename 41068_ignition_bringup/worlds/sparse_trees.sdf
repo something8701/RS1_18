@@ -1,4 +1,5 @@
 <?xml version="1.0"?>
+<!-- sparse_trees.sdf -->
 <sdf version="1.8">
   <world name="sparse_trees">
     <light name="sun" type="directional">

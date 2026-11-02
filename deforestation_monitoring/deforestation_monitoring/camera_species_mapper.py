@@ -1,29 +1,5 @@
 #!/usr/bin/env python3
-# Projects what the drone camera sees onto the map grid.
-
-"""Camera species mapper: what the drone camera sees, on the map grid.
-
-Subscribes to the Parrot RGB and depth images (same sensor, same stamps) and
-its odometry, places every pixel on the scan_mapper grid (camera_species)
-and publishes three OccupancyGrids, -1 = no data:
-
-  /forest_species_map      mean blue/green x100 of the canopy pixels so far.
-                           Oak treetops read ~39, pines ~70; the tracker uses
-                           it to find pine tips the height map misses.
-  /forest_canopy_seen_map  canopy fraction x100 so far: of the camera rays
-                           crossing `open_height` over a cell, the share that
-                           hit canopy there. The tracker stores each tree's
-                           value at the baseline freeze.
-  /forest_red_map          with ``red_map``: red camera pixels (garbage bags)
-                           per cell so far, placed on the ground, capped at 100.
-  /forest_canopy_seen      the same fraction from the latest frame that saw
-                           the cell, for cells seen in the last `fresh_s`
-                           seconds. After a cut the camera sees through the
-                           spot (dense pine_111: 0.89 -> 0.00) even where the
-                           LiDAR's highest reading is held up by a neighbour's
-                           branch tips (4.7 -> 4.2 m).
-"""
-
+# camera_species_mapper.py: What the drone camera sees, on the map grid
 from collections import deque
 
 import numpy as np
@@ -59,9 +35,6 @@ class CameraSpeciesMapper(Node):
         self.res = float(param('resolution', 0.25, 'Grid cell size (m), as scan_mapper'))
         self.origin = float(param('origin', -40.0, 'Grid origin x = y (m), as scan_mapper'))
         self.dim = int(param('dim', 320, 'Grid cells per side, as scan_mapper'))
-
-
-
         self.fresh_s = float(param('fresh_s', 3.0, 'Recent map keeps cells seen this recently (s)'))
         self.open_height = float(param('open_height', 3.0,
                                        'Canopy fraction is measured at this height (m)'))
@@ -87,8 +60,6 @@ class CameraSpeciesMapper(Node):
         depth = Subscriber(self, Image, depth_topic, qos_profile=qos_profile_sensor_data)
         self.sync = TimeSynchronizer([rgb, depth], 10)
         self.sync.registerCallback(self.frame_cb)
-
-
         map_qos = QoSProfile(reliability=ReliabilityPolicy.RELIABLE,
                              durability=DurabilityPolicy.TRANSIENT_LOCAL,
                              history=HistoryPolicy.KEEP_LAST, depth=1)
@@ -136,14 +107,12 @@ class CameraSpeciesMapper(Node):
                                  *grid)
         self.high.flat[h_cells] += h
         self.open.flat[o_cells] += o
-
         u, inv = np.unique(np.concatenate([h_cells, o_cells]), return_inverse=True)
         fh = np.bincount(inv, np.concatenate([h, np.zeros_like(o)]))
         fo = np.bincount(inv, np.concatenate([np.zeros_like(h), o]))
         self.seen_recent.flat[u] = fh / (fh + fo)
         self.seen_t.flat[u] = t
         if self.red_map:
-
             red = red_mask(rgb) & ~(np.isfinite(depth) & (depth < MIN_DEPTH))
             if red.any():
                 r_cells, r = cell_counts(
@@ -157,7 +126,6 @@ class CameraSpeciesMapper(Node):
         info.origin.position.x = self.origin
         info.origin.position.y = self.origin
         info.origin.orientation.w = 1.0
-
         return OccupancyGrid(header=Header(stamp=stamp, frame_id=self.frame), info=info,
                              data=data.T.astype(np.int8).ravel().tolist())
 

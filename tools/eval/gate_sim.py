@@ -1,11 +1,4 @@
-# Simulates the tracker's LOST-gate rules on measurement replays.
-
-"""Simulate tracker LOST-gate rules on measurement replays (alerts disabled).
-
-rows per unmatched tick: (t, count, g_raw, drop_raw, g_clu, g_comp, b_clu,
-b_comp, top075, top100).  A tree is LOST when the rule holds on
-`streak` consecutive unmatched ticks (1 s apart).
-"""
+# gate_sim.py: Simulate tracker LOST-gate rules on measurement replays (alerts disabled)
 import json
 import os
 import math
@@ -14,7 +7,7 @@ import sys
 from deforestation_monitoring.tree_detection import parse_tree_truth
 
 S = os.path.join(os.environ.get('EVAL_DIR', os.path.expanduser('~/rs1_18_ws/eval')), 'replay')
-W = os.path.expanduser('~/rs1_18_ws/src/RS1_18/41068_ignition_bringup/worlds/')
+W = '/home/alig/rs1_18_ws/src/RS1_18/41068_ignition_bringup/worlds/'
 RUNS = [a for a in sys.argv[1:] if not a.startswith('-')] or [
     'r4_meas', 'r6_meas', 'r8_meas']
 

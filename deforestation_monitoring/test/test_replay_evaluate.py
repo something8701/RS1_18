@@ -1,7 +1,4 @@
-# Offline tests for replay_evaluate.
-
-"""Offline tests for replay_evaluate (GATE 4 evaluator)."""
-
+# test_replay_evaluate.py: Offline tests for replay_evaluate (GATE 4 evaluator)
 import math
 
 import numpy as np
@@ -13,7 +10,6 @@ from deforestation_monitoring.replay_evaluate import accumulate, scan_times
 
 
 class FakeReader:
-    """Minimal rosbag2 SequentialReader stand-in."""
 
     def __init__(self, messages):
         self._msgs = list(messages)
@@ -34,7 +30,6 @@ def _odom(x, y):
 
 
 def _nadir_scan(range_m=8.0):
-    """A fan whose middle beam points straight down after the 90° pitch."""
     scan = LaserScan()
     scan.angle_min = -0.05
     scan.angle_increment = 0.01
@@ -44,7 +39,6 @@ def _nadir_scan(range_m=8.0):
 
 
 def _bag():
-    """Pass A flies over x=-5, pass B over x=+5; 1 s apart in bag time."""
     msgs = []
     t = 0
     for x in (-5.0, 5.0):
@@ -64,7 +58,6 @@ def test_time_split_separates_passes():
         FakeReader(_bag()), altitude=10.0, split_ns=split)
     ix_a = int((-5.0 + 40.0) / 0.25)
     ix_b = int((5.0 + 40.0) / 0.25)
-
     assert half_hits[0][ix_a - 2:ix_a + 3, :].sum() > 0
     assert half_hits[0][ix_b - 2:ix_b + 3, :].sum() == 0
     assert half_hits[1][ix_b - 2:ix_b + 3, :].sum() > 0
@@ -73,7 +66,6 @@ def test_time_split_separates_passes():
 
 
 def test_interleave_split_mixes_passes():
-    """The old behaviour: both 'halves' contain both passes."""
     _, _, _, half_hits, _, _ = accumulate(
         FakeReader(_bag()), altitude=10.0, split_ns=None)
     ix_a = int((-5.0 + 40.0) / 0.25)
@@ -82,7 +74,6 @@ def test_interleave_split_mixes_passes():
 
 
 def test_scan_height_uses_altitude():
-    """8 m range straight down from 10 m altitude -> 2 m canopy."""
     height, hits, _, _, _, _ = accumulate(
         FakeReader(_bag()[:2]), altitude=10.0)
     top = height[hits > 0].max()
@@ -90,8 +81,6 @@ def test_scan_height_uses_altitude():
 
 
 def test_flicker_ignores_centimetre_jitter():
-    """Live bag: both passes found the same 5 trees within 0.13 m, but
-    exact 0.1 m-rounded comparison reported 3 lost + 3 gained."""
     from deforestation_monitoring.replay_evaluate import match_passes
     a = [(-11.99, 0.0), (-7.95, -8.55), (-0.12, 7.4), (8.0, -8.01),
          (12.28, -0.35)]
@@ -110,8 +99,6 @@ def test_flicker_counts_a_real_removal():
 
 
 def test_recent_grid_is_latest_reading():
-    """Parity must compare the live map (latest reading) with a latest-
-    reading grid: a crown seen first, then ground, reads ground."""
     msgs = []
     t = 0
     for rng in (4.0, 10.0):
@@ -125,7 +112,6 @@ def test_recent_grid_is_latest_reading():
 
 
 def test_recent_grid_returns_to_ground_below_zero():
-    """Ground projects to about -0.2 m; it must still overwrite a tree."""
     msgs = []
     t = 0
     for rng in (4.0, 10.2):

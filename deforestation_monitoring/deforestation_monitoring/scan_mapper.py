@@ -1,31 +1,5 @@
 #!/usr/bin/env python3
-# Builds the canopy height map from the drone's downward lidar sweep.
-
-"""
-Canopy Scan Mapper: Builds a 2.5D canopy height map from the Parrot
-drone's downward-pitched 2D LiDAR.
-
-The LiDAR (360 samples, 0-2π) is pitched ~90° down on the drone, so each
-scan is a push-broom slice through the forest below. Each beam is rotated
-by the lidar's static mounting pose (pitch/yaw params) and the drone's
-full odometry orientation into the map frame, then accumulated into a
-max-height-per-cell grid.
-
-Outputs:
-  - /forest_canopy_map    OccupancyGrid: canopy height 0-100 (0-10 m),
-                          -1 = not yet scanned
-  - /scan_coverage        String: percentage of the survey area scanned
-  - /drone_lidar_points   PointCloud2: accumulated swath points (verification)
-  - /canopy_change_map    OccupancyGrid: -100 = canopy lost, +100 = new,
-                          DROP_VALUE / FILL_LOST_VALUE = weaker loss evidence
-  - /canopy_change_events String alerts for connected lost regions
-  - /canopy_change_markers MarkerArray (red = lost, blue = gained)
-  - /drone_baseline_status String
-
-Change detection compares against a baseline snapshot, taken once enough of
-the survey area is scanned (and, optionally, enough survey loops flown).
-"""
-
+# scan_mapper.py: Canopy Scan Mapper: Builds a 2.5D canopy height map from the Parrot drone's downward-pitched 2D …
 import rclpy
 from rclpy.node import Node
 from rcl_interfaces.msg import ParameterDescriptor
@@ -45,7 +19,6 @@ from deforestation_monitoring.survey_loops import LoopCounter
 
 
 def quaternion_matrix(q: Quaternion) -> np.ndarray:
-    """3x3 rotation matrix from a geometry_msgs/Quaternion."""
     x, y, z, w = q.x, q.y, q.z, q.w
     xx, yy, zz = x * x, y * y, z * z
     xy, xz, yz = x * y, x * z, y * z
@@ -66,11 +39,6 @@ def project_scan_to_world(
     pitch: float = math.pi / 2.0,
     yaw: float = 0.0,
 ) -> np.ndarray:
-    """Project one 2D laser fan into the world frame (push-broom geometry).
-
-    Shared verbatim by the live ScanMapper node and the offline replay
-    evaluator, so both build the CHM with exactly the same code.
-    """
     cp, sp = math.cos(pitch), math.sin(pitch)
     R_pitch = np.array([[cp, 0.0, sp], [0.0, 1.0, 0.0], [-sp, 0.0, cp]])
     cy, sy = math.cos(yaw), math.sin(yaw)
@@ -83,23 +51,14 @@ def project_scan_to_world(
     return (d_body * ranges[:, None]) @ R.T + pos3
 
 
-
-
-
 DROP_VALUE = -30
-
-
-
-
 FILL_LOST_VALUE = -40
 
 
 class ScanMapper(Node):
-    """Maps canopy height from the drone's pitched LiDAR swaths."""
 
     def __init__(self):
         super().__init__('scan_mapper')
-
 
         self.declare_parameter('resolution', 0.5,
             descriptor=ParameterDescriptor(description='Grid cell size in metres'))
@@ -254,62 +213,40 @@ class ScanMapper(Node):
         self.origin_x = -self.map_x / 2.0
         self.origin_y = -self.map_y / 2.0
 
-
-
         self.coverage_ix_min = max(0, int((self.coverage_x_min - self.origin_x) / self.res))
         self.coverage_ix_max = min(self.dim_x, int((self.coverage_x_max - self.origin_x) / self.res))
         self.coverage_iy_min = max(0, int((self.coverage_y_min - self.origin_y) / self.res))
         self.coverage_iy_max = min(self.dim_y, int((self.coverage_y_max - self.origin_y) / self.res))
 
-
-
         self.height_grid = np.zeros((self.dim_x, self.dim_y), dtype=np.float32)
-
         self.height_recent = np.zeros((self.dim_x, self.dim_y), dtype=np.float32)
-
-
         self.low_streak = np.zeros((self.dim_x, self.dim_y), dtype=np.int16)
-
-
         self.drop_streak = np.zeros((self.dim_x, self.dim_y), dtype=np.int16)
         self.canopy_sum = np.zeros((self.dim_x, self.dim_y), dtype=np.float32)
         self.baseline_canopy_mean = None
-
-
         self.high_streak = np.zeros((self.dim_x, self.dim_y), dtype=np.int16)
-
         self.hits_grid = np.zeros((self.dim_x, self.dim_y), dtype=np.float32)
-
-
         self.touch_count = np.zeros((self.dim_x, self.dim_y), dtype=np.int32)
         self.canopy_reads = np.zeros((self.dim_x, self.dim_y), dtype=np.int32)
-
         self.baseline_heights = None
-
-
         self.baseline_hits = None
         self.baseline_hit_counts = None
         self.baseline_canopy_frac = None
         self.baseline_filled = None
         self.baseline_established = False
         self.scan_count = 0
-
         self._pos_history = deque(maxlen=3000)
-
 
         self.total_canopy_lost = 0
         self.total_canopy_gained = 0
         self._alerted_cells = set()
         self._alerted_gained_cells = set()
 
-
         self.swath_pts = []
-
 
         self._odom_pos = np.zeros(3, dtype=np.float64)
         self._odom_q = Quaternion(w=1.0)
         self._odom_received = False
-
 
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
@@ -330,7 +267,6 @@ class ScanMapper(Node):
             depth=10,
         )
 
-
         self.create_subscription(
             LaserScan, self.scan_topic, self.scan_callback, sensor_qos
         )
@@ -343,7 +279,6 @@ class ScanMapper(Node):
                 QoSProfile(reliability=ReliabilityPolicy.RELIABLE,
                            durability=DurabilityPolicy.VOLATILE,
                            history=HistoryPolicy.KEEP_LAST, depth=10))
-
 
         self.canopy_pub = self.create_publisher(
             OccupancyGrid, '/forest_canopy_map', map_qos
@@ -370,7 +305,6 @@ class ScanMapper(Node):
             String, '/scan_coverage', default_qos
         )
 
-
         self.reset_srv = self.create_service(
             Trigger, '~/reset_baseline', self.reset_baseline_callback
         )
@@ -387,9 +321,7 @@ class ScanMapper(Node):
         )
 
 
-
     def odom_callback(self, msg: Odometry):
-        """Track the drone's full 3D pose from odometry."""
         self._odom_pos[0] = msg.pose.pose.position.x
         self._odom_pos[1] = msg.pose.pose.position.y
         self._odom_pos[2] = msg.pose.pose.position.z
@@ -397,7 +329,6 @@ class ScanMapper(Node):
         self._odom_received = True
 
     def _rotation_matrix(self, q: Quaternion) -> np.ndarray:
-        """Full 3x3 rotation matrix from a quaternion."""
         x, y, z, w = q.x, q.y, q.z, q.w
         xx, yy, zz = x * x, y * y, z * z
         xy, xz, yz = x * y, x * z, y * z
@@ -409,7 +340,6 @@ class ScanMapper(Node):
         ], dtype=np.float64)
 
     def _beam_directions_body(self, angles: np.ndarray) -> np.ndarray:
-        """Beam unit vectors in the drone body frame (shared math)."""
         cp, sp = math.cos(self.sensor_pitch), math.sin(self.sensor_pitch)
         R_pitch = np.array([[cp, 0.0, sp], [0.0, 1.0, 0.0], [-sp, 0.0, cp]])
         cy, sy = math.cos(self.sensor_yaw), math.sin(self.sensor_yaw)
@@ -419,8 +349,6 @@ class ScanMapper(Node):
         return d @ R_pitch.T @ R_yaw.T
 
     def _coverage_cells(self):
-        """Return (scanned_cells, total_cells) inside the survey area."""
-
         sub = self.hits_grid[
             self.coverage_ix_min:self.coverage_ix_max,
             self.coverage_iy_min:self.coverage_iy_max,
@@ -430,9 +358,7 @@ class ScanMapper(Node):
         return int(np.count_nonzero(sub > 0)), int(sub.size)
 
 
-
     def scan_callback(self, scan: LaserScan):
-        """Project one scan line into the map frame and accumulate the grid."""
         if not self._odom_received:
             self.get_logger().warn(
                 'No odometry received yet — skipping scan',
@@ -450,23 +376,14 @@ class ScanMapper(Node):
         r = ranges[valid]
         a = angles[valid]
 
-
-
         pts_world = project_scan_to_world(
             r, a, self._odom_q, self._odom_pos, self.alt,
             pitch=self.sensor_pitch, yaw=self.sensor_yaw)
         xs, ys, zs = pts_world[:, 0], pts_world[:, 1], pts_world[:, 2]
 
-
         self.swath_pts.extend(pts_world.tolist())
         if len(self.swath_pts) > self.max_cloud_pts:
             self.swath_pts = self.swath_pts[-self.max_cloud_pts:]
-
-
-
-
-
-
 
         ix = ((xs - self.origin_x) / self.res).astype(np.int32)
         iy = ((ys - self.origin_y) / self.res).astype(np.int32)
@@ -475,21 +392,13 @@ class ScanMapper(Node):
         if len(ix) == 0:
             return
 
-
         taller = zs > self.height_grid[ix, iy]
         self.height_grid[ix[taller], iy[taller]] = zs[taller]
-
-
-
 
         scan_heights = np.full_like(self.height_recent, -np.inf)
         np.maximum.at(scan_heights, (ix, iy), zs)
         touched = np.isfinite(scan_heights)
         self.height_recent[touched] = np.maximum(scan_heights[touched], 0.0)
-
-
-
-
 
         low_touched = self.height_recent[touched] < self.canopy_threshold
         self.touch_count[touched] += 1
@@ -511,8 +420,6 @@ class ScanMapper(Node):
         np.add.at(self.hits_grid, (ix, iy), 1)
 
         self.scan_count += 1
-
-
 
         covered, coverage_total = self._coverage_cells()
         coverage_pct = covered / coverage_total
@@ -540,14 +447,7 @@ class ScanMapper(Node):
             self.get_logger().info(f'survey loop {self.loop_counter.loops} completed')
 
 
-
     def _snapshot_baseline(self):
-        """Freeze the current height grid as the baseline.
-
-        Returns True when a snapshot was taken. Refuses to snapshot until the
-        configured survey-area coverage has been reached, so the tree detector
-        never baselines from a partial map.
-        """
         covered, coverage_total = self._coverage_cells()
         coverage_pct = covered / coverage_total
         if coverage_pct < self.coverage_required:
@@ -584,8 +484,6 @@ class ScanMapper(Node):
         return True
 
     def _fill_baseline(self, touched):
-        """Give the cells this scan touched that are still under-seen at the
-        snapshot their scans so far as baseline (baseline_fill)."""
         fill = touched & (self.baseline_hit_counts < self.change_min_baseline_hits)
         if not fill.any():
             return
@@ -601,7 +499,6 @@ class ScanMapper(Node):
         self.baseline_filled[fill] = True
 
     def reset_baseline_callback(self, request, response):
-        """Service callback: manually reset the baseline to current state."""
         if not self._snapshot_baseline():
             response.success = False
             response.message = (
@@ -619,23 +516,9 @@ class ScanMapper(Node):
         return response
 
 
-
     def _compute_change(self):
-        """Compare current canopy against baseline.
-
-        Returns:
-            change_grid: np.int8 array (-100 = lost, 0 = unchanged, +100 = new,
-                DROP_VALUE = dropped, FILL_LOST_VALUE = lost on a filled baseline)
-            lost_mask: boolean array of cells where canopy disappeared (snapshot
-                baseline only; these make the CANOPY LOST alerts)
-            gained_mask: boolean array of cells where canopy appeared
-        """
         if self.baseline_heights is None:
             return None, None, None
-
-
-
-
 
         current_canopy = self.height_recent > self.canopy_threshold
         well_seen = self.baseline_hit_counts >= self.change_min_baseline_hits
@@ -667,10 +550,6 @@ class ScanMapper(Node):
         return change_grid, lost_mask, gained_mask
 
     def _detect_change_clusters(self, binary_mask):
-        """Connected-component labelling on a binary change mask.
-
-        Returns list of dicts: {cx, cy, area_cells, area_m2, world_x, world_y}
-        """
         if not np.any(binary_mask):
             return []
         labels, num_features = ndimage.label(binary_mask)
@@ -680,9 +559,7 @@ class ScanMapper(Node):
             area = np.sum(region)
             if area < self.change_min_cells:
                 continue
-
             ix_c, iy_c = ndimage.center_of_mass(region)
-
             wx = self.origin_x + (ix_c + 0.5) * self.res
             wy = self.origin_y + (iy_c + 0.5) * self.res
             evidence = ''
@@ -707,7 +584,6 @@ class ScanMapper(Node):
         return clusters
 
 
-
     def publish_maps(self):
         now = self.get_clock().now().to_msg()
 
@@ -718,7 +594,6 @@ class ScanMapper(Node):
                  f'scanned={covered} total={coverage_total} '
                  f'required={self.coverage_required * 100:.0f}%'
         ))
-
 
         scanned = self.hits_grid > 0
         data = np.full((self.dim_x, self.dim_y), -1, dtype=np.int8)
@@ -735,12 +610,8 @@ class ScanMapper(Node):
             position=Point(x=self.origin_x, y=self.origin_y, z=0.0),
             orientation=Quaternion(w=1.0)
         )
-
-
         grid.data = data.T.flatten().tolist()
         self.canopy_pub.publish(grid)
-
-
 
         hits_data = np.clip(self.hits_grid, 0, 100).astype(np.int8)
         hits_grid_msg = OccupancyGrid()
@@ -748,7 +619,6 @@ class ScanMapper(Node):
         hits_grid_msg.info = grid.info
         hits_grid_msg.data = hits_data.T.flatten().tolist()
         self.hits_pub.publish(hits_grid_msg)
-
 
         change_grid, lost_mask, gained_mask = self._compute_change()
 
@@ -759,13 +629,11 @@ class ScanMapper(Node):
             change_msg.data = change_grid.T.flatten().tolist()
             self.change_pub.publish(change_msg)
 
-
             lost_clusters = self._detect_change_clusters(lost_mask)
             gained_clusters = self._detect_change_clusters(gained_mask)
 
             new_alerts = []
             for cl in lost_clusters:
-
                 bucket = (cl['cx'] // 10, cl['cy'] // 10)
                 if bucket in self._alerted_cells:
                     continue
@@ -780,7 +648,6 @@ class ScanMapper(Node):
                 self.get_logger().warn(alert)
 
             for cl in gained_clusters:
-
                 bucket = (cl['cx'] // 10, cl['cy'] // 10)
                 if bucket in self._alerted_gained_cells:
                     continue
@@ -796,7 +663,6 @@ class ScanMapper(Node):
 
             if new_alerts:
                 self.change_events_pub.publish(String(data='; '.join(new_alerts)))
-
 
             markers = MarkerArray()
             marker_id = 0
@@ -836,7 +702,6 @@ class ScanMapper(Node):
 
             if markers.markers:
                 self.change_marker_pub.publish(markers)
-
 
         if self.swath_pts:
             pts = np.array(self.swath_pts, dtype=np.float32)

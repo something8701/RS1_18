@@ -1,29 +1,5 @@
 #!/usr/bin/env python3
-# The whole shebang: sim, robots, SLAM, monitoring and dashboard.
-
-"""
-Full Deforestation Monitoring Demo
-====================================
-Launches the simulation with both robots, SLAM, Nav2, RViz, then the whole
-monitoring node set (tree mapper, pattern scanner, mission coordinator,
-drone patrol, simulated deforestation events, evaluation, dashboard).
-
-The monitoring nodes live in monitoring_nodes.launch.py, which
-monitoring_only.launch.py includes too.
-
-Usage:
-    ros2 launch deforestation_monitoring demo_full.launch.py
-
-For a slower PC:
-    ros2 launch deforestation_monitoring demo_full.launch.py lite:=true
-
-lite:=true turns off the Gazebo window, RViz and the drone camera in one go
-(the dashboard at http://localhost:8081 still works). Each can also be set on
-its own: gui:=false, rviz:=false, camera:=false. Without the camera the
-tracker uses the height map only, so pines cut from under oak crowns are
-missed more often.
-"""
-
+# demo_full.launch.py: Full Deforestation Monitoring Demo ==================================== Launches the simulation …
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
@@ -36,7 +12,6 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-
     drone_enabled = LaunchConfiguration('drone', default='true')
     use_husky = LaunchConfiguration('use_husky', default='false')
     husky_enabled = use_husky
@@ -47,7 +22,6 @@ def generate_launch_description():
     gui = LaunchConfiguration('gui')
     rviz = LaunchConfiguration('rviz')
     camera = LaunchConfiguration('camera')
-
     not_lite = PythonExpression(["'false' if '", lite, "'.lower() in ['true', '1'] else 'true'"])
     declare_lite = DeclareLaunchArgument(
         'lite', default_value='false',
@@ -91,7 +65,6 @@ def generate_launch_description():
                     '(default: only in dense_forest)'
     )
 
-
     sim_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([
@@ -111,7 +84,6 @@ def generate_launch_description():
             'world': world_name,
         }.items(),
     )
-
 
     monitoring_nodes = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([

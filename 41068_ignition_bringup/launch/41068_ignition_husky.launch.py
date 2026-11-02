@@ -1,5 +1,4 @@
-# Spawns the Husky ground robot and wires up its Gazebo bridges.
-
+# 41068_ignition_husky.launch.py: Start the simulation with the Husky only (a shortcut for 41068_ignition.launch.py with husky:=True …
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource

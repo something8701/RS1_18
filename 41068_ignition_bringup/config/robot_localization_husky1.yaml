@@ -1,3 +1,4 @@
+# robot_localization_husky1.yaml: X, y and yaw too, not just the velocities: integrating velocities, the
 /**:
   ros__parameters:
     frequency: 30.0
@@ -9,11 +10,6 @@
     base_link_frame: husky1_base_link
     world_frame: husky1_odom
     odom0: odometry
-    # x, y and yaw too, not just the velocities: integrating velocities, the
-    # Husky's pose drifted metres when it bumped through pine branches
-    # (jerky yaw rate), and everything it places (waste, trunks, goals) moved
-    # with it. Gazebo's odometry publisher gives the true pose, standing in for
-    # GNSS + compass (STATUS.md §20, 2026-10-10).
     odom0_config:
     - true
     - true

@@ -1,29 +1,5 @@
 #!/usr/bin/env python3
-# Finds dumped red bags with the Husky's camera and keeps the list.
-
-"""Waste detector: finds dumped waste (red garbage bags) and keeps a list of it.
-
-The Husky's RGB-D camera does the finding. Its coloured point cloud
-(``/husky1/camera/depth/points``, x forward in the camera frame) is checked
-for red points (waste.red_mask); a group of enough red points between
-``min_range`` and ``max_range`` is a sighting, placed on the map through TF.
-Two sightings within 1 m make a new site (one placed 2 m off with the bag
-filling the view right in front of the camera made false sites), and a
-sighting must be about as big as a bag at its distance: a far bag seen
-through pine branches gives a few red edge pixels with the branch's depth,
-which put it metres from where it is. It runs all the time,
-so bags the Husky passes on its way to a suspected area count too, and the
-Husky's loop around each suspected area looks at it from every side.
-
-With ``drone_red``, red clusters on the drone camera's ``/forest_red_map``
-become sites too ("seen from the air"); the Husky confirms them when it
-sees red there.
-
-Publishes ``/waste_sites`` (WasteSiteArray, latched) and ``/waste_markers``;
-a photo of each bag is saved to ``photo_dir`` when the Husky first sees it and
-replaced when a later view shows clearly more of it.
-"""
-
+# waste_detector.py: Finds dumped waste (red garbage bags) and keeps a list of it
 import math
 import os
 import time
@@ -48,9 +24,6 @@ from .waste import BAG_RADII, CONFIRMED, RedBlob, SiteTracker, find_red_blobs, r
 
 
 def cloud_red_points(msg: PointCloud2, max_range: float, min_range: float = 0.0) -> np.ndarray:
-    """(N, 3) camera-frame points of the red pixels of a gz RGB-D cloud
-    (fields x, y, z at 0, 4, 8 and packed rgb at 16), ``min_range`` to
-    ``max_range`` m from the camera."""
     a = np.frombuffer(bytes(msg.data), np.uint8).reshape(-1, msg.point_step)
     xyz = a[:, :12].copy().view(np.float32).reshape(-1, 3)
     bgr = a[:, 16:19]
@@ -62,15 +35,12 @@ def cloud_red_points(msg: PointCloud2, max_range: float, min_range: float = 0.0)
 
 
 def bag_pixels(distance: float, hfov: float = 2.0944, width: int = 720) -> float:
-    """Pixels a whole bag covers at ``distance`` m, seen end-on (its smallest
-    side, an ellipse of the bag's y and z radii)."""
     f = width / 2 / math.tan(hfov / 2)
     _, ry, rz = BAG_RADII
     return math.pi * ry * rz * (f / max(distance, 0.1)) ** 2
 
 
 def cluster_xy(points: np.ndarray, cell: float = 0.25, min_points: int = 30):
-    """Groups of points on the ground plane: [(x, y, n)] (connected cells)."""
     if len(points) == 0:
         return []
     from scipy import ndimage
@@ -93,8 +63,6 @@ class WasteDetector(Node):
     def __init__(self):
         super().__init__('waste_detector')
         p = lambda n, d: self.declare_parameter(n, d).value
-
-
         self.frame = p('world_frame', 'husky1_odom')
         self.max_range = float(p('max_range', 8.0))
         self.min_range = float(p('min_range', 1.2))
@@ -112,8 +80,6 @@ class WasteDetector(Node):
         os.makedirs(self.photo_dir, exist_ok=True)
 
         self.tf_buffer = Buffer()
-
-
         self.tf_listener = TransformListener(self.tf_buffer, None, spin_thread=True)
         self.create_subscription(PointCloud2, p('cloud_topic', '/husky1/camera/depth/points'),
                                  self.cloud_cb, qos_profile_sensor_data)

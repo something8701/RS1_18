@@ -1,0 +1,82 @@
+#!/bin/bash
+# demo: Run the RS1_18 live demo from the Mac
+PC=${DEMO_PC:-alig@100.107.227.98}
+M=rs1_18_ws/src/RS1_18/tools/demo/mac
+get() {
+  local f ok=0
+  for f in "$@"; do scp -q "$PC:$M/$f" "$(dirname "$0")/" || ok=1; done
+  return $ok
+}
+HOST=${PC#*@}
+T='~/rs1_18_ws/src/RS1_18/tools/demo'
+LOCAL=${DEMO_LOCAL:-$HOME/Desktop/RS1_18_demo}
+SSH="ssh -o ConnectTimeout=6"
+mkdir -p "$LOCAL"
+
+run() {
+  local script=$1 args=""; shift
+  [ $# -gt 0 ] && args=$(printf '%q ' "$@")
+  $SSH -t "$PC" "${RECORD:+RECORD=1 }bash $T/$script $args"
+}
+
+case $1 in
+  check)
+    echo "PC: $PC"
+    $SSH "$PC" true 2>/dev/null && echo "  ✔ SSH" || { echo "  ✘ SSH to $PC failed"; exit 1; }
+    for port in 8081 9090; do
+      if nc -z -G 3 "$HOST" $port 2>/dev/null; then echo "  ✔ port $port reachable"
+      else echo "  ! port $port not reachable: is the sim running? (it is only up during a run)."
+           echo "    If it is running: on the PC, sudo ufw allow from 100.64.0.0/10 to any port $port proto tcp"; fi
+    done ;;
+  preflight) shift; run preflight.sh "$@" ;;
+  start)     shift; run start.sh "$@"
+             sleep 1; open "http://$HOST:8081/?layout=focus" ;;
+  open)      [ "$2" = classic ] && open "http://$HOST:8081/" || open "http://$HOST:8081/?layout=focus" ;;
+  watch)     run watch.sh ;;
+  husky)     shift; run husky.sh "$@" ;;
+  results)
+    run results.sh
+    NAME=$($SSH "$PC" "cat ~/rs1_18_ws/eval/demo/current")
+    mkdir -p "$LOCAL/$NAME"
+    scp -q "$PC:rs1_18_ws/eval/demo/$NAME/report.md" "$PC:rs1_18_ws/eval/demo/$NAME/photos.jpg" "$LOCAL/$NAME/" 2>/dev/null
+    [ -f "$LOCAL/$NAME/photos.jpg" ] && open "$LOCAL/$NAME/photos.jpg"
+    [ -f "$LOCAL/$NAME/report.md" ] && open -e "$LOCAL/$NAME/report.md"
+    echo "Saved in $LOCAL/$NAME" ;;
+  evidence)
+    shift; run evidence.sh "$@"
+    mkdir -p "$LOCAL/evidence"
+    scp -q "$PC:rs1_18_ws/eval/demo/evidence/*" "$LOCAL/evidence/" 2>/dev/null
+    case ${1:-all} in yolo) open "$LOCAL"/evidence/yolo_*.{png,jpg} 2>/dev/null ;;
+                      drone) open "$LOCAL"/evidence/drone_*.png 2>/dev/null ;;
+                      *) open "$LOCAL"/evidence/*.{png,jpg} 2>/dev/null ;; esac ;;
+  fetch)
+    echo "Copying the evidence and the newest backup video to $LOCAL ..."
+    $SSH "$PC" "NO_BROWSER=1 bash $T/evidence.sh > /dev/null"
+    mkdir -p "$LOCAL/evidence"
+    scp -q "$PC:rs1_18_ws/eval/demo/evidence/*" "$LOCAL/evidence/"
+    V=$($SSH "$PC" "ls -t ~/rs1_18_ws/eval/demo/*/dashboard.mp4 ~/rs1_18_ws/recordings/*/dashboard.mp4 2>/dev/null | head -1")
+    [ -n "$V" ] && scp -q "$PC:$V" "$LOCAL/backup.mp4" && \
+      scp -q "$PC:$(dirname "$V")/report.md" "$LOCAL/backup_report.md" 2>/dev/null
+    ls -la "$LOCAL" "$LOCAL/evidence" ;;
+  backup)
+    [ -f "$LOCAL/backup.mp4" ] || "$0" fetch
+    open -a "QuickTime Player" "$LOCAL/backup.mp4"
+    [ -f "$LOCAL/backup_report.md" ] && open -e "$LOCAL/backup_report.md" ;;
+  stop)      run stop.sh ;;
+  ssh)       $SSH -t "$PC" "cd $T && exec bash -l" ;;
+  guide)     open "$(dirname "$0")/DEMO_GUIDE.html" ;;
+  learn)     open "$(dirname "$0")/STUDY_GUIDE.html" ;;
+  maths|math) open "$(dirname "$0")/MATHS_GUIDE.html" ;;
+  bt)        open "$(dirname "$0")/BEHAVIOUR_TREE.html" ;;
+  redraw)    R=${2:-$($SSH "$PC" "cat ~/rs1_18_ws/eval/demo/current")}
+             $SSH "$PC" "python3 $T/make_behaviour_tree.py ~/rs1_18_ws/eval/demo/$R.log $T/mac/BEHAVIOUR_TREE.html" \
+               && get BEHAVIOUR_TREE.html STUDY_GUIDE.html && open "$(dirname "$0")/BEHAVIOUR_TREE.html" ;;
+  plan)      open -e "$(dirname "$0")/DEMO_PLAN.md" ;;
+  update)    D=$(dirname "$0")
+             get README.txt DEMO_GUIDE.html STUDY_GUIDE.html BEHAVIOUR_TREE.html MATHS_GUIDE.html \
+               && scp -q "$PC:rs1_18_ws/src/RS1_18/DEMO_PLAN.md" "$D/" \
+               && scp -q "$PC:$M/demo" "$D/demo.new" && chmod +x "$D/demo.new" \
+               && echo "updated in $D: demo, guides, DEMO_PLAN.md" \
+               && exec mv "$D/demo.new" "$D/demo" ;;
+  *)         awk 'NR > 1 && !/^#/ {exit} NR > 1' "$0" ;;
+esac

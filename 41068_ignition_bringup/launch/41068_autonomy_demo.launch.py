@@ -1,5 +1,4 @@
-# Launches the autonomy demo pieces without Gazebo or robots, meant as a starter sandbox.
-
+# 41068_autonomy_demo.launch.py: Course example: run basic_autonomy_demo.py (a map-aware random walk through Nav2) on one robot of …
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
@@ -23,9 +22,6 @@ def generate_launch_description():
         default_value='True',
         description='Flag to enable use_sim_time',
     ))
-
-
-
 
     ld.add_action(Node(
         package='41068_ignition_bringup',

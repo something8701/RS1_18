@@ -1,5 +1,4 @@
-# Spawns the Parrot drone and wires up its Gazebo bridges.
-
+# 41068_ignition_parrot.launch.py: Start the simulation with the Parrot only (a shortcut for 41068_ignition.launch.py with …
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource

@@ -1,4 +1,4 @@
-### ekf config file ###
+# robot_localization.yaml: Ekf config file ###
 robot_localization:
     ros__parameters:
         frequency: 30.0

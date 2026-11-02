@@ -1,24 +1,5 @@
 #!/usr/bin/env python3
-# Scores the detection pipeline against ground truth.
-
-"""
-Mission Evaluation Node: scores the detection pipeline against ground truth
-(detection accuracy, false positives, decision outcomes, end-to-end mission
-time). It:
-
-  - matches /suspicious_areas detections against /ground_truth_events
-    (published by simulate_deforestation) within match_radius metres
-    (true positives, false positives, missed events)
-  - listens to /inspection_reports for decision outcomes (inspected /
-    cancelled / unreachable) and end-to-end mission time (flag to report
-    latency, sim clock)
-  - publishes a /evaluation_summary String every summary_period and
-    appends CSV rows to eval_dir/evaluation.csv
-
-Detection frames (parrot1_odom) and truth frames (husky1_map) are both
-anchored at the sim world origin, so coordinates compare directly.
-"""
-
+# evaluate_mission.py: Mission Evaluation Node: scores the detection pipeline against ground truth (detection accuracy, …
 import csv
 import math
 import os
@@ -34,7 +15,6 @@ from deforestation_interfaces.msg import SuspiciousArea
 
 
 class EvaluateMission(Node):
-    """Matches detections to ground truth and reports mission metrics."""
 
     def __init__(self):
         super().__init__('evaluate_mission')
@@ -57,13 +37,11 @@ class EvaluateMission(Node):
         self.csv_path = os.path.join(self.eval_dir, 'evaluation.csv')
         self._csv_header_written = os.path.exists(self.csv_path)
 
-
         self.events = []
         self.flags = []
         self.outcomes = {'inspected': 0, 'cancelled': 0, 'unreachable': 0, 'other': 0}
         self.latencies = []
         self._pending_flags = deque(maxlen=100)
-
 
         alert_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
@@ -92,9 +70,7 @@ class EvaluateMission(Node):
         )
 
 
-
     def truth_callback(self, msg: SuspiciousArea):
-        """Record a known clearing event from the simulator."""
         self.events.append({
             'x': msg.position.x,
             'y': msg.position.y,
@@ -105,7 +81,6 @@ class EvaluateMission(Node):
             f'Ground truth #{len(self.events)} at ({msg.position.x:.1f},{msg.position.y:.1f})')
 
     def flag_callback(self, msg: SuspiciousArea):
-        """Score a detection: TP if it matches an unmatched event, else FP."""
         fx, fy = msg.position.x, msg.position.y
 
         best = None
@@ -132,12 +107,6 @@ class EvaluateMission(Node):
             (fx, fy, msg.header.stamp.sec * 10**9 + msg.header.stamp.nanosec))
 
     def _pop_pending_for_report(self, text):
-        """Pop the pending flag nearest to the coordinates in a report.
-
-        Reports end with "@ (x, y)". Matching by location is more robust than
-        blind FIFO when /suspicious_areas carries both real and duplicate
-        detections. Falls back to FIFO if the coordinates cannot be parsed.
-        """
         if not self._pending_flags:
             return None
         m = re.search(r'@\s*\(\s*([-+]?\d*\.?\d+)\s*,\s*([-+]?\d*\.?\d+)\s*\)', text)
@@ -158,9 +127,7 @@ class EvaluateMission(Node):
         del self._pending_flags[best_idx]
         return flag_ns
 
-
     def report_callback(self, msg: String):
-        """Parse an inspection report for outcome + end-to-end mission time."""
         data = msg.data
 
         if 'INSPECTED' in data:
@@ -172,8 +139,6 @@ class EvaluateMission(Node):
         else:
             outcome = 'other'
         self.outcomes[outcome] += 1
-
-
 
         flag_ns = self._pop_pending_for_report(data)
         if flag_ns is not None:
@@ -189,7 +154,6 @@ class EvaluateMission(Node):
                                         '(clock/order artefact)')
 
 
-
     def _metrics(self):
         n_events = len(self.events)
         n_flags = len(self.flags)
@@ -202,7 +166,6 @@ class EvaluateMission(Node):
         return n_events, n_flags, tp, missed, accuracy, precision, avg_latency
 
     def publish_summary(self):
-        """Publish /evaluation_summary and append a CSV row."""
         (n_events, n_flags, tp, missed,
          accuracy, precision, avg_latency) = self._metrics()
 

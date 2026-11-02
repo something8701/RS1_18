@@ -1,5 +1,4 @@
-# Brings up SLAM so the robots know where they are.
-
+# 41068_navigation.launch.py: SLAM (slam_toolbox) and Nav2 for one robot, inside its namespace
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -86,16 +85,10 @@ def generate_launch_description():
         _params_filename('nav2_params', config_filename_suffix)
     ])
 
-
-
-
     slam = GroupAction(scoped=True, condition=_if_slam_needed(), actions=[
         PushRosNamespace(namespace),
         SetRemap(src='/tf', dst='tf'),
         SetRemap(src='/tf_static', dst='tf_static'),
-
-
-
         SetRemap(src='/map', dst='map'),
         SetRemap(src='/map_updates', dst='map_updates'),
 
@@ -110,25 +103,16 @@ def generate_launch_description():
             launch_arguments={
                 'use_sim_time': use_sim_time,
                 'slam_params_file': slam_params_file,
-
-
-
                 'use_lifecycle_manager': 'True',
                 'autostart': 'True',
             }.items()
         )
     ])
 
-
-
-
     navigation_group = GroupAction(scoped=True, condition=_if_true('nav2'), actions=[
         PushRosNamespace(namespace),
         SetRemap(src='/tf', dst='tf'),
         SetRemap(src='/tf_static', dst='tf_static'),
-
-
-
         SetRemap(src='/map', dst='map'),
         SetRemap(src='/map_updates', dst='map_updates'),
 

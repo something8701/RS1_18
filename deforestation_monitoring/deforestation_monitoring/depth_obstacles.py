@@ -1,20 +1,5 @@
 #!/usr/bin/env python3
-# Thins the Husky's depth cloud so Nav2 sees the low branches its lidar misses.
-
-"""Depth obstacles: the Husky's depth camera, thinned for Nav2.
-
-The Husky's LiDAR scans one slice at ~0.8 m. The lowest pine branches start
-at 0.6 m and reach 1.6 m out from the trunk, below that slice, and caught
-the Husky where its costmap showed free space (STATUS.md §20). The RGB-D
-camera (0.4 m up, 120° wide, depth to 10 m, 3 Hz) sees them.
-
-Its cloud has 720 x 480 points; this node keeps every ``stride``-th row and
-column within ``max_range`` and republishes them, x/y/z only, in the
-camera frame. The costmaps' ``low_obstacle_layer`` (a VoxelLayer,
-nav2_params_husky1.yaml) marks points 0.2-1.1 m above the ground and clears
-along the rays to the rest, ground included.
-"""
-
+# depth_obstacles.py: The Husky's depth camera, thinned for Nav2
 import numpy as np
 import rclpy
 from rclpy.node import Node
@@ -23,9 +8,6 @@ from sensor_msgs.msg import PointCloud2, PointField
 
 
 def thin_cloud(msg: PointCloud2, stride: int, max_range: float) -> np.ndarray:
-    """(N, 3) x/y/z of every ``stride``-th row and column of an organised
-    cloud (every ``stride``² -th point of an unorganised one), finite and
-    within ``max_range`` m of the camera."""
     a = np.frombuffer(bytes(msg.data), np.uint8).reshape(msg.height, msg.width, msg.point_step)
     if msg.height > 1:
         a = a[::stride, ::stride]
@@ -38,6 +20,7 @@ def thin_cloud(msg: PointCloud2, stride: int, max_range: float) -> np.ndarray:
 
 
 class DepthObstacles(Node):
+
     def __init__(self):
         super().__init__('depth_obstacles')
         p = lambda n, d: self.declare_parameter(n, d).value

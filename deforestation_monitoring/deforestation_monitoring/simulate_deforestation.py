@@ -1,23 +1,5 @@
 #!/usr/bin/env python3
-# Injects fake suspicious flags at known clearings.
-
-"""
-Deforestation Simulator: Waits for baseline tree map to be established, then
-injects suspicious area flags at known clearing sites to test the pipeline.
-
-Phase 1: Baseline mapping (no flags). Tree trunks are being mapped by Husky.
-Phase 2: Monitoring (flags fire at pre-defined clearing sites).
-
-Publishes SuspiciousArea messages with full metadata (type, confidence,
-area, severity) instead of bare PoseStamped.
-
-The staged sites are published ONLY on /ground_truth_events. That topic is
-the ground truth the evaluation node scores against; /suspicious_areas must
-come from the pattern scanner, otherwise the injected test flags would also
-be counted as "detections" and the evaluation would score the simulator
-against itself instead of scoring perception.
-"""
-
+# simulate_deforestation.py: Deforestation Simulator: Waits for baseline tree map to be established, then injects suspicious …
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
@@ -27,7 +9,6 @@ from deforestation_interfaces.msg import SuspiciousArea
 
 
 class SimulateDeforestation(Node):
-    """Injects test flags at known clearing sites after baseline is established."""
 
     def __init__(self):
         super().__init__('simulate_deforestation')
@@ -47,7 +28,6 @@ class SimulateDeforestation(Node):
         self.site_index = 0
         self.baseline_ready = False
         self.trees_mapped = 0
-
 
         alert_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
@@ -70,7 +50,6 @@ class SimulateDeforestation(Node):
         )
 
     def baseline_callback(self, msg: String):
-        """Handle baseline establishment notification."""
         if self.baseline_ready:
             return
         self.baseline_ready = True
@@ -84,12 +63,9 @@ class SimulateDeforestation(Node):
             f'Baseline received: {self.trees_mapped} trees mapped. '
             'Starting monitoring phase in 30s...'
         )
-
-
         self.create_timer(30.0, self.publish_next_flag)
 
     def publish_next_flag(self):
-        """Publish the next staged clearing as a SuspiciousArea message."""
         if not self.baseline_ready:
             return
         if self.site_index == 0:

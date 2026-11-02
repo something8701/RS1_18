@@ -1,33 +1,6 @@
 #!/usr/bin/env python3
-# Flies the Parrot on its lawnmower survey grid with raw velocity commands.
-
-"""
-Demo Patrol Node: Flies the Parrot drone on a survey grid pattern.
-
-Uses direct velocity commands (not Nav2) because the drone flies at 10m
-altitude where 2D Nav2 costmaps break. Uses the drone's own odometry
-for position feedback and a simple P-controller for waypoint following.
-
-Smart patrol: subscribes to /suspicious_areas. When a flag arrives, the
-drone interrupts its patrol, flies to the flagged area, performs a close-up
-orbit, then resumes the patrol from where it left off. Flags that arrive
-while the drone is already investigating are buffered (latest wins) instead
-of being silently dropped.
-
-Refinements over the original:
-  - All timing uses the ROS (sim) clock so orbit/dedup windows stay
-    consistent under use_sim_time.
-  - Publishes /survey_status (STATE, waypoint, coverage %, diversions) so
-    the dashboard and decision layer can track survey progress.
-  - Per-loop waypoint coverage is tracked and reported.
-  - Investigation dedup has a time window (dedup_window) in addition to the
-    distance radius.
-  - Inside arrival tolerance the drone publishes a zero-linear / gentle
-    heading-hold command instead of the last velocity (no drift-through).
-
-Safety: publishes zero cmd_vel on shutdown so the drone doesn't drift.
-"""
-
+# demo_patrol.py: Node: Flies the Parrot drone on a survey grid pattern
+import json
 import math
 from collections import deque
 from enum import Enum
@@ -47,14 +20,13 @@ class PatrolState(Enum):
     FLYING_TO_FLAG = 'flying_to_flag'
     ORBITING = 'orbiting'
     RETURNING = 'returning'
+    RELAY = 'relay'
 
 
 class DemoPatrol(Node):
-    """Flies the Parrot drone in a lawnmower pattern with smart flag response."""
 
     def __init__(self):
         super().__init__('demo_patrol')
-
 
         self.declare_parameter('patrol_x_min', -30.0,
             descriptor=ParameterDescriptor(description='Min X patrol boundary (m)'))
@@ -76,10 +48,6 @@ class DemoPatrol(Node):
             descriptor=ParameterDescriptor(description='Linear P-controller gain'))
         self.declare_parameter('k_angular', 2.0,
             descriptor=ParameterDescriptor(description='Angular P-controller gain'))
-
-
-
-
         self.declare_parameter('max_yaw_rate', 1.5,
             descriptor=ParameterDescriptor(description='Yaw rate limit (rad/s)'))
         self.declare_parameter('k_level', 2.0,
@@ -88,7 +56,6 @@ class DemoPatrol(Node):
         self.declare_parameter('max_tilt_deg', 30.0,
             descriptor=ParameterDescriptor(
                 description='Above this roll/pitch, forward speed is zeroed until level'))
-
         self.declare_parameter('enable_smart_patrol', True,
             descriptor=ParameterDescriptor(description='Enable reactive patrol (interrupt on flag)'))
         self.declare_parameter('investigation_altitude', 5.0,
@@ -97,7 +64,6 @@ class DemoPatrol(Node):
             descriptor=ParameterDescriptor(description='Orbit radius around flag (m)'))
         self.declare_parameter('orbit_duration', 15.0,
             descriptor=ParameterDescriptor(description='Time to orbit the flag (s)'))
-
         self.declare_parameter('dedup_radius', 10.0,
             descriptor=ParameterDescriptor(description='Skip flags within this radius (m) '
                             'of a recent investigation'))
@@ -131,7 +97,6 @@ class DemoPatrol(Node):
         self.dedup_window = self.get_parameter('dedup_window').value
         self.status_period = self.get_parameter('status_period').value
 
-
         self.waypoints = []
         y = self.y_min
         direction = 1
@@ -147,7 +112,6 @@ class DemoPatrol(Node):
         self.saved_wp = 0
         self._visited_wps = set()
 
-
         self.state = PatrolState.PATROL
         self.orbit_start_time = 0.0
         self.orbit_logged_sec = -1
@@ -156,16 +120,15 @@ class DemoPatrol(Node):
         self.flag_target_y = 0.0
         self.pending_flag = None
         self.divert_count = 0
-
+        self.relay_target = None
+        self.relay_count = 0
 
         self._recent_investigations = deque(maxlen=20)
-
 
         self.x = 0.0
         self.y = 0.0
         self.yaw = 0.0
         self._pose_received = False
-
 
         cmd_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
@@ -186,16 +149,15 @@ class DemoPatrol(Node):
             depth=10,
         )
 
-
         self.cmd_pub = self.create_publisher(Twist, '/parrot1/cmd_vel', cmd_qos)
         self.status_pub = self.create_publisher(String, '/survey_status', alert_qos)
-
 
         self.odom_sub = self.create_subscription(
             Odometry, '/parrot1/odometry', self.odom_callback, sensor_qos)
         self.flag_sub = self.create_subscription(
             SuspiciousArea, '/suspicious_areas', self.flag_callback, alert_qos)
-
+        self.relay_sub = self.create_subscription(
+            String, '/radio/relay_request', self.relay_callback, alert_qos)
 
         self.timer = self.create_timer(0.05, self.control_loop)
         self.status_timer = self.create_timer(self.status_period, self._publish_status)
@@ -207,11 +169,8 @@ class DemoPatrol(Node):
         )
 
 
-
     def _now_s(self) -> float:
-        """Current ROS (sim) time in seconds."""
         return self.get_clock().now().nanoseconds / 1e9
-
 
 
     def odom_callback(self, msg: Odometry):
@@ -227,7 +186,6 @@ class DemoPatrol(Node):
         self._pose_received = True
 
     def _publish(self, cmd: Twist):
-        """Publish cmd_vel with attitude hold and safety limits."""
         cmd.angular.z = max(-self.max_yaw_rate,
                             min(self.max_yaw_rate, cmd.angular.z))
         cmd.angular.x = -self.k_level * self.roll
@@ -248,21 +206,13 @@ class DemoPatrol(Node):
         self.cmd_pub.publish(cmd)
 
 
-
     def flag_callback(self, msg: SuspiciousArea):
-        """React to a suspicious area flag.
-
-        Idle (PATROL) → divert immediately. Busy → buffer the flag (latest
-        wins) and investigate once the current task completes.
-        """
         if not self.smart_patrol_enabled:
             return
 
         fx = msg.position.x
         fy = msg.position.y
         now = self._now_s()
-
-
 
         for prev_x, prev_y, prev_t in self._recent_investigations:
             if (now - prev_t) < self.dedup_window and \
@@ -287,15 +237,38 @@ class DemoPatrol(Node):
         )
 
     def _begin_investigation(self, fx: float, fy: float):
-        """Switch from patrol to flying toward a flag target."""
-
-
         self.saved_wp = self.current_wp
         self.divert_count += 1
         self.flag_target_x = fx
         self.flag_target_y = fy
         self.state = PatrolState.FLYING_TO_FLAG
 
+    def relay_callback(self, msg: String):
+        try:
+            req = json.loads(msg.data)
+        except ValueError:
+            return
+        if req.get('active'):
+            self.relay_target = (float(req['x']), float(req['y']))
+            if self.state in (PatrolState.PATROL, PatrolState.RETURNING):
+                if self.state == PatrolState.PATROL:
+                    self.saved_wp = self.current_wp
+                self.relay_count += 1
+                self.state = PatrolState.RELAY
+                self.get_logger().warn(
+                    f'RELAY: the Husky cannot reach the base; flying to '
+                    f'({self.relay_target[0]:.1f},{self.relay_target[1]:.1f}) to relay its radio.')
+        else:
+            self.relay_target = None
+            if self.state == PatrolState.RELAY:
+                self.get_logger().info('Relay done; back to the survey.')
+                self._take_pending_or(self._start_return)
+
+    def _control_relay(self):
+        if self.relay_target is None:
+            self._take_pending_or(self._start_return)
+            return
+        self._fly_to(*self.relay_target, self.arrival_tolerance, self.max_speed)
 
 
     def control_loop(self):
@@ -310,9 +283,10 @@ class DemoPatrol(Node):
             self._control_orbit()
         elif self.state == PatrolState.RETURNING:
             self._control_return()
+        elif self.state == PatrolState.RELAY:
+            self._control_relay()
 
     def _control_patrol(self):
-        """Standard lawnmower waypoint following."""
         if self.current_wp >= len(self.waypoints):
             self.get_logger().info('Patrol complete. Looping...')
             self.current_wp = 0
@@ -331,15 +305,12 @@ class DemoPatrol(Node):
                     f'WP {self.current_wp}/{len(self.waypoints)}: ({nx:.1f}, {ny:.1f})')
 
     def _control_fly_to_flag(self):
-        """Fly to the flagged area for close inspection."""
         dist = math.hypot(self.flag_target_x - self.x, self.flag_target_y - self.y)
         self._fly_to(self.flag_target_x, self.flag_target_y,
                      self.arrival_tolerance, self.max_speed * 0.7)
 
         if dist < self.arrival_tolerance:
             if not self.alt_warned:
-
-
                 self.get_logger().warn(
                     f'investigation_altitude={self.investigation_alt}m is not '
                     f'applied: 2D cmd_vel cannot change altitude in this sim. '
@@ -352,21 +323,17 @@ class DemoPatrol(Node):
             self.orbit_start_time = self._now_s()
 
     def _control_orbit(self):
-        """Circle the flagged area at orbit_radius for close inspection."""
         elapsed = self._now_s() - self.orbit_start_time
         if elapsed > self.orbit_duration:
             self.get_logger().info('Orbit complete.')
             self._take_pending_or(self._start_return)
             return
 
-
-
         dx = self.x - self.flag_target_x
         dy = self.y - self.flag_target_y
         dist_to_center = math.hypot(dx, dy)
 
         if dist_to_center < 0.5:
-
             tangent_angle = self.yaw
             bias = 0.0
         else:
@@ -391,7 +358,6 @@ class DemoPatrol(Node):
                 f'r={dist_to_center:.1f}m (target={self.orbit_radius}m)')
 
     def _take_pending_or(self, on_none):
-        """End-of-task decision: divert to a buffered flag, else call on_none."""
         if self.pending_flag is not None:
             fx, fy = self.pending_flag
             self.pending_flag = None
@@ -411,7 +377,6 @@ class DemoPatrol(Node):
         self.get_logger().info(f'Resumed patrol at WP {self.saved_wp}.')
 
     def _control_return(self):
-        """Fly back to the saved patrol waypoint and resume patrol."""
         if self.saved_wp >= len(self.waypoints):
             self.saved_wp = 0
 
@@ -423,16 +388,12 @@ class DemoPatrol(Node):
             self._take_pending_or(self._resume_patrol)
 
     def _fly_to(self, tx, ty, tolerance, max_spd):
-        """P-controller to fly toward (tx, ty)."""
         dx = tx - self.x
         dy = ty - self.y
         dist = math.hypot(dx, dy)
 
         cmd = Twist()
         if dist < tolerance:
-
-
-
             target_yaw = math.atan2(dy, dx)
             yaw_error = target_yaw - self.yaw
             yaw_error = math.atan2(math.sin(yaw_error), math.cos(yaw_error))
@@ -448,7 +409,6 @@ class DemoPatrol(Node):
         cmd.linear.x = min(self.k_linear * dist, max_spd)
         cmd.angular.z = self.k_angular * yaw_error
         self._publish(cmd)
-
 
 
     def _publish_status(self):
@@ -468,6 +428,10 @@ class DemoPatrol(Node):
             status = (f'STATE=ORBITING '
                       f'target=({self.flag_target_x:.1f},{self.flag_target_y:.1f}) '
                       f'elapsed={elapsed:.0f}s/{self.orbit_duration:.0f}s')
+        elif self.state == PatrolState.RELAY:
+            tx, ty = self.relay_target or (self.x, self.y)
+            status = (f'STATE=RELAY target=({tx:.1f},{ty:.1f}) '
+                      f'relays={self.relay_count} diverted={self.divert_count}')
         else:
             status = (f'STATE=RETURNING wp={self.saved_wp} '
                       f'diverted={self.divert_count}')

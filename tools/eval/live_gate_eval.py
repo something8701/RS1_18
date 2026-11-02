@@ -1,18 +1,5 @@
-# Recomputes LOST-gate rules on a live removal-test bag.
-
-"""Recompute LOST-gate rules on a LIVE removal-test bag.
-
-Uses what the live tracker saw: its frozen baseline (/parrot_tree_baseline),
-its detections every tick (/parrot_tree_positions), the live canopy map and
-change map (incl. -30 height-drop cells). A baseline tree is unmatched when no
-detection lies within min(0.4 x nearest-baseline-neighbour, 1.5 m) (the
-tracker's association radius, ignoring one-to-one). Rules fire on 3
-consecutive unmatched ticks.
-
-usage: live_gate_eval.py BAG LAUNCH_LOG WORLD [BAG LOG WORLD ...]
-"""
+# live_gate_eval.py: Recompute LOST-gate rules on a LIVE removal-test bag
 import math
-import os
 import re
 import sys
 
@@ -26,7 +13,7 @@ from deforestation_monitoring.removal_test import _cloud_xyz
 from deforestation_monitoring.tree_detection import parse_tree_truth
 from deforestation_monitoring.visibility import top_drop
 
-W = os.path.expanduser('~/rs1_18_ws/src/RS1_18/41068_ignition_bringup/worlds/')
+W = '/home/alig/rs1_18_ws/src/RS1_18/41068_ignition_bringup/worlds/'
 RULES = {
     'max top>=0.6 & g+d>=6 (current)': lambda v: v['max'] >= 0.6 and v['gd'] >= 6,
     'max top>=0.5 & g+d>=6': lambda v: v['max'] >= 0.5 and v['gd'] >= 6,
@@ -89,7 +76,6 @@ def evaluate(bag, log, world):
                     max=top_drop(freeze, cur, .25, (-40, -40), x, y, 1.0, 'max'),
                     cells=top_drop(freeze, cur, .25, (-40, -40), x, y, 1.0, 'cells'),
                     frac=top_drop(freeze, cur, .25, (-40, -40), x, y, 1.0, 'frac')))
-
     cands = sorted((math.hypot(bx - tx, by - ty), i, n) for i, (bx, by) in base.items()
                    for n, tx, ty in truth if math.hypot(bx - tx, by - ty) <= 2.0)
     trunk, used = {}, set()

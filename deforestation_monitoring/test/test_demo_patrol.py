@@ -1,7 +1,4 @@
-# Tests demo_patrol's cmd_vel safety clamps.
-
-"""demo_patrol cmd_vel safety: attitude hold, yaw-rate clamp, tilt stop."""
-
+# test_demo_patrol.py: Demo_patrol cmd_vel safety: attitude hold, yaw-rate clamp, tilt stop
 import math
 
 import pytest
@@ -40,8 +37,6 @@ def test_levelling_and_yaw_clamp(ros_ctx):
 
 
 def test_tilted_drone_stops_forward_motion(ros_ctx):
-    """Removal test 5: pitched 84 deg while still commanded 3 m/s forward,
-    the drone flew into the ground."""
     node = DemoPatrol()
     sent = _capture(node)
     node.roll, node.pitch = 0.0, math.radians(84)

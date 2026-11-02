@@ -1,3 +1,4 @@
+# CMakeLists.txt
 cmake_minimum_required(VERSION 3.8)
 project(deforestation_interfaces)
 
@@ -16,6 +17,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/RefinedTreeArray.msg"
   "msg/MissionInfo.msg"
   "msg/MissionQueue.msg"
+  "msg/Evidence.msg"
+  "msg/EvidenceArray.msg"
   DEPENDENCIES std_msgs geometry_msgs
 )
 

@@ -1,13 +1,5 @@
-# Sweeps area-alert thresholds to see which canopy fraction flags real cuts without false
-# ones.
-
-"""Area-alert rules offline: which baseline-canopy fraction / cluster size
-gives canopy-LOST clusters at removed trees but none far from them.
-
-usage: area_rules.py BAG:WORLD:T_REMOVED:TARGETS(comma names|'-') ...
-"""
+# area_rules.py: Area-alert rules offline: which baseline-canopy fraction / cluster size gives canopy-LOST clusters …
 import math
-import os
 import sys
 
 import numpy as np
@@ -24,7 +16,7 @@ from deforestation_monitoring.visibility import classify_tree, removal_tier
 RES, ORIGIN, DIM, CANOPY = 0.25, -40.0, 320, 2.0
 FRACS = (0.6, 0.5, 0.4, 0.3)
 SIZES = (8, 5)
-W = os.path.expanduser('~/rs1_18_ws/src/RS1_18/41068_ignition_bringup/worlds/')
+W = '/home/alig/rs1_18_ws/src/RS1_18/41068_ignition_bringup/worlds/'
 xs = ORIGIN + (np.arange(DIM) + 0.5) * RES
 
 

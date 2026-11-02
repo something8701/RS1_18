@@ -1,21 +1,5 @@
-# Whether a max-height canopy model would place baselines better.
-
-"""Would a max-height CHM give better baseline positions than the live map?
-
-usage: maxchm_positions.py BAG WORLD
-
-The live /forest_canopy_map keeps the latest reading per cell, so every
-drone pass reshapes crown edges and detections drift (dense replays: oak_153
-within 1 m early in the survey, 2.1 m at the freeze). This rebuilds the CHM
-from the bag's scans up to the tracker's freeze (the first
-/parrot_tree_baseline message) with the all-time maximum per cell
-(replay_evaluate.accumulate), runs the live detector on it and on the
-latest-reading CHM at the same moment (same resolution and parameters), and
-compares, per canopy-tier tree in the survey box, the distance to the
-nearest detection on each with the live baseline's.
-"""
+# maxchm_positions.py: Would a max-height CHM give better baseline positions than the live map?
 import math
-import os
 import sys
 
 import numpy as np
@@ -33,7 +17,7 @@ from deforestation_monitoring.tree_detection import DetectionParams, detect_tree
 from deforestation_monitoring.visibility import classify_tree, removal_tier
 
 OAK_H, SNAP = 5.5, 2.0
-PARAMS = os.path.expanduser('~/rs1_18_ws/src/RS1_18/deforestation_monitoring/config/tree_detection_params.yaml')
+PARAMS = '/home/alig/rs1_18_ws/src/RS1_18/deforestation_monitoring/config/tree_detection_params.yaml'
 
 
 def reader(bag):
@@ -43,9 +27,6 @@ def reader(bag):
 
 
 def mean_chm(r, dim=320, res=0.25, origin=-40.0):
-    """Time average of the latest-reading CHM: every 1 s of bag time, add the
-    current latest reading of every scanned cell (what the tracker would see
-    each tick). Returns (mean, count)."""
     recent = np.zeros((dim, dim), np.float32)
     seen = np.zeros((dim, dim), bool)
     total = np.zeros((dim, dim), np.float64)
@@ -76,7 +57,6 @@ def mean_chm(r, dim=320, res=0.25, origin=-40.0):
 
 
 class Until:
-    """A bag reader that stops at bag time `t_ns`."""
 
     def __init__(self, r, t_ns):
         self.r, self.t_ns, self.next = r, t_ns, None
@@ -112,9 +92,6 @@ def main():
     dets = [(d.x, d.y) for d in max_dets]
     recent_dets = detect_trees(recent, scanned, params, -40.0, -40.0)
     dets_recent = [(d.x, d.y) for d in recent_dets]
-
-
-
     tall = [d for d in max_dets if d.height >= OAK_H]
     xs = -40.0 + (np.arange(recent.shape[0]) + 0.5) * 0.25
     gx, gy = np.meshgrid(xs, xs, indexing='ij')

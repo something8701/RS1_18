@@ -1,5 +1,4 @@
-# Launches the moving-world demo without starting Gazebo itself.
-
+# 41068_dynamic_world_demo.launch.py: Course example: run dynamic_world_demo.py, which moves a few models of the large_demo world, in an …
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
@@ -8,9 +7,6 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     ld = LaunchDescription()
-
-
-
 
     args = [
         DeclareLaunchArgument('use_sim_time', default_value='True'),

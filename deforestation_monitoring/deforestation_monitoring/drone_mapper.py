@@ -1,22 +1,5 @@
 #!/usr/bin/env python3
-# Turns the drone's depth cloud into terrain points in world frame.
-
-"""
-Drone Terrain Mapper.
-
-Accumulates the Parrot's native depth point cloud, transforms it from the
-camera frame into parrot1_odom, downsamples it, and republishes it as
-`/drone_terrain` for the dashboard's 3D Terrain view.
-
-The source point cloud is:
-
-    /parrot1/camera/depth/points  (sensor_msgs/PointCloud2)
-
-The dashboard already subscribes to `/drone_terrain`, so this node is the
-single place where the raw depth cloud is turned into a world-frame terrain
-cloud.
-"""
-
+# drone_mapper.py: Drone Terrain Mapper
 import rclpy
 from rclpy.duration import Duration
 from rclpy.node import Node
@@ -32,7 +15,6 @@ import numpy as np
 
 
 class DroneMapper(Node):
-    """Transform and accumulate the Parrot depth cloud into parrot1_odom."""
 
     def __init__(self):
         super().__init__('drone_mapper')
@@ -62,10 +44,8 @@ class DroneMapper(Node):
         self.step = max(1, int(self.get_parameter('downsample_step').value))
         self.process_every = max(1, int(self.get_parameter('process_every_n_frames').value))
 
-
         self.terrain_cells = {}
         self.frames = 0
-
 
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
@@ -89,8 +69,6 @@ class DroneMapper(Node):
         self.terrain_pub = self.create_publisher(
             PointCloud2, '/drone_terrain', terrain_qos
         )
-
-
         self.viz_pub = self.create_publisher(
             PointCloud2, '/drone_terrain_viz', terrain_qos
         )
@@ -106,7 +84,6 @@ class DroneMapper(Node):
         )
 
     def _lookup_transform(self, cloud: PointCloud2):
-        """Return camera->target transform for this cloud, or None."""
         try:
             return self.tf_buffer.lookup_transform(
                 self.target_frame,
@@ -123,7 +100,6 @@ class DroneMapper(Node):
             return None
 
     def _extract_points(self, cloud: PointCloud2, transform):
-        """Extract x/y/z points and transform them into the target frame."""
         offsets = {}
         for field in cloud.fields:
             if field.name in ('x', 'y', 'z'):
@@ -176,7 +152,6 @@ class DroneMapper(Node):
         ]
 
     def _rotate_and_translate(self, x, y, z, transform):
-        """Apply a TransformStamped to numpy point arrays."""
         tx = transform.transform.translation.x
         ty = transform.transform.translation.y
         tz = transform.transform.translation.z
@@ -184,7 +159,6 @@ class DroneMapper(Node):
         qy = transform.transform.rotation.y
         qz = transform.transform.rotation.z
         qw = transform.transform.rotation.w
-
 
         tw = 2.0 * (qy * z - qz * y)
         tyv = 2.0 * (qz * x - qx * z)
@@ -197,7 +171,6 @@ class DroneMapper(Node):
         return xr + tx, yr + ty, zr + tz
 
     def cloud_cb(self, cloud: PointCloud2):
-        """Transform and accumulate the latest depth cloud."""
         self.frames += 1
         if self.frames % self.process_every != 0:
             return
@@ -225,7 +198,6 @@ class DroneMapper(Node):
                 cell[3] += pz
 
     def publish_terrain(self):
-        """Publish the accumulated world-frame terrain as PointCloud2."""
         if not self.terrain_cells:
             return
 
@@ -265,7 +237,6 @@ class DroneMapper(Node):
         cloud.is_dense = True
         cloud.data = pts.tobytes()
         self.terrain_pub.publish(cloud)
-
 
         self._viz_tick += 1
         if self._viz_tick % 2 == 0:
